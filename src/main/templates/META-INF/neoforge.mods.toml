@@ -1,19 +1,20 @@
-modLoader = "javafml" #mandatory
-loaderVersion = "${loader_version_range}" #mandatory
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
 license = "${mod_license}"
 
-[[mods]] #mandatory
-modId = "${mod_id}" #mandatory
-version = "${mod_version}" #mandatory
-displayName = "${mod_name}" #mandatory
-authors = "${mod_authors}" #optional
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
 description = '''${mod_description}'''
 
 [[mixins]]
 config = "${mod_id}.mixins.json"
-[[dependencies."${mod_id}"]] #optional
-modId = "neoforge" #mandatory
-type = "required" #mandatory
+
+[[dependencies."${mod_id}"]]
+modId = "neoforge"
+type = "required"
 ordering = "NONE"
 side = "BOTH"
 
@@ -24,3 +25,14 @@ versionRange = "${minecraft_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
+[[dependencies."${mod_id}"]]
+modId = "emi"
+type = "required"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."${mod_id}"]]
+modId = "ae2"
+type = "required"
+ordering = "NONE"
+side = "BOTH"
