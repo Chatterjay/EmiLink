@@ -5,13 +5,15 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AbstractRecipeHandlerMixin",
-    "AEBaseMenuMixin",
     "AEConfigMixin",
     "CraftConfirmScreenMixin",
-    "CraftingTermSlotInvoker",
-    "CraftingTermSlotMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin"
+  ],
+  "mixins": [
+    "AEBaseMenuMixin",
+    "CraftingTermSlotInvoker",
+    "CraftingTermSlotMixin"
   ],
   "injectors": {
     "defaultRequire": 1
