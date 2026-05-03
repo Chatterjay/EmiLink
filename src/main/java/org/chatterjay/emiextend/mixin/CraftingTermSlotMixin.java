@@ -23,7 +23,7 @@ public class CraftingTermSlotMixin {
     private MEStorage storage;
 
     @Inject(method = "doClick", at = @At("HEAD"), remap = false, cancellable = true)
-    private void emiextend$handleSingleCraft(InventoryAction action, Player player, CallbackInfo ci) {
+    private void emilink$handleSingleCraft(InventoryAction action, Player player, CallbackInfo ci) {
         if (!EmiCraftHelper.checkSingleCraft()) return;
         EmiCraftHelper.clear();
 
