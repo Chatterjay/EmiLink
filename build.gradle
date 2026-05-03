@@ -82,6 +82,9 @@ dependencies {
 
     compileOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
     runtimeOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
+
+    // ExtendedAE_Plus - optional, for provider search pre-fill
+    implementation files('libs/extendedae_plus-1.21.1-1.5.4.jar')
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
