@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.integration.EAEPProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
@@ -99,6 +100,9 @@ public class EmiScreenManagerMixin {
                 return true;
             }
         }
-        return player.getOffhandItem().getItem() instanceof WirelessTerminalItem;
+        if (player.getOffhandItem().getItem() instanceof WirelessTerminalItem) {
+            return true;
+        }
+        return CuriosProxy.hasWirelessTerminal(player, WirelessTerminalItem.class);
     }
 }
