@@ -4,9 +4,18 @@
   "package": "org.chatterjay.emiextend.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "MEStorageScreenAccessor",
+    "AbstractRecipeHandlerMixin",
+    "AEConfigMixin",
+    "CraftConfirmScreenMixin",
     "EmiEncodePatternHandlerMixin",
-    "EmiScreenManagerMixin"
+    "EmiScreenBaseMixin",
+    "EmiScreenManagerMixin",
+    "MEStorageScreenAccessor"
+  ],
+  "mixins": [
+    "AEBaseMenuMixin",
+    "CraftingTermSlotInvoker",
+    "CraftingTermSlotMixin"
   ],
   "injectors": {
     "defaultRequire": 1
