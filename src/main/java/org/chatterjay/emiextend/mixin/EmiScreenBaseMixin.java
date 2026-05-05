@@ -1,6 +1,5 @@
 package org.chatterjay.emiextend.mixin;
 
-import appeng.client.gui.me.crafting.CraftConfirmScreen;
 import dev.emi.emi.screen.EmiScreenBase;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.NonNullList;
@@ -14,8 +13,14 @@ public class EmiScreenBaseMixin {
 
     @Redirect(method = "of", at = @At(value = "INVOKE", target = "Lnet/minecraft/core/NonNullList;isEmpty()Z"), remap = false)
     private static boolean emilink$redirectIsEmpty(NonNullList<Slot> slots, Screen screen) {
-        if (screen instanceof CraftConfirmScreen) {
-            return false;
+        // Check via reflection so AE2 can be absent
+        try {
+            Class<?> ccs = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
+            if (ccs.isInstance(screen)) {
+                return false;
+            }
+        } catch (Exception ignored) {
+            // AE2 not loaded
         }
         return slots.isEmpty();
     }

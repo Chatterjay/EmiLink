@@ -1,11 +1,12 @@
 package org.chatterjay.emiextend.integration;
 
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.GenericStack;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.util.ModLogger;
+
+import java.lang.reflect.Constructor;
 
 public class EAEPProxy {
     private static Boolean loaded;
@@ -18,12 +19,22 @@ public class EAEPProxy {
         return loaded;
     }
 
-    public static boolean openCraftScreen(AEItemKey aeKey) {
-        if (!isLoaded()) return false;
+    public static boolean openCraftScreen(ItemStack stack) {
+        if (!isLoaded() || stack == null || stack.isEmpty()) return false;
         try {
+            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
+            Object aeKey = ofMethod.invoke(null, stack);
+            if (aeKey == null) return false;
+
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            Constructor<?> gsCtor = genericStackClass.getConstructor(aeKeyClass, long.class);
+            Object genericStack = gsCtor.newInstance(aeKey, 1L);
+
             var clazz = Class.forName("com.extendedae_plus.network.OpenCraftFromJeiC2SPacket");
-            var ctor = clazz.getConstructor(GenericStack.class);
-            var packet = ctor.newInstance(new GenericStack(aeKey, 1));
+            var ctor = clazz.getConstructor(genericStackClass);
+            var packet = ctor.newInstance(genericStack);
             PacketDistributor.sendToServer((CustomPacketPayload) packet);
             return true;
         } catch (Exception e) {
@@ -32,12 +43,22 @@ public class EAEPProxy {
         }
     }
 
-    public static boolean pullFromNetwork(AEItemKey aeKey) {
-        if (!isLoaded()) return false;
+    public static boolean pullFromNetwork(ItemStack stack) {
+        if (!isLoaded() || stack == null || stack.isEmpty()) return false;
         try {
+            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
+            Object aeKey = ofMethod.invoke(null, stack);
+            if (aeKey == null) return false;
+
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            Constructor<?> gsCtor = genericStackClass.getConstructor(aeKeyClass, long.class);
+            Object genericStack = gsCtor.newInstance(aeKey, 1L);
+
             var clazz = Class.forName("com.extendedae_plus.network.PullFromJeiOrCraftC2SPacket");
-            var ctor = clazz.getConstructor(GenericStack.class);
-            var packet = ctor.newInstance(new GenericStack(aeKey, 1));
+            var ctor = clazz.getConstructor(genericStackClass);
+            var packet = ctor.newInstance(genericStack);
             PacketDistributor.sendToServer((CustomPacketPayload) packet);
             return true;
         } catch (Exception e) {

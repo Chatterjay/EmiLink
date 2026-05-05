@@ -1,9 +1,5 @@
 package org.chatterjay.emiextend.mixin;
 
-import appeng.api.stacks.AEItemKey;
-import appeng.client.gui.StackWithBounds;
-import appeng.client.gui.me.crafting.CraftConfirmScreen;
-import appeng.items.tools.powered.WirelessTerminalItem;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
@@ -12,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.integration.EAEPProxy;
@@ -34,10 +31,10 @@ public class EmiScreenManagerMixin {
         if (cir.getReturnValueZ()) return;
 
         var mc = Minecraft.getInstance();
-        if (mc.screen instanceof CraftConfirmScreen ccs) {
-            StackWithBounds swb = ccs.getStackUnderMouse(lastMouseX, lastMouseY);
-            if (swb != null && swb.stack().what() instanceof AEItemKey itemKey) {
-                EmiStack emiStack = EmiStack.of(itemKey.toStack());
+        if (AE2Proxy.isCraftConfirmScreen(mc.screen)) {
+            ItemStack stack = AE2Proxy.getStackUnderMouse(mc.screen, lastMouseX, lastMouseY);
+            if (!stack.isEmpty()) {
+                EmiStack emiStack = EmiStack.of(stack);
                 if (EmiScreenManager.stackInteraction(new EmiStackInteraction(emiStack), bind -> bind.matchesKey(keyCode, scanCode))) {
                     cir.setReturnValue(true);
                 }
@@ -89,13 +86,10 @@ public class EmiScreenManagerMixin {
     // ---- AE2 / EAEP handlers ----
 
     private static void handleMiddleClick(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
-        var aeKey = AEItemKey.of(itemStack);
-        if (aeKey == null) return;
-
         var player = Minecraft.getInstance().player;
         if (player == null || !hasWirelessTerminal(player)) return;
 
-        if (EAEPProxy.openCraftScreen(aeKey)) {
+        if (EAEPProxy.openCraftScreen(itemStack)) {
             ModLogger.debug("Middle-click: opened AE2 craft screen for {}", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
@@ -106,26 +100,25 @@ public class EmiScreenManagerMixin {
         if (player == null) return;
         if (!hasWirelessTerminal(player)) return;
 
-        var aeKey = AEItemKey.of(itemStack);
-        if (aeKey == null) return;
-
-        if (EAEPProxy.pullFromNetwork(aeKey)) {
+        if (EAEPProxy.pullFromNetwork(itemStack)) {
             ModLogger.debug("Shift-click: pulled {} from AE2 network", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
     }
 
     private static boolean hasWirelessTerminal(Player player) {
+        if (!AE2Proxy.isLoaded()) return false;
         var inventory = player.getInventory();
         for (int i = 0; i < inventory.items.size(); i++) {
-            if (inventory.items.get(i).getItem() instanceof WirelessTerminalItem) {
+            if (AE2Proxy.isWirelessTerminal(inventory.items.get(i))) {
                 return true;
             }
         }
-        if (player.getOffhandItem().getItem() instanceof WirelessTerminalItem) {
+        if (AE2Proxy.isWirelessTerminal(player.getOffhandItem())) {
             return true;
         }
-        return CuriosProxy.hasWirelessTerminal(player, WirelessTerminalItem.class);
+        Class<?> wtClass = AE2Proxy.getWirelessTerminalClass();
+        return wtClass != null && CuriosProxy.hasWirelessTerminal(player, wtClass);
     }
 
     // ---- BD handler ----
