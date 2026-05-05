@@ -25,7 +25,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build
-        run: ./gradlew build -Pmod_version=${{ github.ref_name }}
+        run: ./gradlew build -Pmod_version=${GITHUB_REF_NAME#v}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
