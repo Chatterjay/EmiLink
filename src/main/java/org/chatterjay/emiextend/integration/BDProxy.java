@@ -8,7 +8,6 @@ import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Constructor;
@@ -116,11 +115,6 @@ public class BDProxy {
     }
 
     // ---- EMI shift+click: extract from network ----
-
-    public static void pullFromNetwork(ItemStack stack) {
-        if (!isLoaded() || stack == null || stack.isEmpty()) return;
-        PacketDistributor.sendToServer(new BDActionPacket(stack, 0));
-    }
 
     public static boolean extractFromNetwork(Player player, ItemStack targetStack) {
         // Extract only one stack (not all matching)

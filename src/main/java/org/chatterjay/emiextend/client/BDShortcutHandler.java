@@ -11,23 +11,17 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.BDProxy;
-import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
-import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.lwjgl.glfw.GLFW;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT)
 public class BDShortcutHandler {
-    public static boolean serverHasMod = false;
 
     @SubscribeEvent
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         // Prevent Space key from triggering focused BD buttons
-        // User clicks a BD function button → it stays focused → pressing Space re-activates it
-        // We consume Space here so it only works as a modifier for our mouse handler (which uses GLFW polling)
         if (event.getKeyCode() != GLFW.GLFW_KEY_SPACE) return;
         Screen screen = event.getScreen();
         if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
@@ -52,6 +46,10 @@ public class BDShortcutHandler {
         ItemStack clickedItem = slot.getItem();
         if (clickedItem.isEmpty()) return;
 
+        var mc = Minecraft.getInstance();
+        var player = mc.player;
+        if (player == null) return;
+
         var menu = containerScreen.getMenu();
         if (!BDProxy.isBDBaseMenu(menu)) return;
 
@@ -59,9 +57,9 @@ public class BDShortcutHandler {
         int inventoryEnd = BDProxy.getInventoryEndIndex(menu);
 
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-            // Space + Click on craft result → mass craft
+            // Space + Click on craft result → mass craft (client side)
             ModLogger.debug("Space+Click: mass craft on result slot");
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
+            BDProxy.massCraft(player);
             event.setCanceled(true);
             return;
         }
@@ -74,19 +72,15 @@ public class BDShortcutHandler {
 
         boolean isPlayerSlot = slot.index >= inventoryStart && slot.index < inventoryEnd;
 
-        int mode;
         if (isPlayerSlot) {
-            mode = (slot.getSlotIndex() >= 0 && slot.getSlotIndex() < 9) ? 2 : 1;
+            // Deposit to BD network (client side)
+            int mode = (slot.getSlotIndex() >= 0 && slot.getSlotIndex() < 9) ? 2 : 1;
+            ModLogger.debug("Space+Click: deposit to BD network mode={}", mode);
+            BDProxy.depositToNetwork(player, mode);
         } else {
-            mode = 0;
-        }
-
-        if (serverHasMod) {
-            PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode));
-        } else {
-            // Fallback: use BD's built-in BatchTransferPacket via reflection
-            boolean dirToStorage = mode != 0;
-            BDProxy.sendBatchTransfer(clickedItem, dirToStorage);
+            // Extract from BD network (client side)
+            ModLogger.debug("Space+Click: extract from BD network");
+            BDProxy.extractAllFromNetwork(player, clickedItem);
         }
 
         event.setCanceled(true);
