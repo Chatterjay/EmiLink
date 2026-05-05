@@ -134,8 +134,9 @@ public class EmiScreenManagerMixin {
         var player = mc.player;
         if (player == null) return;
 
-        BDProxy.pullFromNetwork(itemStack);
-        ModLogger.debug("Shift-click: sending BD extract request for {}", itemStack.getHoverName().getString());
+        // Client-side extract (no custom packet needed)
+        BDProxy.extractFromNetwork(player, itemStack);
+        ModLogger.debug("Shift-click: BD extract for {}", itemStack.getHoverName().getString());
         cir.setReturnValue(true);
     }
 }

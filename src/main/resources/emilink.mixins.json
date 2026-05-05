@@ -13,11 +13,6 @@
     "EmiScreenManagerMixin",
     "MEStorageScreenAccessor"
   ],
-  "mixins": [
-    "AEBaseMenuMixin",
-    "CraftingTermSlotInvoker",
-    "CraftingTermSlotMixin"
-  ],
   "injectors": {
     "defaultRequire": 1
   }
