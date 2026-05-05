@@ -1,10 +1,10 @@
 package org.chatterjay.emiextend.client;
 
-import appeng.client.gui.me.common.MEStorageScreen;
 import dev.emi.emi.api.EmiApi;
 import net.minecraft.client.Minecraft;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
+import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
 import org.chatterjay.emiextend.util.ModLogger;
@@ -47,9 +47,9 @@ public final class InputEvents {
         if (screen == null) return;
 
         // AE2: MEStorageScreen search field
-        if (screen instanceof MEStorageScreen<?> me) {
+        if (AE2Proxy.isMEStorageScreen(screen)) {
             try {
-                var acc = (MEStorageScreenAccessor) me;
+                var acc = (MEStorageScreenAccessor) screen;
                 acc.emilink$getSearchField().setValue(name);
                 acc.emilink$setSearchText(name);
                 event.setCanceled(true);
