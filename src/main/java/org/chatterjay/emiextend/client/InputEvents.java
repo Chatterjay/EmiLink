@@ -5,6 +5,7 @@ import dev.emi.emi.api.EmiApi;
 import net.minecraft.client.Minecraft;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
+import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -43,18 +44,33 @@ public final class InputEvents {
         }
 
         var screen = Minecraft.getInstance().screen;
+        if (screen == null) return;
+
+        // AE2: MEStorageScreen search field
         if (screen instanceof MEStorageScreen<?> me) {
             try {
                 var acc = (MEStorageScreenAccessor) me;
                 acc.emilink$getSearchField().setValue(name);
                 acc.emilink$setSearchText(name);
                 event.setCanceled(true);
-                ModLogger.debug("FILL_SEARCH_KEY: set search text to '{}'", name);
+                ModLogger.debug("FILL_SEARCH_KEY: set AE2 search text to '{}'", name);
+                return;
             } catch (Throwable e) {
-                ModLogger.warn("FILL_SEARCH_KEY: exception setting search text: {}", e.getMessage());
+                ModLogger.warn("FILL_SEARCH_KEY: AE2 exception: {}", e.getMessage());
             }
-        } else {
-            ModLogger.debug("FILL_SEARCH_KEY: screen is not MEStorageScreen, it's {}", screen != null ? screen.getClass().getName() : "null");
         }
+
+        // BD: DimensionsNetGUI search field (via reflection)
+        if (BDProxy.isBDNetGUI(screen)) {
+            if (BDProxy.setSearchText(screen, name)) {
+                event.setCanceled(true);
+                ModLogger.debug("FILL_SEARCH_KEY: set BD search text to '{}'", name);
+            } else {
+                ModLogger.warn("FILL_SEARCH_KEY: BD setSearchText failed");
+            }
+            return;
+        }
+
+        ModLogger.debug("FILL_SEARCH_KEY: screen not supported: {}", screen.getClass().getName());
     }
 }
