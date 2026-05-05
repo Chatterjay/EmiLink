@@ -1,6 +1,6 @@
 # EmiLink
 
-*NeoForge 1.21.1 · v1.1.0*
+*NeoForge 1.21.1 · v1.1.1*
 
 EMI ↔ AE2 / BeyondDimensions 集成增强模组，为 EMI 配方界面添加 AE2 和 BD 相关便捷操作。
 
