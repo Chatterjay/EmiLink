@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.integration.EAEPProxy;
 import org.chatterjay.emiextend.util.ModLogger;
@@ -46,6 +47,7 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+        // Only handle left-click (0) with shift, or middle-click (2)
         if (button != 2 && button != 0) return;
 
         EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
@@ -58,12 +60,33 @@ public class EmiScreenManagerMixin {
                 .orElse(null);
         if (itemStack == null) return;
 
+        // ---- AE2 / EAEP integration ----
         if (button == 2) {
             handleMiddleClick(itemStack, cir);
+            if (cir.isCancelled()) return;
         } else if (button == 0 && Screen.hasShiftDown()) {
-            handleShiftClick(itemStack, cir);
+            // If on a BD screen, try BD first
+            var mc = Minecraft.getInstance();
+            boolean isBDScreen = mc.screen != null && (BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen));
+            ModLogger.debug("Shift-click: isBDScreen={} screen={}", isBDScreen, mc.screen != null ? mc.screen.getClass().getSimpleName() : "null");
+
+            if (isBDScreen) {
+                handleShiftClickBD(itemStack, cir);
+                if (cir.isCancelled()) return;
+                // Fall through to AE2 if BD didn't handle it
+                handleShiftClickAE2(itemStack, cir);
+            } else {
+                // --- Try AE2/EAEP first ---
+                handleShiftClickAE2(itemStack, cir);
+                if (cir.isCancelled()) return;
+
+                // --- Then try BD ---
+                handleShiftClickBD(itemStack, cir);
+            }
         }
     }
+
+    // ---- AE2 / EAEP handlers ----
 
     private static void handleMiddleClick(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
         var aeKey = AEItemKey.of(itemStack);
@@ -73,22 +96,21 @@ public class EmiScreenManagerMixin {
         if (player == null || !hasWirelessTerminal(player)) return;
 
         if (EAEPProxy.openCraftScreen(aeKey)) {
-            ModLogger.debug("Middle-click: opened craft screen for {}", itemStack.getHoverName().getString());
+            ModLogger.debug("Middle-click: opened AE2 craft screen for {}", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
     }
 
-    private static void handleShiftClick(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
+    private static void handleShiftClickAE2(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
         var player = Minecraft.getInstance().player;
         if (player == null) return;
-
         if (!hasWirelessTerminal(player)) return;
 
         var aeKey = AEItemKey.of(itemStack);
         if (aeKey == null) return;
 
         if (EAEPProxy.pullFromNetwork(aeKey)) {
-            ModLogger.debug("Shift-click: pulled {} from network", itemStack.getHoverName().getString());
+            ModLogger.debug("Shift-click: pulled {} from AE2 network", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
     }
@@ -104,5 +126,23 @@ public class EmiScreenManagerMixin {
             return true;
         }
         return CuriosProxy.hasWirelessTerminal(player, WirelessTerminalItem.class);
+    }
+
+    // ---- BD handler ----
+
+    private static void handleShiftClickBD(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
+        var mc = Minecraft.getInstance();
+        var screen = mc.screen;
+        if (screen == null) return;
+
+        // Handle both BD storage GUI and craft terminal
+        if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
+
+        var player = mc.player;
+        if (player == null) return;
+
+        BDProxy.pullFromNetwork(itemStack);
+        ModLogger.debug("Shift-click: sending BD extract request for {}", itemStack.getHoverName().getString());
+        cir.setReturnValue(true);
     }
 }

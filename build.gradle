@@ -85,6 +85,9 @@ dependencies {
 
     // ExtendedAE_Plus - optional, for provider search pre-fill
     implementation files('libs/extendedae_plus-1.21.1-1.5.4.jar')
+
+    // BeyondDimensions - optional compile-only, for BD GUI integration
+    compileOnly files('../BeyondDimensions/beyonddimensions-1.21.1-neoforge-0.7.14.jar')
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
