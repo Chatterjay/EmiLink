@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
@@ -43,7 +44,10 @@ public class BDShortcutHandler {
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
 
         long window = Minecraft.getInstance().getWindow().getWindow();
-        if (!InputConstants.isKeyDown(window, GLFW.GLFW_KEY_SPACE)) return;
+        boolean isSpace = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_SPACE);
+        boolean isShift = Screen.hasShiftDown();
+        // Must hold Space or Shift, but not both (Space takes priority)
+        if (!isSpace && !isShift) return;
 
         if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
         Slot slot = containerScreen.getSlotUnderMouse();
@@ -52,12 +56,35 @@ public class BDShortcutHandler {
         ItemStack clickedItem = slot.getItem();
         if (clickedItem.isEmpty()) return;
 
+        var mc = Minecraft.getInstance();
+        var player = mc.player;
+        if (player == null) return;
+
         var menu = containerScreen.getMenu();
         if (!BDProxy.isBDBaseMenu(menu)) return;
 
         int inventoryStart = BDProxy.getInventoryStartIndex(menu);
         int inventoryEnd = BDProxy.getInventoryEndIndex(menu);
 
+        // ---- Space+Click handler ----
+        if (isSpace) {
+            handleSpaceClick(screen, slot, clickedItem, menu, inventoryStart, inventoryEnd, event);
+            return;
+        }
+
+        // ---- Shift+Click: override BD's native "fill inventory" on network storage slots ----
+        // BD's default: shift+click network slot → extract all matching items filling inventory
+        // Override: extract only 1 stack via our packet
+        if (slot.index >= inventoryEnd) {
+            ModLogger.debug("Shift+Click: single-stack extract from BD network");
+            PacketDistributor.sendToServer(new BDActionPacket(clickedItem, 0));
+            event.setCanceled(true);
+        }
+    }
+
+    private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,
+                                          AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
+                                          ScreenEvent.MouseButtonPressed.Pre event) {
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
             // Space + Click on craft result → mass craft
             ModLogger.debug("Space+Click: mass craft on result slot");
