@@ -6,6 +6,7 @@ import dev.emi.emi.api.stack.EmiStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -28,10 +29,9 @@ public final class AENetworkCache {
     private static final long CACHE_TTL_MS = 20_000;
     private static final long NEGATIVE_CACHE_TTL_MS = 10_000;
 
-    private static final Map<ItemStack, CachedInfo> cache = new HashMap<>();
-    private static ItemStack lastHoveredStack = ItemStack.EMPTY;
-    private static long lastHoverChangeTime = 0;
-    private static long lastQueryTime = 0;
+    private static final Map<String, ServerState> serverStates = new HashMap<>();
+    private static String currentServerId = "local";
+    private static ServerState current = new ServerState();
 
     private AENetworkCache() {}
 
@@ -40,11 +40,47 @@ public final class AENetworkCache {
         tick();
     }
 
+    @SubscribeEvent
+    public static void onClientLoggingIn(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingIn event) {
+        currentServerId = resolveServerId();
+        current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
+    }
+
+    /** Clear cache for the current server only. */
+    public static void clear() {
+        current.cache.clear();
+        current.lastHoveredStack = ItemStack.EMPTY;
+        current.lastHoverChangeTime = 0;
+        current.lastQueryTime = 0;
+    }
+
+    /** Clear cache for all servers (e.g. on disconnect or full reset). */
+    public static void clearAll() {
+        serverStates.clear();
+        current = new ServerState();
+        currentServerId = "local";
+    }
+
+    private static String resolveServerId() {
+        ServerData serverData = Minecraft.getInstance().getCurrentServer();
+        if (serverData != null && serverData.ip != null && !serverData.ip.isEmpty()) {
+            return serverData.ip;
+        }
+        return "local";
+    }
+
     private record CachedInfo(long count, boolean craftable, long timestamp) {
         boolean isExpired(boolean negative) {
             long ttl = negative ? NEGATIVE_CACHE_TTL_MS : CACHE_TTL_MS;
             return System.currentTimeMillis() - timestamp > ttl;
         }
+    }
+
+    private static class ServerState {
+        final Map<ItemStack, CachedInfo> cache = new HashMap<>();
+        ItemStack lastHoveredStack = ItemStack.EMPTY;
+        long lastHoverChangeTime = 0;
+        long lastQueryTime = 0;
     }
 
     public static void tick() {
@@ -55,7 +91,7 @@ public final class AENetworkCache {
 
         var hovered = EmiApi.getHoveredStack(true);
         if (hovered == null || hovered.isEmpty()) {
-            lastHoveredStack = ItemStack.EMPTY;
+            current.lastHoveredStack = ItemStack.EMPTY;
             return;
         }
 
@@ -65,37 +101,37 @@ public final class AENetworkCache {
                 .findFirst()
                 .orElse(ItemStack.EMPTY);
         if (stack.isEmpty()) {
-            lastHoveredStack = ItemStack.EMPTY;
+            current.lastHoveredStack = ItemStack.EMPTY;
             return;
         }
 
         stack = stack.copyWithCount(1);
 
-        if (!ItemStack.isSameItemSameComponents(stack, lastHoveredStack)) {
-            lastHoveredStack = stack;
-            lastHoverChangeTime = System.currentTimeMillis();
+        if (!ItemStack.isSameItemSameComponents(stack, current.lastHoveredStack)) {
+            current.lastHoveredStack = stack;
+            current.lastHoverChangeTime = System.currentTimeMillis();
             return;
         }
 
-        long elapsed = System.currentTimeMillis() - lastHoverChangeTime;
+        long elapsed = System.currentTimeMillis() - current.lastHoverChangeTime;
         if (elapsed < DEBOUNCE_MS) return;
 
-        if (System.currentTimeMillis() - lastQueryTime < DEBOUNCE_MS) return;
+        if (System.currentTimeMillis() - current.lastQueryTime < DEBOUNCE_MS) return;
 
-        var cached = cache.get(stack);
+        var cached = findCached(stack);
         if (cached != null) {
             boolean negative = cached.count() == 0 && !cached.craftable();
             if (!cached.isExpired(negative)) return;
         }
 
-        lastQueryTime = System.currentTimeMillis();
+        current.lastQueryTime = System.currentTimeMillis();
         PacketDistributor.sendToServer(new AEQueryPacket(stack));
     }
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable) {
         if (stack == null || stack.isEmpty()) return;
         var key = stack.copyWithCount(1);
-        cache.put(key, new CachedInfo(count, craftable, System.currentTimeMillis()));
+        current.cache.put(key, new CachedInfo(count, craftable, System.currentTimeMillis()));
     }
 
     public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
@@ -118,7 +154,7 @@ public final class AENetworkCache {
 
     /** Linear scan with isSameItemSameComponents — avoids ItemStack hashCode mismatches. */
     private static CachedInfo findCached(ItemStack stack) {
-        for (var entry : cache.entrySet()) {
+        for (var entry : current.cache.entrySet()) {
             if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
                 return entry.getValue();
             }
