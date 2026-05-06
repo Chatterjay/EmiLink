@@ -1,32 +1,27 @@
 # EmiLink
 
-*NeoForge 1.21.1 · v1.1.2*
+*NeoForge 1.21.1 · v1.1.1*
 
 EMI ↔ AE2 / BeyondDimensions 集成增强模组，为 EMI 配方界面添加 AE2 和 BD 相关便捷操作。
 
-## 功能
+## 功能总览
 
-### 仅客户端（无需服务端安装）
-
-| 功能 | 说明 |
-|------|------|
-| **F 搜索** | 在 AE2/BD 终端界面按 `F` 键，将鼠标悬浮物品名称填入搜索框；Alt+F 填入 `@modid` |
-| **合成计划界面 EMI 侧边栏** | 在 AE2 合成计划界面显示 EMI 物品列表，支持直接搜索和拖拽 |
-| **强制 EMI 显示** | 强制启用 AE2 的 `exposeNetworkInventoryToEmi` 配置 |
-
-### 需服务端安装
-
-| 功能 | 说明 |
-|------|------|
-| **单次合成到物品栏** | 在 AE2 合成终端中使用 EMI 单次合成快捷键，产物直接进背包（不经过光标） |
-| **AE 网络信息提示** | 在 EMI 侧边栏悬浮物品时显示 AE 网络中的总数量和可合成状态 |
-| **BD 网络提取/存入** | Space+点击从 BD 网络提取物品指定数量，或存入背包物品到网络 |
-| **BD 一键批量合成** | Space+点击 BD 合成结果槽，自动循环合成（最多 512 次） |
-| **BD Shift+点击提取** | Shift+点击 BD 网络存储槽，仅提取单组物品（覆盖 BD 默认的自动填满背包行为） |
+| 功能 | 说明 | 需求 |
+|------|------|------|
+| **F 搜索** | 在 AE2/BD 终端界面按 `F` 键，将鼠标悬浮物品名称填入搜索框；Alt+F 填入 `@modid` | 仅客户端 |
+| **合成计划界面 EMI 侧边栏** | 在 AE2 合成计划界面显示 EMI 物品列表，支持直接搜索和拖拽 | 仅客户端 |
+| **强制 EMI 显示** | 强制启用 AE2 的 `exposeNetworkInventoryToEmi` 配置 | 仅客户端 |
+| **AE 网络信息提示** | 在 EMI 侧边栏悬浮物品时，显示 AE 网络中的总数量和可合成状态 | 客户端 + 服务端 |
+| **单次合成到物品栏** | 在 AE2 合成终端中使用 EMI 单次合成快捷键，产物直接进背包（不经过光标） | 客户端 + 服务端 |
+| **BD 网络提取/存入** | Space+点击从 BD 网络提取物品指定数量，或存入背包物品到网络 | 客户端 + 服务端 |
+| **BD 一键批量合成** | Space+点击 BD 合成结果槽，自动循环合成（最多 512 次） | 客户端 + 服务端 |
+| **BD Shift+点击提取** | Shift+点击 BD 网络存储槽，仅提取单组物品（覆盖 BD 默认的自动填满背包行为） | 客户端 + 服务端 |
 
 > 若服务端未安装本 mod，单次合成将退化为 AE2 原版的 CRAFT_SHIFT 行为；BD 操作使用 BatchTransferPacket 反射回退。
 
-### EAEP 联动功能（需服务端 + 客户端均安装 [ExtendedAE_Plus](https://github.com/Chatterjay/ExtendedAE_Plus)）
+### EAEP 联动功能
+
+需客户端 + 服务端均安装 [ExtendedAE_Plus](https://github.com/Chatterjay/ExtendedAE_Plus)。
 
 | 功能 | 说明 |
 |------|------|
@@ -41,7 +36,7 @@ EMI 侧边栏中悬浮物品时，模组会向服务器查询该物品在 AE 网
 - `AE: <数量>` — 当前网络中的总库存（灰色）
 - `Craftable / 可合成` — 该物品可通过合成自动产出（绿色）
 
-查询仅在玩家具有 AE 网络访问权限时触发（处于 AE2 终端界面，或背包/Curios 槽位中有无线终端）。
+查询仅在玩家处于 AE2 终端界面时触发（打开无线终端或 ME 终端界面）。未打开终端时保留上次缓存数据继续展示。
 
 **缓存机制：**
 - 悬停 250ms 后发送查询请求，带相同去重和频率限制
@@ -61,13 +56,9 @@ EMI 侧边栏中悬浮物品时，模组会向服务器查询该物品在 AE 网
 
 ```bash
 ./gradlew build                    # 完整构建（Java 21 toolchain）
-./gradlew runClient                # 启动 Minecraft 客户端
-./gradlew runServer                # 启动专用服务器
-./gradlew runGameTestServer        # 运行游戏测试
-./gradlew runData                  # 运行数据生成（输出到 src/generated/resources/）
+./gradlew runClient               # 启动 Minecraft 客户端
 ```
 
-构建产物位于 `build/libs/`。
 
 ## 许可证
 
