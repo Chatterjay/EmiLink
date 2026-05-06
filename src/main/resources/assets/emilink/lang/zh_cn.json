@@ -1,0 +1,6 @@
+{
+  "key.emilink.fill_search": "将鼠标悬浮的物品填入AE2搜索框 (Alt: 模组ID)",
+  "key.categories.emilink": "EmiLink",
+  "ae_tooltip.count": "AE: %s",
+  "ae_tooltip.craftable": "可合成"
+}

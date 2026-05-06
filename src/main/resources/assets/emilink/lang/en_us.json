@@ -1,4 +1,6 @@
 {
   "key.emilink.fill_search": "Fill AE2 search with hovered item name (Alt: mod ID)",
-  "key.categories.emilink": "EmiLink"
+  "key.categories.emilink": "EmiLink",
+  "ae_tooltip.count": "AE: %s",
+  "ae_tooltip.craftable": "Craftable"
 }
