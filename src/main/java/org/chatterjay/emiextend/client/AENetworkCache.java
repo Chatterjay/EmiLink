@@ -26,7 +26,7 @@ import java.util.Map;
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT)
 public final class AENetworkCache {
     private static final long DEBOUNCE_MS = 250;
-    private static final long CACHE_TTL_MS = 20_000;
+    private static final long CACHE_TTL_MS = 5_000;
     private static final long NEGATIVE_CACHE_TTL_MS = 10_000;
 
     private static final Map<String, ServerState> serverStates = new HashMap<>();
@@ -44,6 +44,10 @@ public final class AENetworkCache {
     public static void onClientLoggingIn(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingIn event) {
         currentServerId = resolveServerId();
         current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
+        // Reset hover state so first hover isn't mistaken for item-switch debounce
+        current.lastHoveredStack = ItemStack.EMPTY;
+        current.lastHoverChangeTime = 0;
+        current.lastQueryTime = 0;
     }
 
     /** Clear cache for the current server only. */
@@ -83,11 +87,20 @@ public final class AENetworkCache {
         long lastQueryTime = 0;
     }
 
+    /** Whether the player can actually query the AE network (needs an open AE2 terminal). */
+    private static boolean canQueryNetwork(Minecraft mc) {
+        if (!AE2Proxy.isLoaded()) return false;
+        if (mc.player == null) return false;
+        if (mc.screen == null) return false;
+        return AE2Proxy.isMEStorageScreen(mc.screen) || AE2Proxy.isCraftConfirmScreen(mc.screen);
+    }
+
     public static void tick() {
         var mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen == null) return;
 
-        if (!hasAEAccess(mc)) return;
+        // Only send queries when actually in an AE2 terminal (server needs open AEBaseMenu)
+        if (!canQueryNetwork(mc)) return;
 
         var hovered = EmiApi.getHoveredStack(true);
         if (hovered == null || hovered.isEmpty()) {
