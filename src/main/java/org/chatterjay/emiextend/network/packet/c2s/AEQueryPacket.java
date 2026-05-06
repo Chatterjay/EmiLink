@@ -76,7 +76,6 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
 
     /** Try multiple patterns to get item count from the grid. */
     private static long queryItemCount(Object grid, Object aeKey) {
-        var errors = new ArrayList<String>();
         long result = 0;
 
         // Pattern A: getStorageService() → getInventory() → getAvailableStacks() → KeyCounter.get()
@@ -91,14 +90,13 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                         Object raw = kc.getMethod("get", Class.forName("appeng.api.stacks.AEKey")).invoke(available, aeKey);
                         if (raw instanceof Number n) {
                             result = n.longValue();
-                            ModLogger.debug("AEQuery: count via Pattern A = {}", result);
                             return result;
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            errors.add("Pattern A: " + e.getMessage());
+            // ignore
         }
 
         // Pattern B: getStorageService() → getCachedAvailableStacks()
@@ -111,25 +109,19 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                     Object raw = tryCallMethod(kc, cached, "get", aeKey);
                     if (raw instanceof Number n) {
                         result = n.longValue();
-                        ModLogger.debug("AEQuery: count via Pattern B = {}", result);
                         return result;
                     }
                 }
             }
         } catch (Exception e) {
-            errors.add("Pattern B: " + e.getMessage());
+            // ignore
         }
 
-        // Log all methods on grid for debugging
-        if (!errors.isEmpty()) {
-            ModLogger.debug("AEQuery: count query failed: {}", errors);
-        }
         return 0;
     }
 
     /** Try multiple patterns to check craftability from the grid. */
     private static boolean queryCraftability(Object grid, Object aeKey) {
-        var errors = new ArrayList<String>();
         boolean result = false;
 
         // Pattern A: getCraftingService().isCraftable(AEKey)
@@ -139,12 +131,11 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                 Object raw = tryCallMethod(craftingSvc.getClass(), craftingSvc, "isCraftable", aeKey);
                 if (raw instanceof Boolean b) {
                     result = b;
-                    ModLogger.debug("AEQuery: craftable via Pattern A = {}", result);
                     return result;
                 }
             }
         } catch (Exception e) {
-            errors.add("Pattern A: " + e.getMessage());
+            // ignore
         }
 
         // Pattern B: craftingService.isCraftable(AEKey) via interface method lookup
@@ -153,24 +144,21 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
             if (craftingSvc != null) {
                 for (var iface : getAllInterfaces(craftingSvc.getClass())) {
                     if (!iface.getName().contains("Crafting")) continue;
-                    // Try exact param class, then superclasses
                     for (var paramCls = aeKey.getClass(); paramCls != null; paramCls = paramCls.getSuperclass()) {
                         try {
                             Object raw = iface.getMethod("isCraftable", paramCls).invoke(craftingSvc, aeKey);
                             if (raw instanceof Boolean b) {
                                 result = b;
-                                ModLogger.debug("AEQuery: craftable via Pattern B = {}", result);
                                 return result;
                             }
-                        } catch (NoSuchMethodException e) { /* try next param class */ }
+                        } catch (NoSuchMethodException e) { /* try next */ }
                     }
                 }
             }
         } catch (Exception e) {
-            errors.add("Pattern B: " + e.getMessage());
+            // ignore
         }
 
-        ModLogger.debug("AEQuery: craftable errors: {}", errors);
         return false;
     }
 
@@ -183,7 +171,7 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
             } catch (NoSuchMethodException e) {
                 // try next
             } catch (Exception e) {
-                ModLogger.debug("AEQuery: {}.{}() failed: {}", target.getClass().getSimpleName(), name, e.getMessage());
+                // try next
             }
         }
         return null;
@@ -195,9 +183,7 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
         try {
             return clazz.getMethod(methodName, arg.getClass()).invoke(target, arg);
         } catch (NoSuchMethodException e) { /* fall through */ }
-          catch (Exception e) {
-            ModLogger.debug("AEQuery: {}.{}({}) exact failed: {}", clazz.getSimpleName(), methodName, arg.getClass().getSimpleName(), e.getMessage());
-        }
+          catch (Exception e) { /* fall through */ }
 
         // Try superclass chain (AEItemKey → AEKey → Object)
         for (var cls = arg.getClass().getSuperclass(); cls != null; cls = cls.getSuperclass()) {
@@ -234,16 +220,12 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
      * Primary path: getActionHost() → IActionHost.getGridNode() → IGridNode.getGrid()
      */
     private static Object resolveGrid(Class<?> menuClass, Object menu) throws Exception {
-        var errors = new ArrayList<String>();
-
         // Path 1: getActionHost() → IActionHost.getGridNode() → getGrid()
         try {
             var getActionHost = menuClass.getDeclaredMethod("getActionHost");
             getActionHost.setAccessible(true);
             Object actionHost = getActionHost.invoke(menu);
             if (actionHost != null) {
-                ModLogger.debug("AEQuery: actionHost = {}", actionHost.getClass().getName());
-                // Search all interfaces in the class hierarchy for IActionHost
                 for (var iface : getAllInterfaces(actionHost.getClass())) {
                     if (iface.getName().contains("ActionHost") || iface.getName().contains("IActionHost")) {
                         for (var m : iface.getMethods()) {
@@ -258,7 +240,7 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                                             if (grid != null) return grid;
                                         } catch (NoSuchMethodException e) { /* result may be grid itself */ }
                                     }
-                                } catch (Exception e) { /* try next method */ }
+                                } catch (Exception e) { /* try next */ }
                             }
                         }
                         break;
@@ -266,7 +248,7 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                 }
             }
         } catch (Exception e) {
-            errors.add("actionHost: " + e.getMessage());
+            // ignore
         }
 
         // Path 2: getActionSource() → getMachineSource() → grid
@@ -295,7 +277,7 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                 }
             }
         } catch (Exception e) {
-            errors.add("actionSource: " + e.getMessage());
+            // ignore
         }
 
         // Path 3: getBlockEntity() → interfaces → gridNode
@@ -315,10 +297,9 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
                 }
             }
         } catch (Exception e) {
-            errors.add("blockEntity: " + e.getMessage());
+            // ignore
         }
 
-        ModLogger.debug("AEQuery: all paths failed: {}", errors);
         return null;
     }
 
