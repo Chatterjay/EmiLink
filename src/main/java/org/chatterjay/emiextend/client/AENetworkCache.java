@@ -17,7 +17,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.EmiAE2;
-import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -91,15 +90,12 @@ public final class AENetworkCache {
 
         lastQueryTime = System.currentTimeMillis();
         PacketDistributor.sendToServer(new AEQueryPacket(stack));
-        ModLogger.debug("AENetworkCache: querying {}", stack.getHoverName().getString());
     }
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable) {
         if (stack == null || stack.isEmpty()) return;
         var key = stack.copyWithCount(1);
         cache.put(key, new CachedInfo(count, craftable, System.currentTimeMillis()));
-        ModLogger.debug("AENetworkCache: cached {} → count={} craftable={}",
-                stack.getHoverName().getString(), count, craftable);
     }
 
     public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
