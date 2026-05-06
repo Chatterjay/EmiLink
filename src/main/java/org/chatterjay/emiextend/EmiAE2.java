@@ -13,8 +13,10 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.chatterjay.emiextend.client.BDShortcutHandler;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.ModKeybindings;
+import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
+import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
 
 @Mod(EmiAE2.MODID)
@@ -30,6 +32,11 @@ public class EmiAE2 {
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
         final PayloadRegistrar registrar = event.registrar("1");
         registrar.playToServer(
+                AEQueryPacket.TYPE,
+                AEQueryPacket.STREAM_CODEC,
+                AEQueryPacket::handle
+        );
+        registrar.playToServer(
                 BDActionPacket.TYPE,
                 BDActionPacket.STREAM_CODEC,
                 BDActionPacket::handle
@@ -38,6 +45,11 @@ public class EmiAE2 {
                 TransferMatchingPacket.TYPE,
                 TransferMatchingPacket.STREAM_CODEC,
                 TransferMatchingPacket::handle
+        );
+        registrar.playToClient(
+                AEQueryResponsePacket.TYPE,
+                AEQueryResponsePacket.STREAM_CODEC,
+                AEQueryResponsePacket::handle
         );
         registrar.playToClient(
                 ServerHasModPacket.TYPE,

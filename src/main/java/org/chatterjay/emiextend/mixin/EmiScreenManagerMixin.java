@@ -1,13 +1,16 @@
 package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
@@ -17,7 +20,11 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Mixin(value = EmiScreenManager.class, remap = false)
 public class EmiScreenManagerMixin {
@@ -128,7 +135,6 @@ public class EmiScreenManagerMixin {
         var screen = mc.screen;
         if (screen == null) return;
 
-        // Handle both BD storage GUI and craft terminal
         if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
 
         var player = mc.player;
@@ -137,5 +143,32 @@ public class EmiScreenManagerMixin {
         BDProxy.pullFromNetwork(itemStack);
         ModLogger.debug("Shift-click: sending BD extract request for {}", itemStack.getHoverName().getString());
         cir.setReturnValue(true);
+    }
+
+    // ---- AE Network info tooltip injection (sidebar only) ----
+
+    @Redirect(method = "renderCurrentTooltip",
+              at = @At(value = "INVOKE", target = "Ldev/emi/emi/api/stack/EmiIngredient;getTooltip()Ljava/util/List;"),
+              require = 0)
+    private static List<ClientTooltipComponent> emilink$addAeTooltipInfo(EmiIngredient hov) {
+        var original = hov.getTooltip();
+        if (original == null || original.isEmpty()) return original;
+
+        // Only inject on sidebar items (getHoveredSpace returns null for terminal slots)
+        var space = EmiScreenManager.getHoveredSpace(lastMouseX, lastMouseY);
+        if (space == null) return original;
+
+        var tooltip = new ArrayList<ClientTooltipComponent>(original);
+        if (!hov.isEmpty()) {
+            var stack = hov.getEmiStacks().stream()
+                    .map(EmiStack::getItemStack)
+                    .filter(s -> !s.isEmpty())
+                    .findFirst()
+                    .orElse(ItemStack.EMPTY);
+            if (!stack.isEmpty() && AENetworkCache.hasAEAccess()) {
+                AENetworkCache.addToTooltip(stack, tooltip);
+            }
+        }
+        return tooltip;
     }
 }

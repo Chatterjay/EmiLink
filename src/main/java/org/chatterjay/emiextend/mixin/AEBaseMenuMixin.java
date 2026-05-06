@@ -18,6 +18,8 @@ public class AEBaseMenuMixin {
     @Unique
     private static final long SINGLE_CRAFT_SIGNAL = Long.MIN_VALUE;
 
+
+
     @Inject(method = "doAction", at = @At(value = "INVOKE", target = "Lappeng/menu/slot/CraftingTermSlot;doClick(Lappeng/helpers/InventoryAction;Lnet/minecraft/world/entity/player/Player;)V"), remap = false)
     private void emilink$signalSingleCraft(ServerPlayer player, InventoryAction action, int slot, long id, CallbackInfo ci) {
         if (id == SINGLE_CRAFT_SIGNAL && action == InventoryAction.CRAFT_SHIFT) {
