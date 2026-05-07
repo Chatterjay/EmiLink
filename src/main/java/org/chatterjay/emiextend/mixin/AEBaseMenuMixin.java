@@ -26,6 +26,18 @@ public class AEBaseMenuMixin {
     @Unique
     private final Map<Integer, ItemStack> emilink$savedLockedItems = new HashMap<>();
 
+    /** Check if an ItemStack is an AE2 wireless terminal (server-safe reflection). */
+    @Unique
+    private static boolean emilink$isWirelessTerminal(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        try {
+            Class<?> clazz = Class.forName("appeng.items.tools.powered.WirelessTerminalItem");
+            return clazz.isInstance(stack.getItem());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Inject(method = "doAction", at = @At(value = "INVOKE", target = "Lappeng/menu/slot/CraftingTermSlot;doClick(Lappeng/helpers/InventoryAction;Lnet/minecraft/world/entity/player/Player;)V"), remap = false)
     private void emilink$signalSingleCraft(ServerPlayer player, InventoryAction action, int slot, long id, CallbackInfo ci) {
         if (id == SINGLE_CRAFT_SIGNAL && action == InventoryAction.CRAFT_SHIFT) {
@@ -45,18 +57,24 @@ public class AEBaseMenuMixin {
 
         var inv = player.getInventory();
         int cleared = 0;
+        int skipped = 0;
         for (int idx : locked) {
             if (idx >= 0 && idx < 36) {
                 ItemStack stack = inv.getItem(idx);
                 if (!stack.isEmpty()) {
+                    // Don't clear the slot if it holds the wireless terminal (would cut AE network)
+                    if (emilink$isWirelessTerminal(stack)) {
+                        skipped++;
+                        continue;
+                    }
                     emilink$savedLockedItems.put(idx, stack.copy());
                     inv.setItem(idx, ItemStack.EMPTY);
                     cleared++;
                 }
             }
         }
-        ModLogger.debug("AE MOVE_REGION: cleared {} locked item(s) for player {}",
-                cleared, player.getName().getString());
+        ModLogger.debug("AE MOVE_REGION: cleared {} locked item(s) for player {} (skipped {} wireless terminal)",
+                cleared, player.getName().getString(), skipped);
     }
 
     @Inject(method = "doAction", at = @At("RETURN"), remap = false)
