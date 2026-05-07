@@ -14,6 +14,7 @@ import org.chatterjay.emiextend.client.BDShortcutHandler;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
@@ -37,6 +38,11 @@ public class EmiAE2 {
                 AEQueryPacket.TYPE,
                 AEQueryPacket.STREAM_CODEC,
                 AEQueryPacket::handle
+        );
+        registrar.playToServer(
+                AELockedSlotsPacket.TYPE,
+                AELockedSlotsPacket.STREAM_CODEC,
+                AELockedSlotsPacket::handle
         );
         registrar.playToServer(
                 BDActionPacket.TYPE,

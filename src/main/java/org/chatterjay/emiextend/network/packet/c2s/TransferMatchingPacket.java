@@ -1,5 +1,6 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
+import io.netty.buffer.ByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -13,7 +14,7 @@ import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
-public record TransferMatchingPacket(ItemStack clickedStack, int mode) implements CustomPacketPayload {
+public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] lockedSlots) implements CustomPacketPayload {
     // mode: 0 = network→player (matching items), 1 = main inventory→network, 2 = hotbar→network
 
     public static final Type<TransferMatchingPacket> TYPE =
@@ -25,6 +26,22 @@ public record TransferMatchingPacket(ItemStack clickedStack, int mode) implement
                     TransferMatchingPacket::clickedStack,
                     ByteBufCodecs.BYTE.map(b -> (int) b, i -> (byte) (int) i),
                     TransferMatchingPacket::mode,
+                    new StreamCodec<RegistryFriendlyByteBuf, int[]>() {
+                        @Override
+                        public int[] decode(RegistryFriendlyByteBuf buf) {
+                            int len = buf.readVarInt();
+                            int[] arr = new int[len];
+                            for (int i = 0; i < len; i++) arr[i] = buf.readVarInt();
+                            return arr;
+                        }
+
+                        @Override
+                        public void encode(RegistryFriendlyByteBuf buf, int[] arr) {
+                            buf.writeVarInt(arr.length);
+                            for (int v : arr) buf.writeVarInt(v);
+                        }
+                    },
+                    TransferMatchingPacket::lockedSlots,
                     TransferMatchingPacket::new
             );
 
@@ -32,12 +49,13 @@ public record TransferMatchingPacket(ItemStack clickedStack, int mode) implement
         Player player = context.player();
         if (player == null || clickedStack == null || clickedStack.isEmpty()) return;
 
-        ModLogger.debug("TransferMatchingPacket: mode={} stack={}", mode, clickedStack.getHoverName().getString());
+        ModLogger.debug("TransferMatchingPacket: mode={} stack={} locked={}",
+                mode, clickedStack.getHoverName().getString(), lockedSlots.length);
 
         if (mode == 0) {
             BDProxy.extractAllFromNetwork(player, clickedStack);
         } else {
-            BDProxy.depositToNetwork(player, mode);
+            BDProxy.depositToNetwork(player, mode, lockedSlots);
         }
     }
 
