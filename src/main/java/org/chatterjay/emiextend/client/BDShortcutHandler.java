@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -23,17 +24,23 @@ import org.chatterjay.emiextend.util.IEProxy;
 import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
-import java.util.Arrays;
 import org.lwjgl.glfw.GLFW;
 
-@EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT)
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+@EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public class BDShortcutHandler {
     public static boolean serverHasMod = false;
 
+    /** Tracks the source inventory of the last plain left-click pickup: null=unknown, true=container, false=player. */
+    private static Boolean pickupFromContainer = null;
+
     /**
      * When an AE or BD terminal screen opens, send locked slots to the server
-     * and register these screen classes with IE's ignore list so its
-     * Space+click handlers don't interfere.
+     * and register these screens with IE's ignore list so its Space+click
+     * handlers don't interfere.
      */
     @SubscribeEvent
     public static void onScreenInitPost(ScreenEvent.Init.Post event) {
@@ -70,6 +77,14 @@ public class BDShortcutHandler {
         if (screen.getFocused() instanceof EditBox) return;
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
 
+        // Track pickup source on ANY left click (before Space/Shift filter)
+        if (screen instanceof AbstractContainerScreen<?> cs) {
+            Slot s = cs.getSlotUnderMouse();
+            if (s != null && s.hasItem() && cs.getMenu().getCarried().isEmpty()) {
+                pickupFromContainer = !(s.container instanceof Inventory);
+            }
+        }
+
         long window = Minecraft.getInstance().getWindow().getWindow();
         boolean isSpace = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_SPACE);
         boolean isShift = Screen.hasShiftDown();
@@ -77,7 +92,16 @@ public class BDShortcutHandler {
 
         if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
         Slot slot = containerScreen.getSlotUnderMouse();
-        if (slot == null || !slot.hasItem()) return;
+        ItemStack carried = containerScreen.getMenu().getCarried();
+
+        if (slot == null) {
+            if (isShift && !carried.isEmpty()) {
+                batchDropByType(containerScreen, carried);
+                event.setCanceled(true);
+            }
+            return;
+        }
+        if (!slot.hasItem()) return;
 
         ItemStack clickedItem = slot.getItem();
         if (clickedItem.isEmpty()) return;
@@ -93,6 +117,19 @@ public class BDShortcutHandler {
                     lockedArr.length > 0 ? Arrays.toString(lockedArr) : "none");
             PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
             return;
+        }
+
+        // ---- Regular container Space+click: IE-pattern bulk transfer (non-AE, non-BD) ----
+        if (isSpace) {
+            boolean isBDScreen = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
+            if (!isBDScreen) {
+                // If IE is installed, let it handle regular containers (our screens already in its ignore list)
+                if (!net.neoforged.fml.ModList.get().isLoaded("inventoryessentials")) {
+                    bulkTransferAll(containerScreen, slot);
+                }
+                event.setCanceled(true);
+                return;
+            }
         }
 
         // ---- BD-specific handling ----
@@ -165,5 +202,102 @@ public class BDShortcutHandler {
         int start = (mode == 2) ? 0 : 9;
         int end = (mode == 2) ? 9 : 36;
         return IPNProxy.getLockedSlotsInRange(start, end);
+    }
+
+    private static void batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried) {
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return;
+        var menu = screen.getMenu();
+        var locked = IPNProxy.getLockedSlots();
+        int containerId = menu.containerId;
+
+        // Collect matching slot indices (IE pattern)
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < menu.slots.size(); i++) {
+            Slot slot = menu.slots.get(i);
+            if (!slot.hasItem()) continue;
+            if (!ItemStack.isSameItemSameComponents(slot.getItem(), carried)) continue;
+            // Respect pickup source: container pickup → skip player slots; player pickup → skip container slots
+            if (pickupFromContainer != null) {
+                if (pickupFromContainer && slot.container instanceof Inventory) continue;
+                if (!pickupFromContainer && !(slot.container instanceof Inventory)) continue;
+            }
+            if (slot.container instanceof Inventory) {
+                int idx = slot.getSlotIndex();
+                if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
+            }
+            slots.add(i);
+        }
+        if (slots.isEmpty()) return;
+
+        // Clear cursor first (IE pattern), then throw each matching stack
+        click(menu, containerId, -999, 0, net.minecraft.world.inventory.ClickType.PICKUP);
+        for (int slotIndex : slots) {
+            click(menu, containerId, slotIndex, 1, net.minecraft.world.inventory.ClickType.THROW);
+        }
+        ModLogger.debug("BatchDrop: threw {} item(s)", slots.size());
+    }
+
+    /** IE-style slotClick wrapper: validates slot index and delegates to handleInventoryMouseClick. */
+    private static void click(AbstractContainerMenu menu, int containerId, int slotIndex, int button, net.minecraft.world.inventory.ClickType clickType) {
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return;
+        if (menu.isValidSlotIndex(slotIndex) || slotIndex == -999) {
+            mc.gameMode.handleInventoryMouseClick(containerId, slotIndex, button, clickType, mc.player);
+        }
+    }
+
+    /**
+     * IE-style bulk transfer for regular containers (non-AE, non-BD).
+     * Transfers all items from clicked inventory to the other inventory.
+     * Skips IPN-locked player slots.
+     */
+    private static void bulkTransferAll(AbstractContainerScreen<?> screen, Slot clickedSlot) {
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return;
+        var menu = screen.getMenu();
+        int containerId = menu.containerId;
+        var locked = IPNProxy.getLockedSlots();
+
+        for (Slot slot : menu.slots) {
+            if (!slot.hasItem()) continue;
+            if (!canPlayerAccessSlot(slot)) continue;
+            // Only transfer from the same inventory section as the clicked slot
+            if (isSameInventory(slot, clickedSlot)) {
+                // Skip IPN-locked player slots
+                if (slot.container instanceof Inventory) {
+                    int idx = slot.getContainerSlot();
+                    if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
+                }
+                click(menu, containerId, slot.index, 0, net.minecraft.world.inventory.ClickType.QUICK_MOVE);
+            }
+        }
+        ModLogger.debug("bulkTransferAll: transferred from inventory matching clicked slot");
+    }
+
+    /** Check if a slot is a valid player-interaction target (skip armor/offhand). */
+    private static boolean canPlayerAccessSlot(Slot slot) {
+        if (slot.container instanceof Inventory inv) {
+            int idx = slot.getContainerSlot();
+            // Only main inventory (9-35) and hotbar (0-8), skip armor (36-39) and offhand (40)
+            return idx >= 0 && idx < 36;
+        }
+        return true;
+    }
+
+    /**
+     * Check if two slots belong to the same inventory section.
+     * Player inventory is split into hotbar (0-8) and main (9-35).
+     */
+    private static boolean isSameInventory(Slot a, Slot b) {
+        if (a.container instanceof Inventory && b.container instanceof Inventory) {
+            int ai = a.getContainerSlot();
+            int bi = b.getContainerSlot();
+            // Both must be valid player inventory slots
+            if (ai < 0 || ai >= 36 || bi < 0 || bi >= 36) return false;
+            // Separate hotbar from main inventory
+            return (ai < 9) == (bi < 9);
+        }
+        return a.container == b.container;
     }
 }

@@ -36,25 +36,27 @@ public class AEBaseMenuMixin {
     @Inject(method = "doAction", at = @At("HEAD"), remap = false)
     private void emilink$beforeDoAction(ServerPlayer player, InventoryAction action, int slot, long id, CallbackInfo ci) {
         emilink$savedLockedItems.clear();
+        ModLogger.debug("AE doAction: action={}, slot={}, id={}, player={}", action, slot, id, player.getName().getString());
         if (action != InventoryAction.MOVE_REGION) return;
 
         var locked = ServerIPNState.getLockedSlots(player.getUUID());
+        ModLogger.debug("AE MOVE_REGION: locked slots from ServerIPNState: {}", locked);
         if (locked.isEmpty()) return;
 
         var inv = player.getInventory();
+        int cleared = 0;
         for (int idx : locked) {
             if (idx >= 0 && idx < 36) {
                 ItemStack stack = inv.getItem(idx);
                 if (!stack.isEmpty()) {
                     emilink$savedLockedItems.put(idx, stack.copy());
                     inv.setItem(idx, ItemStack.EMPTY);
+                    cleared++;
                 }
             }
         }
-        if (!emilink$savedLockedItems.isEmpty()) {
-            ModLogger.debug("AE MOVE_REGION: cleared {} locked slot(s) for player {}",
-                    emilink$savedLockedItems.size(), player.getName().getString());
-        }
+        ModLogger.debug("AE MOVE_REGION: cleared {} locked item(s) for player {}",
+                cleared, player.getName().getString());
     }
 
     @Inject(method = "doAction", at = @At("RETURN"), remap = false)
@@ -62,13 +64,26 @@ public class AEBaseMenuMixin {
         // Restore items that were cleared for IPN-locked slots
         if (!emilink$savedLockedItems.isEmpty()) {
             var inv = player.getInventory();
-            emilink$savedLockedItems.forEach((idx, savedStack) -> {
-                if (idx >= 0 && idx < 36 && inv.getItem(idx).isEmpty()) {
-                    inv.setItem(idx, savedStack);
+            // Phase 1: restore all locked slot items first
+            Map<Integer, ItemStack> displaced = new HashMap<>();
+            for (var entry : emilink$savedLockedItems.entrySet()) {
+                int idx = entry.getKey();
+                ItemStack saved = entry.getValue();
+                ItemStack current = inv.getItem(idx);
+                inv.setItem(idx, saved);
+                if (!current.isEmpty()) {
+                    displaced.put(idx, current);
                 }
-            });
-            ModLogger.debug("AE MOVE_REGION: restored {} locked slot(s) for player {}",
-                    emilink$savedLockedItems.size(), player.getName().getString());
+            }
+            // Phase 2: reroute items that MOVE_REGION placed in locked slots
+            // (all locked slots are now occupied, so add() won't target them)
+            for (var entry : displaced.entrySet()) {
+                if (!player.getInventory().add(entry.getValue())) {
+                    player.drop(entry.getValue(), false);
+                }
+            }
+            ModLogger.debug("AE MOVE_REGION: restored {} locked slot(s) for player {}, rerouted {} item(s)",
+                    emilink$savedLockedItems.size(), player.getName().getString(), displaced.size());
             emilink$savedLockedItems.clear();
         }
 

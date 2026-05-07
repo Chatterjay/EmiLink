@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class AENetworkCache {
     private static final long DEBOUNCE_MS = 250;
     private static final long CACHE_TTL_MS = 5_000;

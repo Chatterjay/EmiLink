@@ -53,7 +53,7 @@ public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] loc
                 mode, clickedStack.getHoverName().getString(), lockedSlots.length);
 
         if (mode == 0) {
-            BDProxy.extractAllFromNetwork(player, clickedStack);
+            BDProxy.extractAllFromNetwork(player, clickedStack, lockedSlots);
         } else {
             BDProxy.depositToNetwork(player, mode, lockedSlots);
         }

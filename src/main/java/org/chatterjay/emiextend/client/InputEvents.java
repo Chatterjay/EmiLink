@@ -75,6 +75,13 @@ public final class InputEvents {
             return;
         }
 
-        ModLogger.debug("FILL_SEARCH_KEY: screen not supported: {}", screen.getClass().getName());
+        // EMI search fallback for any screen with EMI sidebar
+        try {
+            EmiApi.setSearchText(text);
+            event.setCanceled(true);
+            ModLogger.debug("FILL_SEARCH_KEY: set EMI search text to '{}' ({})", text, alt ? "modid" : "name");
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: EMI setSearchText failed: {}", e.getMessage());
+        }
     }
 }
