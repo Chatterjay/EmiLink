@@ -14,21 +14,38 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.EmiAE2;
+import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
+import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
+
+import java.util.Arrays;
 import org.lwjgl.glfw.GLFW;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT)
 public class BDShortcutHandler {
     public static boolean serverHasMod = false;
 
+    /**
+     * When an AE terminal screen opens, send locked slots to the server
+     * so AEBaseMenuMixin can protect them during MOVE_REGION.
+     */
+    @SubscribeEvent
+    public static void onScreenInitPost(ScreenEvent.Init.Post event) {
+        Screen screen = event.getScreen();
+        if (!AE2Proxy.isMEStorageScreen(screen)) return;
+        var lockedSet = IPNProxy.getLockedSlots();
+        if (lockedSet.isEmpty()) return;
+        int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
+        PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
+        ModLogger.debug("AE screen opened: sent {} locked slot(s) to server", lockedArr.length);
+    }
+
     @SubscribeEvent
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
-        // Prevent Space key from triggering focused BD buttons
-        // User clicks a BD function button → it stays focused → pressing Space re-activates it
-        // We consume Space here so it only works as a modifier for our mouse handler (which uses GLFW polling)
         if (event.getKeyCode() != GLFW.GLFW_KEY_SPACE) return;
         Screen screen = event.getScreen();
         if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
@@ -39,14 +56,12 @@ public class BDShortcutHandler {
     @SubscribeEvent
     public static void onMouseClickedPre(ScreenEvent.MouseButtonPressed.Pre event) {
         Screen screen = event.getScreen();
-        if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
         if (screen.getFocused() instanceof EditBox) return;
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
 
         long window = Minecraft.getInstance().getWindow().getWindow();
         boolean isSpace = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_SPACE);
         boolean isShift = Screen.hasShiftDown();
-        // Must hold Space or Shift, but not both (Space takes priority)
         if (!isSpace && !isShift) return;
 
         if (!(screen instanceof AbstractContainerScreen<?> containerScreen)) return;
@@ -55,6 +70,23 @@ public class BDShortcutHandler {
 
         ItemStack clickedItem = slot.getItem();
         if (clickedItem.isEmpty()) return;
+
+        ModLogger.debug("onMouseClickedPre: slot={}, isSpace={}, isShift={}, screen={}",
+                slot.getSlotIndex(), isSpace, isShift, screen.getClass().getSimpleName());
+
+        // ---- AE terminal Space+click: send locked slots, let native MOVE_REGION handle deposit ----
+        if (isSpace && AE2Proxy.isMEStorageScreen(screen)) {
+            var lockedSet = IPNProxy.getLockedSlots();
+            int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
+            ModLogger.debug("AE Space+Click: slot={}, lockedSlots={}", slot.getSlotIndex(),
+                    lockedArr.length > 0 ? Arrays.toString(lockedArr) : "none");
+            PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
+            return;
+        }
+
+        // ---- BD-specific handling ----
+        boolean isBDScreen = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
+        if (!isBDScreen) return;
 
         var mc = Minecraft.getInstance();
         var player = mc.player;
@@ -73,8 +105,6 @@ public class BDShortcutHandler {
         }
 
         // ---- Shift+Click: override BD's native "fill inventory" on network storage slots ----
-        // BD's default: shift+click network slot → extract all matching items filling inventory
-        // Override: extract only 1 stack via our packet
         if (slot.index >= inventoryEnd) {
             ModLogger.debug("Shift+Click: single-stack extract from BD network");
             PacketDistributor.sendToServer(new BDActionPacket(clickedItem, 0));
@@ -86,7 +116,6 @@ public class BDShortcutHandler {
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
                                           ScreenEvent.MouseButtonPressed.Pre event) {
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-            // Space + Click on craft result → mass craft
             ModLogger.debug("Space+Click: mass craft on result slot");
             PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
             event.setCanceled(true);
@@ -109,13 +138,21 @@ public class BDShortcutHandler {
         }
 
         if (serverHasMod) {
-            PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode));
+            int[] locked = getLockedIndices(mode);
+            ModLogger.debug("BD Space+Click: mode={}, slot={}, lockedIndices={}", mode, slot.getSlotIndex(), Arrays.toString(locked));
+            PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
         } else {
-            // Fallback: use BD's built-in BatchTransferPacket via reflection
             boolean dirToStorage = mode != 0;
             BDProxy.sendBatchTransfer(clickedItem, dirToStorage);
         }
 
         event.setCanceled(true);
+    }
+
+    private static int[] getLockedIndices(int mode) {
+        if (mode == 0) return new int[0];
+        int start = (mode == 2) ? 0 : 9;
+        int end = (mode == 2) ? 9 : 36;
+        return IPNProxy.getLockedSlotsInRange(start, end);
     }
 }

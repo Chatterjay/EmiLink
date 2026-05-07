@@ -205,7 +205,7 @@ public class BDProxy {
 
     // ---- Space+Click: deposit to network ----
 
-    public static boolean depositToNetwork(Player player, int mode) {
+    public static boolean depositToNetwork(Player player, int mode, int... lockedSlots) {
         if (!isLoaded()) return false;
         try {
             var getNet = netClass.getMethod("getPrimaryNetFromPlayer", Player.class);
@@ -223,6 +223,8 @@ public class BDProxy {
             var keyCtor = itemKeyClass.getConstructor(ItemStack.class);
 
             for (int i = startSlot; i < endSlot; i++) {
+                if (isLocked(i, lockedSlots)) continue;
+
                 ItemStack stack = inventory.getItem(i);
                 if (stack.isEmpty()) continue;
 
@@ -241,6 +243,18 @@ public class BDProxy {
             ModLogger.debug("BDProxy depositToNetwork: {}", e.getMessage());
             return false;
         }
+    }
+
+    // ---- Space+Click fallback: BD's BatchTransferPacket ----
+
+    // ---- Locked slot check ----
+
+    private static boolean isLocked(int slotIndex, int... lockedSlots) {
+        if (lockedSlots == null || lockedSlots.length == 0) return false;
+        for (int ls : lockedSlots) {
+            if (ls == slotIndex) return true;
+        }
+        return false;
     }
 
     // ---- Space+Click fallback: BD's BatchTransferPacket ----
