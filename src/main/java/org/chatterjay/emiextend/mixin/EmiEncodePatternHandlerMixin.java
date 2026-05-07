@@ -19,7 +19,18 @@ public class EmiEncodePatternHandlerMixin {
     @Inject(method = "transferRecipe", at = @At("RETURN"), require = 0)
     private void emilink$afterTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<?> cir) {
         try {
-            if (!doTransfer || holder == null || holder.value() == null) return;
+            if (!doTransfer) {
+                ModLogger.debug("afterTransfer: doTransfer=false, skip");
+                return;
+            }
+            if (holder == null) {
+                ModLogger.debug("afterTransfer: holder is null");
+                return;
+            }
+            if (holder.value() == null) {
+                ModLogger.debug("afterTransfer: holder.value() is null, id={}", holder.id());
+                return;
+            }
 
             Recipe<?> recipe = holder.value();
             ModLogger.info("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
@@ -29,15 +40,16 @@ public class EmiEncodePatternHandlerMixin {
                 ModLogger.debug("RecipeType pre-fill: set crafting preset");
             } else {
                 String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
+                ModLogger.debug("afterTransfer: searchKey='{}' for recipe={}", name, recipe.getClass().getSimpleName());
                 if (name != null && !name.isBlank()) {
                     ProviderSearchHelper.setLastProcessingName(name);
                     ModLogger.debug("RecipeType pre-fill: set '{}' for {}", name, holder.id());
                 } else {
-                    ModLogger.debug("RecipeType pre-fill: no mapping for {}", holder.id());
+                    ModLogger.debug("RecipeType pre-fill: no mapping for {} ({})", holder.id(), recipe.getClass().getName());
                 }
             }
         } catch (Throwable t) {
-            ModLogger.warn("EmiEncodePatternHandlerMixin error: {}", t.getMessage());
+            ModLogger.warn("EmiEncodePatternHandlerMixin error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
         }
     }
 }
