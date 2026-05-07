@@ -7,7 +7,6 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
-import org.chatterjay.emiextend.util.ModLogger;
 import org.chatterjay.emiextend.util.ServerIPNState;
 
 public record AELockedSlotsPacket(int[] lockedSlots, int clickedSlotIndex) implements CustomPacketPayload {
@@ -35,13 +34,8 @@ public record AELockedSlotsPacket(int[] lockedSlots, int clickedSlotIndex) imple
 
     private void handleInServer(final IPayloadContext context) {
         var player = context.player();
-        if (player == null) {
-            ModLogger.debug("AELockedSlotsPacket: player is null");
-            return;
-        }
+        if (player == null) return;
 
-        ModLogger.debug("AELockedSlotsPacket: storing {} locked slot(s) for player {}, clickedSlot={}",
-                lockedSlots.length, player.getName().getString(), clickedSlotIndex);
         ServerIPNState.setLockedSlots(player.getUUID(), lockedSlots);
     }
 

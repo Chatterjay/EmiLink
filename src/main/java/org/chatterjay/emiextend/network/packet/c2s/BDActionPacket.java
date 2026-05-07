@@ -11,7 +11,6 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.BDProxy;
-import org.chatterjay.emiextend.util.ModLogger;
 
 public record BDActionPacket(ItemStack targetStack, int action) implements CustomPacketPayload {
     // action: 0 = extract from network to player inventory
@@ -36,11 +35,9 @@ public record BDActionPacket(ItemStack targetStack, int action) implements Custo
         switch (action) {
             case 0 -> {
                 if (targetStack == null || targetStack.isEmpty()) return;
-                ModLogger.debug("BDActionPacket: extract from network: {}", targetStack.getHoverName().getString());
                 BDProxy.extractFromNetwork(player, targetStack);
             }
             case 1 -> {
-                ModLogger.debug("BDActionPacket: mass craft");
                 BDProxy.massCraft(player);
             }
         }

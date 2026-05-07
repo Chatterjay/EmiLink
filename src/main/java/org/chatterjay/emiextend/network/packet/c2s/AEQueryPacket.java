@@ -12,7 +12,6 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
-import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -68,7 +67,6 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
             craftable = queryCraftability(grid, aeKey);
 
         } catch (Exception e) {
-            ModLogger.debug("AEQuery: handler error ({}): {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
         sendResponse(player, count, craftable);

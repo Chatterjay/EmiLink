@@ -3,7 +3,6 @@ package org.chatterjay.emiextend.integration;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
-import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Method;
 import java.util.Optional;
@@ -33,7 +32,6 @@ public class CuriosProxy {
             Predicate<ItemStack> predicate = s -> !s.isEmpty() && terminalItemClass.isInstance(s.getItem());
             return (boolean) isEquipped.invoke(handler, predicate);
         } catch (Exception e) {
-            ModLogger.debug("CuriosProxy: {}", e.getMessage());
             return false;
         }
     }

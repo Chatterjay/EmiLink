@@ -110,7 +110,6 @@ public class BDProxy {
                 return true;
             }
         } catch (Exception e) {
-            ModLogger.debug("BDProxy setSearchText: {}", e.getMessage());
         }
         return false;
     }
@@ -202,7 +201,6 @@ public class BDProxy {
             }
             return true;
         } catch (Exception e) {
-            ModLogger.debug("BDProxy extractFromNetwork: {}", e.getMessage());
             return false;
         }
     }
@@ -211,14 +209,12 @@ public class BDProxy {
 
     public static boolean depositToNetwork(Player player, int mode, int... lockedSlots) {
         if (!isLoaded()) {
-            ModLogger.debug("BDProxy depositToNetwork: BD not loaded");
             return false;
         }
         try {
             var getNet = netClass.getMethod("getPrimaryNetFromPlayer", Player.class);
             Object net = getNet.invoke(null, player);
             if (net == null) {
-                ModLogger.debug("BDProxy depositToNetwork: net is null");
                 return false;
             }
 
@@ -230,15 +226,12 @@ public class BDProxy {
             var inventory = player.getInventory();
             int startSlot = (mode == 2) ? 0 : 9;
             int endSlot = (mode == 2) ? 9 : inventory.items.size();
-            ModLogger.debug("BDProxy depositToNetwork: mode={}, slots=[{}-{}), locked={}", mode, startSlot, endSlot,
-                    lockedSlots != null ? java.util.Arrays.toString(lockedSlots) : "none");
 
             var keyCtor = itemKeyClass.getConstructor(ItemStack.class);
             int deposited = 0;
 
             for (int i = startSlot; i < endSlot; i++) {
                 if (isLocked(i, lockedSlots)) {
-                    ModLogger.debug("BDProxy depositToNetwork: skipping locked slot {}", i);
                     continue;
                 }
 
@@ -258,11 +251,8 @@ public class BDProxy {
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }
-            ModLogger.debug("BDProxy depositToNetwork: deposited {} item type(s)", deposited);
             return true;
         } catch (Exception e) {
-            ModLogger.debug("BDProxy depositToNetwork: {} at {}", e.getMessage(),
-                    e.getStackTrace() != null && e.getStackTrace().length > 0 ? e.getStackTrace()[0] : "?");
             return false;
         }
     }
@@ -295,7 +285,6 @@ public class BDProxy {
             var sendMethod = PacketDistributor.class.getMethod("sendToServer", net.minecraft.network.protocol.common.custom.CustomPacketPayload.class);
             sendMethod.invoke(null, packet);
         } catch (Exception e) {
-            ModLogger.debug("BDProxy sendBatchTransfer: {}", e.getMessage());
         }
     }
 
@@ -346,7 +335,6 @@ public class BDProxy {
                 if (!remaining.isEmpty()) {
                     // Inventory full — place back in result slot
                     resultSlot.set(remaining);
-                    ModLogger.debug("BDProxy.massCraft: inventory full after {} crafts", c + 1);
                     break;
                 }
             }
@@ -355,10 +343,8 @@ public class BDProxy {
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }
-            ModLogger.debug("BDProxy.massCraft: completed");
             return true;
         } catch (Exception e) {
-            ModLogger.debug("BDProxy.massCraft: {} at {}", e.getMessage(), e.getStackTrace()[0]);
             return false;
         }
     }

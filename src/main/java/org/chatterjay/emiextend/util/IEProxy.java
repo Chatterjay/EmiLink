@@ -6,11 +6,6 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/**
- * InventoryEssentials integration proxy via reflection.
- * Adds AE and BD screen classes to IE's ignore list so IE's Space+click
- * handler doesn't interfere with our custom handling.
- */
 public final class IEProxy {
     private static boolean checked = false;
     private static boolean available = false;
@@ -40,7 +35,6 @@ public final class IEProxy {
             addIgnoredScreenClass = clazz.getMethod("addIgnoredScreenClass", String.class);
             available = true;
         } catch (Exception e) {
-            ModLogger.debug("IEProxy: init failed ({})", e.getMessage());
         }
     }
 
@@ -56,9 +50,7 @@ public final class IEProxy {
         for (String className : KNOWN_SCREENS) {
             try {
                 addIgnoredScreenClass.invoke(null, className);
-                ModLogger.debug("IEProxy: added {} to IE ignored screens", className);
             } catch (Exception e) {
-                ModLogger.debug("IEProxy: failed to ignore {} ({})", className, e.getMessage());
             }
         }
     }

@@ -18,34 +18,20 @@ public final class InputEvents {
         if (!ModKeybindings.FILL_SEARCH_KEY.matches(event.getKeyCode(), event.getScanCode())) {
             return;
         }
-        ModLogger.debug("FILL_SEARCH_KEY pressed");
-
         var hovered = EmiApi.getHoveredStack(true);
-        if (hovered == null || hovered.isEmpty()) {
-            ModLogger.debug("FILL_SEARCH_KEY: no hovered stack");
-            return;
-        }
+        if (hovered == null || hovered.isEmpty()) return;
 
         var ingredient = hovered.getStack();
-        if (ingredient == null || ingredient.isEmpty()) {
-            ModLogger.debug("FILL_SEARCH_KEY: ingredient is null/empty");
-            return;
-        }
+        if (ingredient == null || ingredient.isEmpty()) return;
 
         var emiStacks = ingredient.getEmiStacks();
-        if (emiStacks.isEmpty()) {
-            ModLogger.debug("FILL_SEARCH_KEY: no emi stacks");
-            return;
-        }
+        if (emiStacks.isEmpty()) return;
 
         var first = emiStacks.getFirst();
 
         boolean alt = Screen.hasAltDown();
         var text = alt ? "@" + first.getId().getNamespace() : first.getName().getString();
-        if (text.isEmpty()) {
-            ModLogger.debug("FILL_SEARCH_KEY: {} is empty", alt ? "modid" : "name");
-            return;
-        }
+        if (text.isEmpty()) return;
 
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
@@ -57,7 +43,6 @@ public final class InputEvents {
                 acc.emilink$getSearchField().setValue(text);
                 acc.emilink$setSearchText(text);
                 event.setCanceled(true);
-                ModLogger.debug("FILL_SEARCH_KEY: set AE2 search text to '{}' ({})", text, alt ? "modid" : "name");
                 return;
             } catch (Throwable e) {
                 ModLogger.warn("FILL_SEARCH_KEY: AE2 exception: {}", e.getMessage());
@@ -68,7 +53,6 @@ public final class InputEvents {
         if (BDProxy.isBDNetGUI(screen)) {
             if (BDProxy.setSearchText(screen, text)) {
                 event.setCanceled(true);
-                ModLogger.debug("FILL_SEARCH_KEY: set BD search text to '{}' ({})", text, alt ? "modid" : "name");
             } else {
                 ModLogger.warn("FILL_SEARCH_KEY: BD setSearchText failed");
             }
@@ -79,7 +63,6 @@ public final class InputEvents {
         try {
             EmiApi.setSearchText(text);
             event.setCanceled(true);
-            ModLogger.debug("FILL_SEARCH_KEY: set EMI search text to '{}' ({})", text, alt ? "modid" : "name");
         } catch (Throwable e) {
             ModLogger.warn("FILL_SEARCH_KEY: EMI setSearchText failed: {}", e.getMessage());
         }

@@ -4,7 +4,6 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Constructor;
 
@@ -38,7 +37,6 @@ public class EAEPProxy {
             PacketDistributor.sendToServer((CustomPacketPayload) packet);
             return true;
         } catch (Exception e) {
-            ModLogger.debug("EAEP openCraftScreen: {}", e.getMessage());
             return false;
         }
     }
@@ -62,7 +60,6 @@ public class EAEPProxy {
             PacketDistributor.sendToServer((CustomPacketPayload) packet);
             return true;
         } catch (Exception e) {
-            ModLogger.debug("EAEP pullFromNetwork: {}", e.getMessage());
             return false;
         }
     }
