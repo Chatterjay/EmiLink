@@ -45,9 +45,48 @@ public final class ProviderSearchHelper {
 
     public static String mapRecipeTypeToSearchKey(Recipe<?> recipe) {
         init();
+
+        // Try EAEP's mapping first
         if (available && recipe != null) {
-            try { return (String) mapRecipeTypeToSearchKey.invoke(null, recipe); } catch (Throwable ignored) {}
+            try {
+                String result = (String) mapRecipeTypeToSearchKey.invoke(null, recipe);
+                if (result != null) return result;
+            } catch (Throwable ignored) {}
         }
+
+        // Fallback: derive search key from recipe class name
+        if (recipe != null) {
+            return deriveSearchKey(recipe.getClass());
+        }
+
         return null;
+    }
+
+    /**
+     * Derive a search key from the recipe class when EAEP has no mapping.
+     * e.g. ReactionChamberRecipe → "reaction chamber"
+     */
+    private static String deriveSearchKey(Class<?> recipeClass) {
+        String simpleName = recipeClass.getSimpleName();
+
+        // Remove common suffixes
+        String name = simpleName;
+        if (name.endsWith("Recipe")) {
+            name = name.substring(0, name.length() - 6);
+        }
+        if (name.isEmpty()) return null;
+
+        // Split camelCase into words
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (i > 0 && Character.isUpperCase(c)) {
+                sb.append(' ');
+            }
+            sb.append(Character.toLowerCase(c));
+        }
+
+        String key = sb.toString().trim();
+        return key.isEmpty() ? null : key;
     }
 }

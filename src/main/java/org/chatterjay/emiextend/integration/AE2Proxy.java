@@ -54,7 +54,7 @@ public class AE2Proxy {
             Class<?> ccsClass = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
             if (!ccsClass.isInstance(screen)) return ItemStack.EMPTY;
 
-            Method getStackMethod = ccsClass.getMethod("getStackUnderMouse", int.class, int.class);
+            Method getStackMethod = ccsClass.getMethod("getStackUnderMouse", double.class, double.class);
             Object swb = getStackMethod.invoke(screen, mouseX, mouseY);
             if (swb == null) return ItemStack.EMPTY;
 
