@@ -19,6 +19,7 @@ import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
+import org.chatterjay.emiextend.util.IEProxy;
 import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -30,13 +31,23 @@ public class BDShortcutHandler {
     public static boolean serverHasMod = false;
 
     /**
-     * When an AE terminal screen opens, send locked slots to the server
-     * so AEBaseMenuMixin can protect them during MOVE_REGION.
+     * When an AE or BD terminal screen opens, send locked slots to the server
+     * and register these screen classes with IE's ignore list so its
+     * Space+click handlers don't interfere.
      */
     @SubscribeEvent
     public static void onScreenInitPost(ScreenEvent.Init.Post event) {
         Screen screen = event.getScreen();
-        if (!AE2Proxy.isMEStorageScreen(screen)) return;
+        boolean isAE = AE2Proxy.isMEStorageScreen(screen);
+        boolean isBD = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
+        if (!isAE && !isBD) return;
+
+        // Register our screens with IE's ignore list (reflection, no-op if IE absent)
+        IEProxy.registerIgnoredScreens();
+
+        if (!isAE) return;
+
+        // Pre-populate locked slots for AE screens so the mixin has them ready
         var lockedSet = IPNProxy.getLockedSlots();
         if (lockedSet.isEmpty()) return;
         int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
