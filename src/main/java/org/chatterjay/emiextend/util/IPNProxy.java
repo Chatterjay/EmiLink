@@ -77,6 +77,13 @@ public final class IPNProxy {
     }
 
     /**
+     * Check if there are any locked slots at all (e.g. for bulkTransferAll guard).
+     */
+    public static boolean hasLockedSlots() {
+        return !getLockedSlots().isEmpty();
+    }
+
+    /**
      * Get locked slot indices within a specific range [start, end).
      */
     public static int[] getLockedSlotsInRange(int start, int end) {

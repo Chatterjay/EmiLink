@@ -123,16 +123,18 @@ public class BDProxy {
     }
 
     public static boolean extractFromNetwork(Player player, ItemStack targetStack) {
-        // Extract only one stack (not all matching)
-        return extractFromNetwork(player, targetStack, false);
+        return extractFromNetwork(player, targetStack, false, new int[0]);
     }
 
     public static boolean extractAllFromNetwork(Player player, ItemStack targetStack) {
-        // Extract all matching items to fill inventory
-        return extractFromNetwork(player, targetStack, true);
+        return extractAllFromNetwork(player, targetStack, new int[0]);
     }
 
-    private static boolean extractFromNetwork(Player player, ItemStack targetStack, boolean extractAll) {
+    public static boolean extractAllFromNetwork(Player player, ItemStack targetStack, int[] lockedSlots) {
+        return extractFromNetwork(player, targetStack, true, lockedSlots);
+    }
+
+    private static boolean extractFromNetwork(Player player, ItemStack targetStack, boolean extractAll, int... lockedSlots) {
         if (!isLoaded()) return false;
         try {
             var getNet = netClass.getMethod("getPrimaryNetFromPlayer", Player.class);
@@ -162,8 +164,9 @@ public class BDProxy {
 
                 int remaining = extractedStack.getCount();
 
-                // Fill existing stacks first
+                // Fill existing stacks first (skip locked slots)
                 for (int i = 0; i < inventory.items.size() && remaining > 0; i++) {
+                    if (isLocked(i, lockedSlots)) continue;
                     ItemStack slotStack = inventory.getItem(i);
                     if (slotStack.isEmpty()) continue;
                     if (!ItemStack.isSameItemSameComponents(slotStack, extractedStack)) continue;
@@ -174,8 +177,9 @@ public class BDProxy {
                     remaining -= toAdd;
                 }
 
-                // Fill empty slots
+                // Fill empty slots (skip locked slots)
                 for (int i = 0; i < inventory.items.size() && remaining > 0; i++) {
+                    if (isLocked(i, lockedSlots)) continue;
                     if (!inventory.getItem(i).isEmpty()) continue;
                     int maxStack = extractedStack.getMaxStackSize();
                     int toAdd = Math.min(remaining, maxStack);
@@ -206,24 +210,37 @@ public class BDProxy {
     // ---- Space+Click: deposit to network ----
 
     public static boolean depositToNetwork(Player player, int mode, int... lockedSlots) {
-        if (!isLoaded()) return false;
+        if (!isLoaded()) {
+            ModLogger.debug("BDProxy depositToNetwork: BD not loaded");
+            return false;
+        }
         try {
             var getNet = netClass.getMethod("getPrimaryNetFromPlayer", Player.class);
             Object net = getNet.invoke(null, player);
-            if (net == null) return false;
+            if (net == null) {
+                ModLogger.debug("BDProxy depositToNetwork: net is null");
+                return false;
+            }
 
             var getStorage = netClass.getMethod("getUnifiedStorage");
             Object storage = getStorage.invoke(net);
+
             var insertMethod = storage.getClass().getMethod("insert", iStackKeyClass, long.class, boolean.class);
 
             var inventory = player.getInventory();
             int startSlot = (mode == 2) ? 0 : 9;
             int endSlot = (mode == 2) ? 9 : inventory.items.size();
+            ModLogger.debug("BDProxy depositToNetwork: mode={}, slots=[{}-{}), locked={}", mode, startSlot, endSlot,
+                    lockedSlots != null ? java.util.Arrays.toString(lockedSlots) : "none");
 
             var keyCtor = itemKeyClass.getConstructor(ItemStack.class);
+            int deposited = 0;
 
             for (int i = startSlot; i < endSlot; i++) {
-                if (isLocked(i, lockedSlots)) continue;
+                if (isLocked(i, lockedSlots)) {
+                    ModLogger.debug("BDProxy depositToNetwork: skipping locked slot {}", i);
+                    continue;
+                }
 
                 ItemStack stack = inventory.getItem(i);
                 if (stack.isEmpty()) continue;
@@ -231,6 +248,9 @@ public class BDProxy {
                 Object key = keyCtor.newInstance(stack);
                 Object remaining = insertMethod.invoke(storage, key, (long) stack.getCount(), false);
                 long remainingAmount = (long) keyAmountClass.getMethod("amount").invoke(remaining);
+                if (remainingAmount < stack.getCount()) {
+                    deposited++;
+                }
                 stack.setCount((int) remainingAmount);
             }
 
@@ -238,9 +258,11 @@ public class BDProxy {
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }
+            ModLogger.debug("BDProxy depositToNetwork: deposited {} item type(s)", deposited);
             return true;
         } catch (Exception e) {
-            ModLogger.debug("BDProxy depositToNetwork: {}", e.getMessage());
+            ModLogger.debug("BDProxy depositToNetwork: {} at {}", e.getMessage(),
+                    e.getStackTrace() != null && e.getStackTrace().length > 0 ? e.getStackTrace()[0] : "?");
             return false;
         }
     }
