@@ -22,12 +22,9 @@ import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.util.IEProxy;
 import org.chatterjay.emiextend.util.IPNProxy;
-import org.chatterjay.emiextend.util.ModLogger;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
@@ -59,7 +56,6 @@ public class BDShortcutHandler {
         if (lockedSet.isEmpty()) return;
         int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
         PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
-        ModLogger.debug("AE screen opened: sent {} locked slot(s) to server", lockedArr.length);
     }
 
     @SubscribeEvent
@@ -106,15 +102,10 @@ public class BDShortcutHandler {
         ItemStack clickedItem = slot.getItem();
         if (clickedItem.isEmpty()) return;
 
-        ModLogger.debug("onMouseClickedPre: slot={}, isSpace={}, isShift={}, screen={}",
-                slot.getSlotIndex(), isSpace, isShift, screen.getClass().getSimpleName());
-
         // ---- AE terminal Space+click: send locked slots, let native MOVE_REGION handle deposit ----
         if (isSpace && AE2Proxy.isMEStorageScreen(screen)) {
             var lockedSet = IPNProxy.getLockedSlots();
             int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
-            ModLogger.debug("AE Space+Click: slot={}, lockedSlots={}", slot.getSlotIndex(),
-                    lockedArr.length > 0 ? Arrays.toString(lockedArr) : "none");
             PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
             return;
         }
@@ -154,7 +145,6 @@ public class BDShortcutHandler {
 
         // ---- Shift+Click: override BD's native "fill inventory" on network storage slots ----
         if (slot.index >= inventoryEnd) {
-            ModLogger.debug("Shift+Click: single-stack extract from BD network");
             PacketDistributor.sendToServer(new BDActionPacket(clickedItem, 0));
             event.setCanceled(true);
         }
@@ -164,7 +154,6 @@ public class BDShortcutHandler {
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
                                           ScreenEvent.MouseButtonPressed.Pre event) {
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-            ModLogger.debug("Space+Click: mass craft on result slot");
             PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
             event.setCanceled(true);
             return;
@@ -187,7 +176,6 @@ public class BDShortcutHandler {
 
         if (serverHasMod) {
             int[] locked = getLockedIndices(mode);
-            ModLogger.debug("BD Space+Click: mode={}, slot={}, lockedIndices={}", mode, slot.getSlotIndex(), Arrays.toString(locked));
             PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
         } else {
             boolean dirToStorage = mode != 0;
@@ -235,7 +223,6 @@ public class BDShortcutHandler {
         for (int slotIndex : slots) {
             click(menu, containerId, slotIndex, 1, net.minecraft.world.inventory.ClickType.THROW);
         }
-        ModLogger.debug("BatchDrop: threw {} item(s)", slots.size());
     }
 
     /** IE-style slotClick wrapper: validates slot index and delegates to handleInventoryMouseClick. */
@@ -272,7 +259,6 @@ public class BDShortcutHandler {
                 click(menu, containerId, slot.index, 0, net.minecraft.world.inventory.ClickType.QUICK_MOVE);
             }
         }
-        ModLogger.debug("bulkTransferAll: transferred from inventory matching clicked slot");
     }
 
     /** Check if a slot is a valid player-interaction target (skip armor/offhand). */

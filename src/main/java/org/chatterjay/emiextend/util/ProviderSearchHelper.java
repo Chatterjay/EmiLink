@@ -1,7 +1,6 @@
 package org.chatterjay.emiextend.util;
 
 import net.minecraft.world.item.crafting.Recipe;
-import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Method;
 
@@ -23,9 +22,7 @@ public final class ProviderSearchHelper {
             presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
             mapRecipeTypeToSearchKey = clazz.getMethod("mapRecipeTypeToSearchKey", Recipe.class);
             available = true;
-            ModLogger.debug("ProviderSearchHelper: ExtendedAE_Plus ExtendedAEPatternUploadUtil found");
         } catch (Throwable t) {
-            ModLogger.debug("ProviderSearchHelper: ExtendedAE_Plus not available ({})", t.getMessage());
         }
     }
 

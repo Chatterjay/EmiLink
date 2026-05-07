@@ -25,9 +25,7 @@ public final class IPNProxy {
             getInstanceMethod = ipnClass.getMethod("getInstance");
             getLockedSlotsMethod = ipnClass.getMethod("getLockedSlots");
             available = true;
-            ModLogger.debug("IPNProxy: IPN API found");
         } catch (Throwable t) {
-            ModLogger.debug("IPNProxy: IPN not available ({})", t.getMessage());
         }
     }
 
@@ -64,7 +62,6 @@ public final class IPNProxy {
             }
             return locked;
         } catch (Throwable t) {
-            ModLogger.debug("IPNProxy: failed to query locked slots ({})", t.getMessage());
             return Collections.emptySet();
         }
     }

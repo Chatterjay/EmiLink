@@ -15,7 +15,6 @@ import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.integration.EAEPProxy;
-import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -72,7 +71,6 @@ public class EmiScreenManagerMixin {
             // If on a BD screen, try BD first
             var mc = Minecraft.getInstance();
             boolean isBDScreen = mc.screen != null && (BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen));
-            ModLogger.debug("Shift-click: isBDScreen={} screen={}", isBDScreen, mc.screen != null ? mc.screen.getClass().getSimpleName() : "null");
 
             if (isBDScreen) {
                 handleShiftClickBD(itemStack, cir);
@@ -97,7 +95,6 @@ public class EmiScreenManagerMixin {
         if (player == null || !hasWirelessTerminal(player)) return;
 
         if (EAEPProxy.openCraftScreen(itemStack)) {
-            ModLogger.debug("Middle-click: opened AE2 craft screen for {}", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
     }
@@ -108,7 +105,6 @@ public class EmiScreenManagerMixin {
         if (!hasWirelessTerminal(player)) return;
 
         if (EAEPProxy.pullFromNetwork(itemStack)) {
-            ModLogger.debug("Shift-click: pulled {} from AE2 network", itemStack.getHoverName().getString());
             cir.setReturnValue(true);
         }
     }
@@ -141,7 +137,6 @@ public class EmiScreenManagerMixin {
         if (player == null) return;
 
         BDProxy.pullFromNetwork(itemStack);
-        ModLogger.debug("Shift-click: sending BD extract request for {}", itemStack.getHoverName().getString());
         cir.setReturnValue(true);
     }
 
