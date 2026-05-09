@@ -3,15 +3,12 @@ package org.chatterjay.emiextend;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
-import org.chatterjay.emiextend.client.BDShortcutHandler;
-import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
@@ -28,12 +25,11 @@ public class EmiAE2 {
     public EmiAE2(IEventBus modBus) {
         modBus.addListener(RegisterKeyMappingsEvent.class, ModKeybindings::register);
         modBus.addListener(this::registerPackets);
-        NeoForge.EVENT_BUS.register(InputEvents.class);
         NeoForge.EVENT_BUS.register(ServerEvents.class);
     }
 
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar("1");
+        final PayloadRegistrar registrar = event.registrar("1").optional();
         registrar.playToServer(
                 AEQueryPacket.TYPE,
                 AEQueryPacket.STREAM_CODEC,
@@ -75,7 +71,11 @@ public class EmiAE2 {
         @SubscribeEvent
         public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
             if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                PacketDistributor.sendToPlayer(serverPlayer, new ServerHasModPacket());
+                try {
+                    PacketDistributor.sendToPlayer(serverPlayer, new ServerHasModPacket());
+                } catch (Exception e) {
+                    // Client doesn't have EmiLink installed — that's fine
+                }
             }
         }
 
