@@ -23,7 +23,7 @@ EMI ↔ AE2 / BeyondDimensions 集成增强模组，为 EMI 配方界面添加 A
 
 ### EAEP 联动功能
 
-需客户端 + 服务端均安装 [ExtendedAE_Plus](https://github.com/Chatterjay/ExtendedAE_Plus)。
+需客户端 + 服务端均安装 [ExtendedAE_Plus](https://github.com/GaLicn/ExtendedAE_Plus)。
 
 | 功能 | 说明 |
 |------|------|
@@ -55,8 +55,8 @@ EMI 侧边栏中悬浮物品时，模组会向服务器查询该物品在 AE 网
 
 - **必要**: NeoForge ≥21.1.220, Minecraft 1.21.1, Java 21, [EMI](https://modrinth.com/mod/emi) ≥1.1.22
 - **可选**: [Applied Energistics 2](https://modrinth.com/mod/ae2) ≥19.2.17（AE2 终端快捷合成、F 搜索、合成计划界面、网络信息查询）
-- **可选**: [BeyondDimensions](https://github.com/Chatterjay/BeyondDimensions) ≥0.7.14（BD 网络提取/存入/批量合成）
-- **可选**: [ExtendedAE_Plus](https://github.com/Chatterjay/ExtendedAE_Plus) ≥1.5.4（中键和 Shift+左键联动功能）
+- **可选**: [BeyondDimensions](https://github.com/Frostbite-time/BeyondDimensions) ≥0.7.14（BD 网络提取/存入/批量合成）
+- **可选**: [ExtendedAE_Plus](https://github.com/GaLicn/ExtendedAE_Plus) ≥1.5.4（中键和 Shift+左键联动功能）
 - **可选**: Curios（Curios 槽位中的无线终端检测）
 
 ---
