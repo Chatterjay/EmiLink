@@ -11,6 +11,7 @@
     "EmiEncodePatternHandlerMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
+    "CraftConfirmMenuMixin",
     "MEStorageScreenAccessor"
   ],
   "mixins": [
