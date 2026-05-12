@@ -3,6 +3,7 @@ package org.chatterjay.emiextend.client;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.api.stack.EmiStack;
+import org.chatterjay.emiextend.util.ModLogger;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
@@ -138,7 +139,16 @@ public final class AENetworkCache {
         }
 
         current.lastQueryTime = System.currentTimeMillis();
-        PacketDistributor.sendToServer(new AEQueryPacket(stack));
+        if (!BDShortcutHandler.serverHasMod) {
+            current.cache.clear();
+            return;
+        }
+        try {
+            PacketDistributor.sendToServer(new AEQueryPacket(stack));
+        } catch (Exception e) {
+            ModLogger.warn("AEQuery: server doesn't have EmiLink, disabling cache");
+            current.cache.clear();
+        }
     }
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable) {

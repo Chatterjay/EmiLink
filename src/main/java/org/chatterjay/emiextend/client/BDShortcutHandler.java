@@ -22,6 +22,7 @@ import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.util.IEProxy;
 import org.chatterjay.emiextend.util.IPNProxy;
+import org.chatterjay.emiextend.util.ModLogger;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -33,6 +34,18 @@ public class BDShortcutHandler {
 
     /** Tracks the source inventory of the last plain left-click pickup: null=unknown, true=container, false=player. */
     private static Boolean pickupFromContainer = null;
+
+    /**
+     * Safely send a packet to the server, catching the case where the server doesn't have EmiLink.
+     */
+    private static void sendToServerSafe(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
+        if (!serverHasMod) return;
+        try {
+            PacketDistributor.sendToServer(packet);
+        } catch (Exception e) {
+            ModLogger.warn("Server doesn't have EmiLink, dropping packet: {}", packet.type().id());
+        }
+    }
 
     /**
      * When an AE or BD terminal screen opens, send locked slots to the server
@@ -53,9 +66,9 @@ public class BDShortcutHandler {
 
         // Pre-populate locked slots for AE screens so the mixin has them ready
         var lockedSet = IPNProxy.getLockedSlots();
-        if (lockedSet.isEmpty()) return;
+        if (lockedSet.isEmpty() || !serverHasMod) return;
         int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
-        PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
+        sendToServerSafe(new AELockedSlotsPacket(lockedArr, -1));
     }
 
     @SubscribeEvent
@@ -106,7 +119,7 @@ public class BDShortcutHandler {
         if (isSpace && AE2Proxy.isMEStorageScreen(screen)) {
             var lockedSet = IPNProxy.getLockedSlots();
             int[] lockedArr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
-            PacketDistributor.sendToServer(new AELockedSlotsPacket(lockedArr, -1));
+            sendToServerSafe(new AELockedSlotsPacket(lockedArr, -1));
             return;
         }
 
@@ -145,7 +158,7 @@ public class BDShortcutHandler {
 
         // ---- Shift+Click: override BD's native "fill inventory" on network storage slots ----
         if (slot.index >= inventoryEnd) {
-            PacketDistributor.sendToServer(new BDActionPacket(clickedItem, 0));
+            sendToServerSafe(new BDActionPacket(clickedItem, 0));
             event.setCanceled(true);
         }
     }
@@ -154,7 +167,7 @@ public class BDShortcutHandler {
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
                                           ScreenEvent.MouseButtonPressed.Pre event) {
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
+            sendToServerSafe(new BDActionPacket(ItemStack.EMPTY, 1));
             event.setCanceled(true);
             return;
         }
