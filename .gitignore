@@ -4,3 +4,9 @@ build/
 /run
 libs/
 .claude/
+
+# Non-code artifacts (IDE stubs, scripts, docs, test servers)
+stubs/
+scripts/
+test/
+server_test/
