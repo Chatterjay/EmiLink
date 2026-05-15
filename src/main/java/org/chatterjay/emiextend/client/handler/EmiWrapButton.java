@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.network.chat.Component;
 
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import java.util.List;
 
 public class EmiWrapButton extends Widget {
@@ -29,9 +30,11 @@ public class EmiWrapButton extends Widget {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
         EmiDrawContext ctx = EmiDrawContext.wrap(guiGraphics);
-        boolean active = WrapAsBookHandler.isActive();
+        boolean enabled = EmiLinkConfig.ENABLE_WRAP_BOOK.get();
+        boolean active = enabled && WrapAsBookHandler.isActive();
 
-        ctx.fill(x, y, x + width, y + height, active ? 0xFF555555 : 0xFF222222);
+        int bgColor = active ? 0xFF555555 : (enabled ? 0xFF222222 : 0xFF111111);
+        ctx.fill(x, y, x + width, y + height, bgColor);
 
         if (active) {
             ctx.fill(x + 1, y + 1, x + width - 1, y + height - 1, 0x40FFFF00);
@@ -51,7 +54,7 @@ public class EmiWrapButton extends Widget {
 
     @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
-        if (button == 0 && getBounds().contains(mouseX, mouseY)) {
+        if (button == 0 && getBounds().contains(mouseX, mouseY) && EmiLinkConfig.ENABLE_WRAP_BOOK.get()) {
             WrapAsBookHandler.toggle();
             return true;
         }
@@ -61,6 +64,9 @@ public class EmiWrapButton extends Widget {
     @Override
     public List<ClientTooltipComponent> getTooltip(int mouseX, int mouseY) {
         if (getBounds().contains(mouseX, mouseY)) {
+            if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) {
+                return List.of();
+            }
             boolean active = WrapAsBookHandler.isActive();
             var key = active ? "emilink.tooltip.wrap_as_book.on" : "emilink.tooltip.wrap_as_book.off";
             return List.of(ClientTooltipComponent.create(

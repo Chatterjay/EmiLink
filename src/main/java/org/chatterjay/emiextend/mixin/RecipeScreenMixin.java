@@ -2,6 +2,7 @@ package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.screen.WidgetGroup;
 import org.chatterjay.emiextend.client.handler.EmiWrapButton;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -31,6 +32,7 @@ public abstract class RecipeScreenMixin {
 
     @Unique
     private void emilink$addWidgetToPage() {
+        if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) return;
         if (currentPage == null || currentPage.isEmpty()) return;
         WidgetGroup first = currentPage.getFirst();
 

@@ -14,6 +14,9 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue DEBOUNCE_MS;
 
+    // ---- Features ----
+    public static final ModConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
+
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
@@ -38,6 +41,13 @@ public final class EmiLinkConfig {
         DEBOUNCE_MS = BUILDER
                 .comment("Hover debounce time in milliseconds (50-5000)")
                 .defineInRange("debounceMs", 250L, 50L, 5_000L);
+
+        BUILDER.pop();
+        BUILDER.push("features");
+
+        ENABLE_WRAP_BOOK = BUILDER
+                .comment("Enable the wrap-as-book feature for pattern encoding (default: false)")
+                .define("enableWrapBook", false);
 
         BUILDER.pop();
         BUILDER.push("network");
