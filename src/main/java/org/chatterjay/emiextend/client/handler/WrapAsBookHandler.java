@@ -15,6 +15,7 @@ import net.minecraft.world.item.component.WrittenBookContent;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -24,10 +25,12 @@ public final class WrapAsBookHandler {
     private WrapAsBookHandler() {}
 
     public static boolean isActive() {
+        if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) return false;
         return wrapRequested.get();
     }
 
     public static void toggle() {
+        if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) return;
         wrapRequested.set(!wrapRequested.get());
     }
 
