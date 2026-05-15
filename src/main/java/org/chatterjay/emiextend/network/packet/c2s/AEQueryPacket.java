@@ -11,7 +11,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.AE2Proxy;
+import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
+import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -323,6 +325,10 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
 
     public static void handle(final AEQueryPacket packet, final IPayloadContext context) {
         if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
+            if (!PacketRateLimiter.allowDebugPacket()) {
+                ModLogger.debug("AEQuery rate limited (dropped)");
+                return;
+            }
             context.enqueueWork(() -> packet.handleInServer(context));
         }
     }

@@ -14,6 +14,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -26,9 +27,6 @@ import java.util.Map;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class AENetworkCache {
-    private static final long DEBOUNCE_MS = 250;
-    private static final long CACHE_TTL_MS = 5_000;
-    private static final long NEGATIVE_CACHE_TTL_MS = 10_000;
 
     private static final Map<String, ServerState> serverStates = new HashMap<>();
     private static String currentServerId = "local";
@@ -76,7 +74,7 @@ public final class AENetworkCache {
 
     private record CachedInfo(long count, boolean craftable, long timestamp) {
         boolean isExpired(boolean negative) {
-            long ttl = negative ? NEGATIVE_CACHE_TTL_MS : CACHE_TTL_MS;
+            long ttl = negative ? EmiLinkConfig.NEGATIVE_CACHE_TTL_MS.get() : EmiLinkConfig.CACHE_TTL_MS.get();
             return System.currentTimeMillis() - timestamp > ttl;
         }
     }
@@ -128,9 +126,9 @@ public final class AENetworkCache {
         }
 
         long elapsed = System.currentTimeMillis() - current.lastHoverChangeTime;
-        if (elapsed < DEBOUNCE_MS) return;
+        if (elapsed < EmiLinkConfig.DEBOUNCE_MS.get()) return;
 
-        if (System.currentTimeMillis() - current.lastQueryTime < DEBOUNCE_MS) return;
+        if (System.currentTimeMillis() - current.lastQueryTime < EmiLinkConfig.DEBOUNCE_MS.get()) return;
 
         var cached = findCached(stack);
         if (cached != null) {

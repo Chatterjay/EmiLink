@@ -2,14 +2,12 @@ package org.chatterjay.emiextend.util;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class
-
-ModLogger {
+public final class ModLogger {
     private static final Logger LOG = LoggerFactory.getLogger("EmiLink");
-    public static boolean DEBUG = true;
 
     private ModLogger() {}
 
@@ -26,13 +24,13 @@ ModLogger {
     }
 
     public static void debug(String msg, Object... args) {
-        if (DEBUG) {
+        if (EmiLinkConfig.DEBUG_MODE.get()) {
             LOG.info("[DEBUG] " + msg, args);
         }
     }
 
     public static void debugChat(ServerPlayer player, String msg, Object... args) {
-        if (DEBUG && player != null) {
+        if (EmiLinkConfig.DEBUG_MODE.get() && player != null) {
             var text = String.format("[EmiLink] " + msg, args);
             player.sendSystemMessage(Component.literal(text), true);
         }
