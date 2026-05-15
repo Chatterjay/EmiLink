@@ -2,9 +2,5 @@
   "key.emilink.fill_search": "将鼠标悬浮的物品填入AE2搜索框 (Alt: 模组ID)",
   "key.categories.emilink": "EmiLink",
   "ae_tooltip.count": "AE: %s",
-  "ae_tooltip.craftable": "可合成",
-  "emilink.tooltip.wrap_as_book": "切换为成书包裹模式",
-  "emilink.tooltip.wrap_as_book.on": "成书包裹: 开启",
-  "emilink.tooltip.wrap_as_book.off": "成书包裹: 关闭",
-  "emilink.suffix.pattern": "样板"
+  "ae_tooltip.craftable": "可合成"
 }

@@ -14,8 +14,6 @@
     "EmiScreenManagerMixin",
     "CraftConfirmMenuMixin",
     "MEStorageScreenAccessor",
-    "RecipeScreenMixin",
-    "ScreenInvoker"
   ],
   "mixins": [
     "AEBaseMenuMixin",
