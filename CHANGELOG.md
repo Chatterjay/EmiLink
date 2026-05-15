@@ -1,5 +1,19 @@
 # 更新日志
 
+## [1.1.6] - 2026-05-15
+
+### 新增
+
+- 样板管理终端（PatternAccessTermScreen）F 搜索支持
+- CPU 合成状态界面（CraftingCPUScreen）EMI 侧边栏
+- CPU 界面 A 键收藏物品至 EMI 书签（支持所有 AEKey 类型）
+- 编码样板时自动包裹输出为成书（Toggle Wrap as Book）
+
+### 修复
+
+- 修复 F 搜索后字符 'f' 残留追加到搜索框的问题
+- 修复 CPU 界面非物品 AEKey（流体、化学品）无法通过 A 键收藏的问题
+
 ## [1.1.5] - 2026-05-12
 
 ### 变更

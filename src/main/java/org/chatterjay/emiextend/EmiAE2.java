@@ -10,6 +10,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.chatterjay.emiextend.client.ModKeybindings;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
@@ -17,12 +18,20 @@ import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import org.chatterjay.emiextend.network.PacketRateLimiter;
 
 @Mod(EmiAE2.MODID)
 public class EmiAE2 {
     public static final String MODID = "emilink";
 
-    public EmiAE2(IEventBus modBus) {
+    public EmiAE2(IEventBus modBus, ModContainer container) {
+        container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
+        modBus.addListener((ModConfigEvent.Loading e) -> EmiLinkConfig.validate());
+        modBus.addListener((ModConfigEvent.Reloading e) -> EmiLinkConfig.onReload());
+
         modBus.addListener(RegisterKeyMappingsEvent.class, ModKeybindings::register);
         modBus.addListener(this::registerPackets);
         NeoForge.EVENT_BUS.register(ServerEvents.class);
@@ -77,6 +86,11 @@ public class EmiAE2 {
                     // Client doesn't have EmiLink installed — that's fine
                 }
             }
+        }
+
+        @SubscribeEvent
+        public static void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+            PacketRateLimiter.onTick();
         }
 
         @SubscribeEvent
