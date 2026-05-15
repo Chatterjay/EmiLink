@@ -16,7 +16,16 @@ public final class ModKeybindings {
             "key.categories.emilink"
     );
 
+    public static final KeyMapping QUICK_BOOKMARK_KEY = new KeyMapping(
+            "key.emilink.quick_bookmark",
+            KeyConflictContext.GUI,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_B,
+            "key.categories.emilink"
+    );
+
     public static void register(net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent event) {
         event.register(FILL_SEARCH_KEY);
+        event.register(QUICK_BOOKMARK_KEY);
     }
 }
