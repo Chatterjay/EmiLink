@@ -7,7 +7,7 @@
 - 样板管理终端（PatternAccessTermScreen）F 搜索支持
 - CPU 合成状态界面（CraftingCPUScreen）EMI 侧边栏
 - CPU 界面 A 键收藏物品至 EMI 书签（支持所有 AEKey 类型）
-- 编码样板时自动包裹输出为成书（Toggle Wrap as Book）
+
 
 ### 修复
 

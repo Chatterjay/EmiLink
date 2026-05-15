@@ -70,6 +70,33 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: PatternAccessTermScreen exception: {}", e.getMessage());
         }
 
+        // ExtendedAE (EAEP): GuiWirelessExPAT — wireless pattern access terminal
+        try {
+            var eaeClass = Class.forName("com.glodblock.github.extendedae.xmod.wt.GuiWirelessExPAT");
+            if (eaeClass.isInstance(screen)) {
+                java.lang.reflect.Field searchField = null;
+                Class<?> cls = screen.getClass();
+                while (cls != null && searchField == null) {
+                    try {
+                        searchField = cls.getDeclaredField("searchField");
+                    } catch (NoSuchFieldException ignored) {}
+                    cls = cls.getSuperclass();
+                }
+                if (searchField != null) {
+                    searchField.setAccessible(true);
+                    Object fieldObj = searchField.get(screen);
+                    if (fieldObj != null) {
+                        fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
+                        fillSearchHandled = true;
+                        event.setCanceled(true);
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: EAEP GuiWirelessExPAT exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
         // AE2 terminal search field — works for MEStorageScreen and subclasses (PatternEncodingTermScreen etc.)
         try {
             var meStorageClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
