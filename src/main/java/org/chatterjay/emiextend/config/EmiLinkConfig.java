@@ -14,6 +14,9 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue DEBOUNCE_MS;
 
+    // ---- Bookmark Priority ----
+    public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
+
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
@@ -38,6 +41,15 @@ public final class EmiLinkConfig {
         DEBOUNCE_MS = BUILDER
                 .comment("Hover debounce time in milliseconds (50-5000)")
                 .defineInRange("debounceMs", 250L, 50L, 5_000L);
+
+        BUILDER.pop();
+        BUILDER.push("bookmark_priority");
+
+        BOOKMARK_PRIORITY = BUILDER
+                .comment("When encoding processing patterns via EMI recipe transfer, " +
+                         "prioritize items from the EMI favorites bar over " +
+                         "network-inventory-selected items")
+                .define("bookmarkPriority", true);
 
         BUILDER.pop();
         BUILDER.push("network");

@@ -1,11 +1,13 @@
 package org.chatterjay.emiextend.mixin;
 
 import appeng.integration.modules.emi.EmiEncodePatternHandler;
-import appeng.integration.modules.itemlists.EncodingHelper;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeType;
+import org.chatterjay.emiextend.client.handler.BookmarkPriorityHandler;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.chatterjay.emiextend.util.ProviderSearchHelper;
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,12 +28,18 @@ public class EmiEncodePatternHandlerMixin {
             Recipe<?> recipe = holder.value();
             ModLogger.info("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
 
-            if (EncodingHelper.isSupportedCraftingRecipe(recipe)) {
+            if (recipe.getType() == RecipeType.CRAFTING) {
                 ProviderSearchHelper.presetCraftingProviderSearchKey();
+                if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
+                    BookmarkPriorityHandler.applyBookmarkPriority(menu.getCraftingGridSlots(), emiRecipe.getInputs());
+                }
             } else {
                 String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
                 if (name != null && !name.isBlank()) {
                     ProviderSearchHelper.setLastProcessingName(name);
+                }
+                if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
+                    BookmarkPriorityHandler.applyBookmarkPriority(menu.getProcessingInputSlots(), emiRecipe.getInputs());
                 }
             }
         } catch (Throwable t) {
