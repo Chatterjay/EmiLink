@@ -22,6 +22,14 @@ public class EmiScreenBaseMixin {
         } catch (Exception ignored) {
             // AE2 not loaded
         }
+        try {
+            Class<?> cpuScreen = Class.forName("appeng.client.gui.me.crafting.CraftingCPUScreen");
+            if (cpuScreen.isInstance(screen)) {
+                return false;
+            }
+        } catch (Exception ignored) {
+            // AE2 not loaded
+        }
         return slots.isEmpty();
     }
 }

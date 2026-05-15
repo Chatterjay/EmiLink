@@ -2,5 +2,9 @@
   "key.emilink.fill_search": "Fill AE2 search with hovered item name (Alt: mod ID)",
   "key.categories.emilink": "EmiLink",
   "ae_tooltip.count": "AE: %s",
-  "ae_tooltip.craftable": "Craftable"
+  "ae_tooltip.craftable": "Craftable",
+  "emilink.tooltip.wrap_as_book": "Toggle wrap output as Written Book",
+  "emilink.tooltip.wrap_as_book.on": "Wrap mode: ON",
+  "emilink.tooltip.wrap_as_book.off": "Wrap mode: OFF",
+  "emilink.suffix.pattern": " Pattern"
 }

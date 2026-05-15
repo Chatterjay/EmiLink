@@ -37,6 +37,15 @@ public class AE2Proxy {
         }
     }
 
+    public static boolean isPatternEncodingTermScreen(Screen screen) {
+        if (!isLoaded() || screen == null) return false;
+        try {
+            return Class.forName("appeng.client.gui.me.items.PatternEncodingTermScreen").isInstance(screen);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // ---- AEItemKey helpers ----
 
     private static Class<?> getAEItemKeyClass() {
