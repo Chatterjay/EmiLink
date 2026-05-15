@@ -6,6 +6,7 @@ import appeng.menu.me.items.PatternEncodingTermMenu;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import org.chatterjay.emiextend.client.handler.WrapAsBookHandler;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.chatterjay.emiextend.util.ProviderSearchHelper;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,6 +34,8 @@ public class EmiEncodePatternHandlerMixin {
                 if (name != null && !name.isBlank()) {
                     ProviderSearchHelper.setLastProcessingName(name);
                 }
+                var output = emiRecipe.getOutputs().isEmpty() ? null : emiRecipe.getOutputs().getFirst();
+                WrapAsBookHandler.applyWrap(menu, output, doTransfer);
             }
         } catch (Throwable t) {
             ModLogger.warn("EmiEncodePatternHandlerMixin error: {}: {}", t.getClass().getSimpleName(), t.getMessage());

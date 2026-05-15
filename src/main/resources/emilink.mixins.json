@@ -8,11 +8,14 @@
     "AbstractRecipeHandlerMixin",
     "AEConfigMixin",
     "CraftConfirmScreenMixin",
+    "CraftingCPUScreenMixin",
     "EmiEncodePatternHandlerMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
     "CraftConfirmMenuMixin",
-    "MEStorageScreenAccessor"
+    "MEStorageScreenAccessor",
+    "RecipeScreenMixin",
+    "ScreenInvoker"
   ],
   "mixins": [
     "AEBaseMenuMixin",
