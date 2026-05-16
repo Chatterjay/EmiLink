@@ -13,6 +13,7 @@
 
 - 修复锻造/切石配方因 `EncodingHelper.isSupportedCraftingRecipe()` 误判导致书签优先不生效的问题
 - 合成配方的输入槽现在也应用书签优先逻辑并排除背包衍生物品
+- 默认关闭debug模式
 
 ## [1.1.6] - 2026-05-15
 

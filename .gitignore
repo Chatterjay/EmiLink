@@ -3,7 +3,7 @@ build/
 .idea/*
 /run
 libs/
-.claude/
+test/.claude/
 
 # Non-code artifacts (IDE stubs, scripts, docs, test servers)
 stubs/
