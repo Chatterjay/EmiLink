@@ -25,7 +25,7 @@ public final class EmiLinkConfig {
 
         DEBUG_MODE = BUILDER
                 .comment("Enable debug logging and debug chat messages")
-                .define("debugMode", true);
+                .define("debugMode", false);
 
         BUILDER.pop();
         BUILDER.push("cache");
