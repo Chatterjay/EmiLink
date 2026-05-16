@@ -1,5 +1,7 @@
 package org.chatterjay.emiextend.util;
 
+import dev.emi.emi.api.recipe.EmiRecipe;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;
 
 import java.lang.reflect.Method;
@@ -57,6 +59,31 @@ public final class ProviderSearchHelper {
         }
 
         return null;
+    }
+
+    /**
+     * Set the last processing name (search key) from a custom EMI recipe
+     * that has no corresponding Vanilla RecipeHolder. Uses the EMI recipe
+     * category path (e.g. "hephaestus_smithing") as the search key.
+     *
+     * @param emiRecipe the custom EMI recipe (non-null)
+     */
+    public static void setFromEmiRecipe(EmiRecipe emiRecipe) {
+        if (emiRecipe == null) return;
+        init();
+        if (!available) return;
+
+        ResourceLocation categoryId = emiRecipe.getCategory().getId();
+        if (categoryId == null) return;
+
+        // Use the path part of the category ID as the search key
+        // e.g. forbidden_arcanus:hephaestus_smithing → "hephaestus_smithing"
+        String searchKey = categoryId.getPath();
+        if (searchKey != null && !searchKey.isBlank()) {
+            setLastProcessingName(searchKey);
+            ModLogger.info("ProviderSearch: set search key '{}' from EMI recipe category '{}' (recipe {})",
+                    searchKey, categoryId, emiRecipe.getId());
+        }
     }
 
     /**

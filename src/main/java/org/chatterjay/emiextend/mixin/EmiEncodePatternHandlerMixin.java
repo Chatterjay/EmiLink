@@ -22,8 +22,21 @@ public class EmiEncodePatternHandlerMixin {
     private void emilink$afterTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<?> cir) {
         try {
             if (!doTransfer) return;
-            if (holder == null) return;
-            if (holder.value() == null) return;
+
+            // For custom EMI recipes (e.g. forge rituals) there is no Vanilla RecipeHolder.
+            // Still set the recipe tree search key and apply bookmark priority.
+            if (holder == null || holder.value() == null) {
+                if (emiRecipe != null) {
+                    ModLogger.info("Pattern written (custom): category={} id={}",
+                            emiRecipe.getCategory().getId(), emiRecipe.getId());
+                    ProviderSearchHelper.setFromEmiRecipe(emiRecipe);
+                    if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
+                        BookmarkPriorityHandler.applyBookmarkPriority(
+                                menu.getProcessingInputSlots(), emiRecipe.getInputs());
+                    }
+                }
+                return;
+            }
 
             Recipe<?> recipe = holder.value();
             ModLogger.info("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
