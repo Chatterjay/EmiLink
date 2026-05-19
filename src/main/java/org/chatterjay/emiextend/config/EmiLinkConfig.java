@@ -17,6 +17,9 @@ public final class EmiLinkConfig {
     // ---- Bookmark Priority ----
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
 
+    // ---- Features ----
+    public static final ModConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
+
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
@@ -50,6 +53,13 @@ public final class EmiLinkConfig {
                          "prioritize items from the EMI favorites bar over " +
                          "network-inventory-selected items")
                 .define("bookmarkPriority", true);
+
+        BUILDER.pop();
+        BUILDER.push("features");
+
+        ENABLE_WRAP_BOOK = BUILDER
+                .comment("Enable wrap processing pattern output as written book (WB mode)")
+                .define("enableWrapBook", true);
 
         BUILDER.pop();
         BUILDER.push("network");

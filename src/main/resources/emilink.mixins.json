@@ -14,11 +14,13 @@
     "EmiScreenManagerMixin",
     "CraftConfirmMenuMixin",
     "MEStorageScreenAccessor",
+    "RecipeScreenMixin",
   ],
   "mixins": [
     "AEBaseMenuMixin",
     "CraftingTermSlotInvoker",
-    "CraftingTermSlotMixin"
+    "CraftingTermSlotMixin",
+    "EncodingHelperMixin"
   ],
   "injectors": {
     "defaultRequire": 1
