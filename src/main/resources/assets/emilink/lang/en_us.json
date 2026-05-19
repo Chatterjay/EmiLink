@@ -3,5 +3,10 @@
   "key.emilink.quick_bookmark": "Place bookmark item into empty filter slot",
   "key.categories.emilink": "EmiLink",
   "ae_tooltip.count": "AE: %s",
-  "ae_tooltip.craftable": "Craftable"
+  "ae_tooltip.craftable": "Craftable",
+  "emilink.tooltip.wrap_as_book.on": "Wrap as Book: ON",
+  "emilink.tooltip.wrap_as_book.off": "Wrap as Book: OFF",
+  "emilink.suffix.pattern": "'s Pattern",
+  "emilink.config.features.enableWrapBook": "Wrap as Book (WB Mode)",
+  "emilink.config.features.enableWrapBook.tooltip": "Wrap processing pattern output as written book"
 }
