@@ -11,10 +11,12 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
+import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
+import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
@@ -45,6 +47,11 @@ public class EmiAE2 {
                 AEQueryPacket::handle
         );
         registrar.playToServer(
+                AEBatchQueryPacket.TYPE,
+                AEBatchQueryPacket.STREAM_CODEC,
+                AEBatchQueryPacket::handle
+        );
+        registrar.playToServer(
                 AELockedSlotsPacket.TYPE,
                 AELockedSlotsPacket.STREAM_CODEC,
                 AELockedSlotsPacket::handle
@@ -63,6 +70,11 @@ public class EmiAE2 {
                 AEQueryResponsePacket.TYPE,
                 AEQueryResponsePacket.STREAM_CODEC,
                 AEQueryResponsePacket::handle
+        );
+        registrar.playToClient(
+                AEBatchQueryResponsePacket.TYPE,
+                AEBatchQueryResponsePacket.STREAM_CODEC,
+                AEBatchQueryResponsePacket::handle
         );
         registrar.playToClient(
                 ClearCachePacket.TYPE,

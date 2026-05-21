@@ -13,12 +13,15 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.LongValue CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue DEBOUNCE_MS;
+    public static final ModConfigSpec.LongValue BATCH_FLUSH_MS;
 
     // ---- Bookmark Priority ----
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
 
     // ---- Features ----
     public static final ModConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
+    public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
+    public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -45,6 +48,11 @@ public final class EmiLinkConfig {
                 .comment("Hover debounce time in milliseconds (50-5000)")
                 .defineInRange("debounceMs", 250L, 50L, 5_000L);
 
+        BATCH_FLUSH_MS = BUILDER
+                .comment("Batch query flush interval in milliseconds (200-10000). " +
+                         "How often pending AE queries are batched and sent to the server.")
+                .defineInRange("batchFlushMs", 5_000L, 200L, 10_000L);
+
         BUILDER.pop();
         BUILDER.push("bookmark_priority");
 
@@ -60,6 +68,17 @@ public final class EmiLinkConfig {
         ENABLE_WRAP_BOOK = BUILDER
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
                 .define("enableWrapBook", true);
+
+        ENABLE_NETWORK_BADGES = BUILDER
+                .comment("Show AE network status corner badges on EMI item icons " +
+                         "(green=in stock, yellow=craftable only)")
+                .define("enableNetworkBadges", true);
+
+        NETWORK_BADGE_STYLE = BUILDER
+                .comment("Badge rendering style when network badges are enabled: " +
+                         "1 = bottom-right 6x6 filled square, " +
+                         "2 = top-left 6x6 hollow border")
+                .defineInRange("networkBadgeStyle", 1, 1, 2);
 
         BUILDER.pop();
         BUILDER.push("network");
