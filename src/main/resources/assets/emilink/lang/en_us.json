@@ -8,5 +8,11 @@
   "emilink.tooltip.wrap_as_book.off": "Wrap as Book: OFF",
   "emilink.suffix.pattern": "'s Pattern",
   "emilink.config.features.enableWrapBook": "Wrap as Book (WB Mode)",
-  "emilink.config.features.enableWrapBook.tooltip": "Wrap processing pattern output as written book"
+  "emilink.config.features.enableWrapBook.tooltip": "Wrap processing pattern output as written book",
+  "emilink.config.features.enableNetworkBadges": "Network Badges",
+  "emilink.config.features.enableNetworkBadges.tooltip": "Show AE network status corner badges on EMI item icons (green=in stock, yellow=craftable only)",
+  "emilink.config.features.networkBadgeStyle": "Badge Style",
+  "emilink.config.features.networkBadgeStyle.tooltip": "Badge rendering style: 1 = bottom-right filled square, 2 = top-left hollow border",
+  "emilink.config.cache.batchFlushMs": "Batch Flush Interval (ms)",
+  "emilink.config.cache.batchFlushMs.tooltip": "How often pending AE queries are batched and sent to the server (200-10000)"
 }
