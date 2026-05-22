@@ -6,6 +6,21 @@
 
 - 恢复内置成书包裹（WB 模式）：在 EMI 配方界面显示 WB 按钮，编码处理样板时将输出包裹为成书
 - Config：添加 `features.enableWrapBook` 开关（默认开启）
+- 新增 QUICK_PATTERN_KEY（默认 B）：在样板编码终端快速编写样板
+- 新增 QUICK_FILL_SLOT_KEY（默认 N）：将悬浮物品填入空过滤槽
+- 兼容 ExtendedAE 无线样板终端（GuiExPatternTerminal）
+
+### 变更
+
+- `enableNetworkBadges` 默认改为关闭（绿色角标），可按需在配置中开启
+- 快捷键拆分：B 键只用于样板编码，N 键用于填充过滤槽
+
+### 性能
+
+- AE2Proxy：缓存 Class 引用，消除每帧 `Class.forName` 反射开销
+- AENetworkCache：`hasAEAccess()` 缓存 per-screen，不再每帧遍历背包 + Curios
+- AENetworkCache：悬停收集从每帧改为每 10 帧
+- EmiInteractionHandler：tooltip 无 AE 权限时提前短路，避免 ArrayList 分配
 
 ## [1.1.7] - 2026-05-16
 
