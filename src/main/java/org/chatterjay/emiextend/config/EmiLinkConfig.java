@@ -72,7 +72,7 @@ public final class EmiLinkConfig {
         ENABLE_NETWORK_BADGES = BUILDER
                 .comment("Show AE network status corner badges on EMI item icons " +
                          "(green=in stock, yellow=craftable only)")
-                .define("enableNetworkBadges", true);
+                .define("enableNetworkBadges", false);
 
         NETWORK_BADGE_STYLE = BUILDER
                 .comment("Badge rendering style when network badges are enabled: " +
