@@ -9,6 +9,13 @@ import java.lang.reflect.Method;
 public class AE2Proxy {
     private static Boolean loaded;
 
+    // Cached Class<?> references — loaded lazily, avoids Class.forName on hot paths
+    private static Class<?> craftConfirmScreenClass;
+    private static Class<?> meStorageScreenClass;
+    private static Class<?> patternEncodingTermScreenClass;
+    private static Class<?> wirelessTerminalItemClass;
+    private static Class<?> aeItemKeyClass;
+
     public static boolean isLoaded() {
         if (loaded == null) {
             var modList = ModList.get();
@@ -17,12 +24,14 @@ public class AE2Proxy {
         return loaded;
     }
 
-    // ---- Screen type checks ----
+    // ---- Screen type checks (cached Class refs) ----
 
     public static boolean isCraftConfirmScreen(Screen screen) {
         if (!isLoaded() || screen == null) return false;
         try {
-            return Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen").isInstance(screen);
+            if (craftConfirmScreenClass == null)
+                craftConfirmScreenClass = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
+            return craftConfirmScreenClass.isInstance(screen);
         } catch (Exception e) {
             return false;
         }
@@ -31,7 +40,9 @@ public class AE2Proxy {
     public static boolean isMEStorageScreen(Screen screen) {
         if (!isLoaded() || screen == null) return false;
         try {
-            return Class.forName("appeng.client.gui.me.common.MEStorageScreen").isInstance(screen);
+            if (meStorageScreenClass == null)
+                meStorageScreenClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
+            return meStorageScreenClass.isInstance(screen);
         } catch (Exception e) {
             return false;
         }
@@ -40,7 +51,9 @@ public class AE2Proxy {
     public static boolean isPatternEncodingTermScreen(Screen screen) {
         if (!isLoaded() || screen == null) return false;
         try {
-            return Class.forName("appeng.client.gui.me.items.PatternEncodingTermScreen").isInstance(screen);
+            if (patternEncodingTermScreenClass == null)
+                patternEncodingTermScreenClass = Class.forName("appeng.client.gui.me.items.PatternEncodingTermScreen");
+            return patternEncodingTermScreenClass.isInstance(screen);
         } catch (Exception e) {
             return false;
         }
@@ -50,7 +63,9 @@ public class AE2Proxy {
 
     private static Class<?> getAEItemKeyClass() {
         try {
-            return Class.forName("appeng.api.stacks.AEItemKey");
+            if (aeItemKeyClass == null)
+                aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            return aeItemKeyClass;
         } catch (Exception e) {
             return null;
         }
@@ -60,10 +75,11 @@ public class AE2Proxy {
     public static ItemStack getStackUnderMouse(Screen screen, int mouseX, int mouseY) {
         if (!isLoaded() || screen == null) return ItemStack.EMPTY;
         try {
-            Class<?> ccsClass = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
-            if (!ccsClass.isInstance(screen)) return ItemStack.EMPTY;
+            if (craftConfirmScreenClass == null)
+                craftConfirmScreenClass = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
+            if (!craftConfirmScreenClass.isInstance(screen)) return ItemStack.EMPTY;
 
-            Method getStackMethod = ccsClass.getMethod("getStackUnderMouse", double.class, double.class);
+            Method getStackMethod = craftConfirmScreenClass.getMethod("getStackUnderMouse", double.class, double.class);
             Object swb = getStackMethod.invoke(screen, mouseX, mouseY);
             if (swb == null) return ItemStack.EMPTY;
 
@@ -76,9 +92,9 @@ public class AE2Proxy {
             if (what == null) return ItemStack.EMPTY;
 
             // Check if AEItemKey → toStack()
-            Class<?> aeItemKeyClass = getAEItemKeyClass();
-            if (aeItemKeyClass == null || !aeItemKeyClass.isInstance(what)) return ItemStack.EMPTY;
-            return (ItemStack) aeItemKeyClass.getMethod("toStack").invoke(what);
+            Class<?> keyClass = getAEItemKeyClass();
+            if (keyClass == null || !keyClass.isInstance(what)) return ItemStack.EMPTY;
+            return (ItemStack) keyClass.getMethod("toStack").invoke(what);
         } catch (Exception e) {
             return ItemStack.EMPTY;
         }
@@ -89,8 +105,9 @@ public class AE2Proxy {
     public static boolean isWirelessTerminal(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) return false;
         try {
-            Class<?> clazz = Class.forName("appeng.items.tools.powered.WirelessTerminalItem");
-            return clazz.isInstance(stack.getItem());
+            if (wirelessTerminalItemClass == null)
+                wirelessTerminalItemClass = Class.forName("appeng.items.tools.powered.WirelessTerminalItem");
+            return wirelessTerminalItemClass.isInstance(stack.getItem());
         } catch (Exception e) {
             return false;
         }
@@ -99,7 +116,9 @@ public class AE2Proxy {
     public static Class<?> getWirelessTerminalClass() {
         if (!isLoaded()) return null;
         try {
-            return Class.forName("appeng.items.tools.powered.WirelessTerminalItem");
+            if (wirelessTerminalItemClass == null)
+                wirelessTerminalItemClass = Class.forName("appeng.items.tools.powered.WirelessTerminalItem");
+            return wirelessTerminalItemClass;
         } catch (Exception e) {
             return null;
         }

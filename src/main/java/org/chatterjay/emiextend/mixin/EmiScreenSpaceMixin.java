@@ -41,6 +41,7 @@ public abstract class EmiScreenSpaceMixin {
     @Shadow
     public abstract int getY(int col, int row);
 
+
     /**
      * Head injection: on terminal open, collect all visible uncached items into the pending
      * batch and flush immediately, so badges show without requiring manual hovering.
@@ -92,7 +93,6 @@ public abstract class EmiScreenSpaceMixin {
                                             float delta, int scrollOffset, CallbackInfo ci) {
         if (!EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
         if (!AENetworkCache.hasAEAccess()) return;
-        // Skip entirely when nothing is cached — avoids iterating visible items
         if (!AENetworkCache.hasAnyCached()) return;
 
         var stacks = getStacks();

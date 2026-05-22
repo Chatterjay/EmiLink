@@ -11,7 +11,7 @@
   "emilink.config.features.enableWrapBook": "成书包裹（WB 模式）",
   "emilink.config.features.enableWrapBook.tooltip": "样板编码时将输出物品包裹为成书",
   "emilink.config.features.enableNetworkBadges": "网络角标",
-  "emilink.config.features.enableNetworkBadges.tooltip": "在 EMI 物品图标角落显示 AE 网络状态角标（绿色=库存充足，黄色=仅可合成）",
+  "emilink.config.features.enableNetworkBadges.tooltip": "在 EMI 物品图标角落显示 AE 网络状态角标（默认关闭；绿色=库存充足，黄色=仅可合成）",
   "emilink.config.features.networkBadgeStyle": "角标样式",
   "emilink.config.features.networkBadgeStyle.tooltip": "角标渲染样式：1 = 右下实心方框，2 = 左上空心边框",
   "emilink.config.cache.batchFlushMs": "批处理刷新间隔（毫秒）",

@@ -6,6 +6,7 @@ import dev.emi.emi.api.stack.EmiStack;
 import io.netty.buffer.Unpooled;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.core.RegistryAccess;
@@ -52,6 +53,14 @@ public final class AENetworkCache {
     /** Tracks terminal open/close state for initial scan detection. */
     private static boolean wasInTerminal = false;
     private static boolean needsInitialScan = false;
+
+    /** Per-frame cache: screen that hasAEAccess() was last computed for. */
+    private static Screen accessCheckScreen = null;
+    private static boolean accessCheckResult = false;
+
+    /** Throttle hovered-stack collection to every N tick() calls. */
+    private static int hoverTickCounter = 0;
+    private static final int HOVER_SAMPLE_INTERVAL = 10;
 
     /** Disk persistence. */
     private static boolean cacheDirty = false;
@@ -179,6 +188,8 @@ public final class AENetworkCache {
         wasInTerminal = false;
         needsInitialScan = false;
         cacheDirty = false;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
         loadFromDisk();
     }
 
@@ -186,6 +197,7 @@ public final class AENetworkCache {
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         saveToDisk();
         pendingBatch.clear();
+        accessCheckScreen = null;
     }
 
     /** Clear cache & pending batch for the current server only. */
@@ -196,6 +208,8 @@ public final class AENetworkCache {
         wasInTerminal = false;
         needsInitialScan = false;
         cacheDirty = true;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
     }
 
     /** Clear cache & pending batch for all servers, and delete the disk cache file. */
@@ -208,6 +222,8 @@ public final class AENetworkCache {
         wasInTerminal = false;
         needsInitialScan = false;
         cacheDirty = false;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
         try {
             java.nio.file.Files.deleteIfExists(cachePath());
         } catch (Exception ignored) {}
@@ -270,16 +286,18 @@ public final class AENetworkCache {
             return;
         }
 
-        // Collect hovered item into the pending batch (deduplicated by ItemStack)
-        var hovered = EmiApi.getHoveredStack(true);
-        if (hovered != null && !hovered.isEmpty()) {
-            var stack = hovered.getStack().getEmiStacks().stream()
-                    .map(EmiStack::getItemStack)
-                    .filter(s -> !s.isEmpty())
-                    .findFirst()
-                    .orElse(ItemStack.EMPTY);
-            if (!stack.isEmpty()) {
-                pendingBatch.add(stack.copyWithCount(1));
+        // Collect hovered item into the pending batch — throttled to reduce per-frame EMI overhead
+        if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
+            var hovered = EmiApi.getHoveredStack(true);
+            if (hovered != null && !hovered.isEmpty()) {
+                var stack = hovered.getStack().getEmiStacks().stream()
+                        .map(EmiStack::getItemStack)
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse(ItemStack.EMPTY);
+                if (!stack.isEmpty()) {
+                    pendingBatch.add(stack);
+                }
             }
         }
 
@@ -334,7 +352,7 @@ public final class AENetworkCache {
 
     public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
         if (stack == null || stack.isEmpty()) return;
-        var cached = findCached(stack.copyWithCount(1));
+        var cached = findCached(stack);
         if (cached == null) return;
         if (cached.count() <= 0 && !cached.craftable()) return;
 
@@ -361,7 +379,7 @@ public final class AENetworkCache {
      */
     public static CachedResult getCachedResult(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
-        var cached = findCached(stack.copyWithCount(1));
+        var cached = findCached(stack);
         if (cached != null) {
             return new CachedResult(cached.count(), cached.craftable(), true);
         }
@@ -369,9 +387,9 @@ public final class AENetworkCache {
     }
 
     /**
-     * Cache lookup — keys stored/queried with copyWithCount(1).
-     * Modern MC ItemStack.hashCode/equals use components, so HashMap works.
-     * Falls back to linear scan when the occasional collision happens.
+     * Cache lookup. ItemStack.hashCode/equals in 1.21.1 ignores count,
+     * so keys stored with copyWithCount(1) are found by any count variant.
+     * Falls back to linear scan for collision/component edge cases.
      */
     private static CachedInfo findCached(ItemStack stack) {
         var direct = current.cache.get(stack);
@@ -391,10 +409,14 @@ public final class AENetworkCache {
     }
 
     public static boolean hasAEAccess() {
-        return hasAEAccess(Minecraft.getInstance());
+        var mc = Minecraft.getInstance();
+        if (mc.screen == accessCheckScreen) return accessCheckResult;
+        accessCheckScreen = mc.screen;
+        accessCheckResult = computeAEAccess(mc);
+        return accessCheckResult;
     }
 
-    private static boolean hasAEAccess(Minecraft mc) {
+    private static boolean computeAEAccess(Minecraft mc) {
         if (!AE2Proxy.isLoaded()) return false;
 
         var player = mc.player;

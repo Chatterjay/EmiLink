@@ -162,18 +162,17 @@ public final class EmiInteractionHandler {
 
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
         if (space == null) return original;
+        if (!AENetworkCache.hasAEAccess()) return original;
+
+        var stack = hovered.getEmiStacks().stream()
+                .map(EmiStack::getItemStack)
+                .filter(s -> !s.isEmpty())
+                .findFirst()
+                .orElse(ItemStack.EMPTY);
+        if (stack.isEmpty()) return original;
 
         var tooltip = new ArrayList<ClientTooltipComponent>(original);
-        if (!hovered.isEmpty()) {
-            var stack = hovered.getEmiStacks().stream()
-                    .map(EmiStack::getItemStack)
-                    .filter(s -> !s.isEmpty())
-                    .findFirst()
-                    .orElse(ItemStack.EMPTY);
-            if (!stack.isEmpty() && AENetworkCache.hasAEAccess()) {
-                AENetworkCache.addToTooltip(stack, tooltip);
-            }
-        }
+        AENetworkCache.addToTooltip(stack, tooltip);
         return tooltip;
     }
 
