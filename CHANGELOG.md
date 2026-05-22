@@ -1,6 +1,6 @@
 # 更新日志
 
-## [待更新] - 2026-05-19
+## [1.1.8] - 2026-05-19
 
 ### 新增
 
@@ -8,7 +8,6 @@
 - Config：添加 `features.enableWrapBook` 开关（默认开启）
 - 新增 QUICK_PATTERN_KEY（默认 B）：在样板编码终端快速编写样板
 - 新增 QUICK_FILL_SLOT_KEY（默认 N）：将悬浮物品填入空过滤槽
-- 兼容 ExtendedAE 无线样板终端（GuiExPatternTerminal）
 
 ### 变更
 
