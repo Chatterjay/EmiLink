@@ -1,6 +1,9 @@
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.recipe.EmiRecipe;
+import dev.emi.emi.api.recipe.handler.EmiCraftContext;
+import dev.emi.emi.registry.EmiRecipeFiller;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -9,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.EmiAE2;
+import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -18,13 +22,12 @@ import appeng.helpers.InventoryAction;
 import appeng.integration.modules.emi.EmiStackHelper;
 import appeng.menu.slot.FakeSlot;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.world.item.ItemStack;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class InputEvents {
     private InputEvents() {}
 
-    // Flag to suppress the subsequent charTyped('f') from appending to the
-    // search field after FILL_SEARCH_KEY has set its value.
     private static boolean fillSearchHandled = false;
 
     @SubscribeEvent
@@ -47,8 +50,13 @@ public final class InputEvents {
             return;
         }
 
-        if (ModKeybindings.QUICK_BOOKMARK_KEY.matches(keyCode, scanCode)) {
-            onQuickBookmarkKey(event);
+        if (ModKeybindings.QUICK_PATTERN_KEY.matches(keyCode, scanCode)) {
+            onQuickCraftKey(event);
+            return;
+        }
+
+        if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
+            onQuickFillSlotKey(event);
         }
     }
 
@@ -71,7 +79,7 @@ public final class InputEvents {
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
 
-        // AE2: PatternAccessTermScreen — has its own search field, extends AEBaseScreen directly
+        // AE2: PatternAccessTermScreen
         try {
             var patClass = Class.forName("appeng.client.gui.me.patternaccess.PatternAccessTermScreen");
             if (patClass.isInstance(screen)) {
@@ -89,7 +97,7 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: PatternAccessTermScreen exception: {}", e.getMessage());
         }
 
-        // ExtendedAE (EAEP): GuiWirelessExPAT — wireless pattern access terminal
+        // EAEP: GuiWirelessExPAT
         try {
             var eaeClass = Class.forName("com.glodblock.github.extendedae.xmod.wt.GuiWirelessExPAT");
             if (eaeClass.isInstance(screen)) {
@@ -116,7 +124,7 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: EAEP GuiWirelessExPAT exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
-        // AE2 terminal search field — works for MEStorageScreen and subclasses (PatternEncodingTermScreen etc.)
+        // AE2 terminal search field
         try {
             var meStorageClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
             if (meStorageClass.isInstance(screen)) {
@@ -137,7 +145,7 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: AE2 terminal search exception: {}", e.getMessage());
         }
 
-        // BD: DimensionsNetGUI search field (via reflection)
+        // BD search field
         if (BDProxy.isBDNetGUI(screen)) {
             if (BDProxy.setSearchText(screen, text)) {
                 fillSearchHandled = true;
@@ -148,7 +156,7 @@ public final class InputEvents {
             return;
         }
 
-        // EMI search fallback for any screen with EMI sidebar
+        // EMI search fallback
         try {
             EmiApi.setSearchText(text);
             fillSearchHandled = true;
@@ -158,7 +166,64 @@ public final class InputEvents {
         }
     }
 
-    private static void onQuickBookmarkKey(ScreenEvent.KeyPressed.Pre event) {
+    /** Check if screen is any supported pattern encoding terminal (AE2 or ExtendedAE) */
+    private static boolean isPatternEncodingTerminal(Screen screen) {
+        if (AE2Proxy.isPatternEncodingTermScreen(screen)) return true;
+        try {
+            return Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal").isInstance(screen);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** B key — encode pattern in PatternEncodingTermScreen */
+    private static void onQuickCraftKey(ScreenEvent.KeyPressed.Pre event) {
+        var handled = EmiApi.getHandledScreen();
+        if (handled == null) {
+            var mc = Minecraft.getInstance();
+            if (mc.screen instanceof AbstractContainerScreen<?> container) {
+                handled = container;
+            }
+        }
+        if (handled == null) return;
+
+        if (!isPatternEncodingTerminal(handled)) {
+            ModLogger.info("B key: not a pattern terminal, screen={}", handled.getClass().getName());
+            return;
+        }
+
+        var hovered = EmiApi.getHoveredStack(true);
+        if (hovered == null || hovered.isEmpty()) return;
+
+        EmiRecipe recipe = hovered.getRecipeContext();
+        if (recipe == null) recipe = EmiApi.getRecipeContext(hovered.getStack());
+        if (recipe == null) {
+            var ing = hovered.getStack();
+            if (ing != null && !ing.isEmpty()) {
+                var stacks = ing.getEmiStacks();
+                if (!stacks.isEmpty()) {
+                    var list = EmiApi.getRecipeManager().getRecipesByOutput(stacks.getFirst());
+                    if (list != null && !list.isEmpty()) recipe = list.get(0);
+                }
+            }
+        }
+
+        if (recipe == null) {
+            ModLogger.info("B key: no recipe found for hovered stack");
+            return;
+        }
+
+        if (EmiRecipeFiller.performFill(recipe, handled,
+                EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.NONE, 1)) {
+            ModLogger.info("QuickPattern: encoded {}", recipe.getId());
+            event.setCanceled(true);
+        } else {
+            ModLogger.info("QuickPattern: performFill returned false for {}", recipe.getId());
+        }
+    }
+
+    /** N key (configurable) — fill the first empty FakeSlot with the hovered item */
+    private static void onQuickFillSlotKey(ScreenEvent.KeyPressed.Pre event) {
         var hovered = EmiApi.getHoveredStack(true);
         if (hovered == null || hovered.isEmpty()) return;
 
@@ -170,7 +235,6 @@ public final class InputEvents {
 
         var emiStack = emiStacks.getFirst();
 
-        // Convert EmiStack to AE2 GenericStack for item/fluid/chemical support
         var itemStack = emiStack.getItemStack();
         if (itemStack.isEmpty()) {
             var genericStack = EmiStackHelper.toGenericStack(emiStack);
@@ -186,7 +250,7 @@ public final class InputEvents {
             if (slot instanceof FakeSlot fakeSlot && slot.getItem().isEmpty()) {
                 PacketDistributor.sendToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
-                ModLogger.info("QuickBookmark: set slot {} with {}", fakeSlot.index, emiStack.getId());
+                ModLogger.info("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
                 event.setCanceled(true);
                 return;
             }
