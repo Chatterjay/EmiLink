@@ -10,6 +10,8 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import org.chatterjay.emilink.client.ModKeybindings;
 import org.slf4j.Logger;
 
 @Mod(Emilink.MODID)
@@ -21,11 +23,13 @@ public class Emilink {
     public Emilink() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
+        modEventBus.addListener(ModKeybindings::register);
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        Config.validate();
         LOGGER.info("EmiLink common setup completed");
     }
 
