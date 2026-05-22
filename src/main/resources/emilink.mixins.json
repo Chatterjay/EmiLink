@@ -7,6 +7,7 @@
   "mixins": [
   ],
   "client": [
+    "RecipeScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
