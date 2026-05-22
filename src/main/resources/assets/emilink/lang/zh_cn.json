@@ -1,6 +1,7 @@
 {
   "key.emilink.fill_search": "将鼠标悬浮的物品填入AE2搜索框 (Alt: 模组ID)",
-  "key.emilink.quick_bookmark": "将悬浮的书签物品填入空过滤槽",
+  "key.emilink.quick_pattern": "快速编写样板（在编码终端中使用）",
+  "key.emilink.quick_fill_slot": "将悬浮物品填入空过滤槽",
   "key.categories.emilink": "EmiLink",
   "ae_tooltip.count": "AE: %s",
   "ae_tooltip.craftable": "可合成",

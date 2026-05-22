@@ -3,6 +3,7 @@ package org.chatterjay.emiextend.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 
 public final class ModKeybindings {
@@ -16,16 +17,25 @@ public final class ModKeybindings {
             "key.categories.emilink"
     );
 
-    public static final KeyMapping QUICK_BOOKMARK_KEY = new KeyMapping(
-            "key.emilink.quick_bookmark",
+    public static final KeyMapping QUICK_PATTERN_KEY = new KeyMapping(
+            "key.emilink.quick_pattern",
             KeyConflictContext.GUI,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_B,
             "key.categories.emilink"
     );
 
-    public static void register(net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent event) {
+    public static final KeyMapping QUICK_FILL_SLOT_KEY = new KeyMapping(
+            "key.emilink.quick_fill_slot",
+            KeyConflictContext.GUI,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_N,
+            "key.categories.emilink"
+    );
+
+    public static void register(RegisterKeyMappingsEvent event) {
         event.register(FILL_SEARCH_KEY);
-        event.register(QUICK_BOOKMARK_KEY);
+        event.register(QUICK_PATTERN_KEY);
+        event.register(QUICK_FILL_SLOT_KEY);
     }
 }
