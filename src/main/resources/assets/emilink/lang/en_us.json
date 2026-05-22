@@ -1,0 +1,11 @@
+{
+  "key.categories.emilink": "EmiLink",
+  "key.emilink.fill_search": "Fill Search",
+  "key.emilink.quick_pattern": "Quick Pattern (B)",
+  "key.emilink.quick_fill_slot": "Quick Fill Slot",
+  "key.emilink.toggle_wrap_book": "Toggle Wrap as Book",
+
+  "emilink.tooltip.wrap_as_book.on": "§eWrap as Book: ON",
+  "emilink.tooltip.wrap_as_book.off": "§7Wrap as Book: OFF",
+  "emilink.suffix.pattern": " Pattern"
+}

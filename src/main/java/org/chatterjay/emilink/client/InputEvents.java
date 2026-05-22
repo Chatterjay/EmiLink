@@ -12,6 +12,8 @@ import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.chatterjay.emilink.Emilink;
+import org.chatterjay.emilink.client.handler.BookmarkPriorityHandler;
+import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -57,6 +59,13 @@ public final class InputEvents {
 
         if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
             onQuickFillSlotKey(event);
+            return;
+        }
+
+        if (ModKeybindings.TOGGLE_WRAP_BOOK_KEY.matches(keyCode, scanCode)) {
+            WrapAsBookHandler.toggle();
+            ModLogger.info("InputEvents: TOGGLE_WRAP_BOOK_KEY pressed, active={}", WrapAsBookHandler.isActive());
+            event.setCanceled(true);
         }
     }
 
@@ -165,6 +174,7 @@ public final class InputEvents {
     }
 
     private static void onQuickCraftKey(ScreenEvent.KeyPressed.Pre event) {
+        ModLogger.info("InputEvents: onQuickCraftKey called");
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
             var mc = Minecraft.getInstance();
@@ -238,6 +248,15 @@ public final class InputEvents {
                             new InventoryActionPacket(InventoryAction.SET_FILTER,
                                     targetSlots[i].index, items.get(i)));
                 }
+            }
+
+            // Apply bookmark priority to replace with user favorites
+            if (encodingMenu.getMode() == EncodingMode.PROCESSING) {
+                BookmarkPriorityHandler.applyBookmarkPriority(
+                        encodingMenu.getProcessingInputSlots(), recipe.getInputs());
+            } else {
+                BookmarkPriorityHandler.applyBookmarkPriority(
+                        encodingMenu.getCraftingGridSlots(), recipe.getInputs());
             }
 
             ModLogger.info("QuickPattern: encoded {} ({} inputs)", recipe.getId(), count);

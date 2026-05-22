@@ -1,0 +1,11 @@
+{
+  "key.categories.emilink": "EmiLink",
+  "key.emilink.fill_search": "填充搜索",
+  "key.emilink.quick_pattern": "快速配方 (B)",
+  "key.emilink.quick_fill_slot": "快速填充槽位",
+  "key.emilink.toggle_wrap_book": "切换包裹成书",
+
+  "emilink.tooltip.wrap_as_book.on": "§e包裹成书：开",
+  "emilink.tooltip.wrap_as_book.off": "§7包裹成书：关",
+  "emilink.suffix.pattern": " 样板"
+}
