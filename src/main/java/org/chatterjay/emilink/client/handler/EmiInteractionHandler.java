@@ -8,7 +8,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emilink.client.InputEvents;
+import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -20,6 +23,21 @@ public final class EmiInteractionHandler {
 
     public static boolean onKeyPressed(int keyCode, int scanCode, int modifiers, int mouseX, int mouseY) {
         ModLogger.info("EmiInteractionHandler: onKeyPressed keyCode={} scanCode={}", keyCode, scanCode);
+
+        // Quick pattern encode (B key)
+        if (ModKeybindings.QUICK_PATTERN_KEY.matches(keyCode, scanCode)) {
+            if (InputEvents.handleQuickCraft()) {
+                return true;
+            }
+        }
+
+        // Quick fill slot (N key)
+        if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
+            if (InputEvents.handleQuickFillSlot()) {
+                return true;
+            }
+        }
+
         var mc = Minecraft.getInstance();
         if (AE2Proxy.isCraftConfirmScreen(mc.screen)) {
             ModLogger.info("EmiInteractionHandler: CraftConfirmScreen detected");
@@ -125,11 +143,17 @@ public final class EmiInteractionHandler {
     private static boolean handleMiddleClick(ItemStack itemStack) {
         ModLogger.info("EmiInteractionHandler: handleMiddleClick item={}",
                 itemStack.getHoverName().getString());
-        var player = Minecraft.getInstance().player;
-        if (player == null || !hasWirelessTerminal(player)) {
-            ModLogger.info("EmiInteractionHandler: handleMiddleClick failed: player={} terminal={}",
-                    player == null ? "null" : "ok",
-                    player == null ? false : hasWirelessTerminal(player));
+        var mc = Minecraft.getInstance();
+
+        // If we're on an AE2 terminal screen, use our own packet (works for wired + wireless)
+        if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) {
+            return sendOpenCraftAmountPacket(itemStack);
+        }
+
+        // Fallback: wireless terminal in inventory (EAEP wireless-only packet)
+        var player = mc.player;
+        if (player == null || !hasNetworkAccess(player)) {
+            ModLogger.info("EmiInteractionHandler: handleMiddleClick failed: no terminal access");
             return false;
         }
         return EAEPProxy.openCraftScreen(itemStack);
@@ -138,23 +162,105 @@ public final class EmiInteractionHandler {
     private static boolean handleShiftClickAE2(ItemStack itemStack) {
         ModLogger.info("EmiInteractionHandler: handleShiftClickAE2 item={}",
                 itemStack.getHoverName().getString());
-        var player = Minecraft.getInstance().player;
+        var mc = Minecraft.getInstance();
+
+        // If we're on an AE2 terminal screen, use our own packet (works for wired + wireless)
+        if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) {
+            return sendPullFromNetworkPacket(itemStack);
+        }
+
+        // Fallback: wireless terminal in inventory
+        var player = mc.player;
         if (player == null) return false;
-        if (!hasWirelessTerminal(player)) return false;
+        if (!hasNetworkAccess(player)) return false;
         return EAEPProxy.pullFromNetwork(itemStack);
     }
 
-    private static boolean hasWirelessTerminal(Player player) {
+    private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {
+        try {
+            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
+            Object aeKey = ofMethod.invoke(null, itemStack);
+            if (aeKey == null) return false;
+
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            var gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
+            Object genericStack = gsCtor.newInstance(aeKey, 1L);
+
+            Class<?> packetClass = Class.forName("org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket");
+            var packetCtor = packetClass.getConstructor(genericStackClass);
+            Object packet = packetCtor.newInstance(genericStack);
+
+            Class.forName("org.chatterjay.emilink.network.NetworkHandler")
+                    .getMethod("sendToServer", Object.class)
+                    .invoke(null, packet);
+
+            ModLogger.info("EmiInteractionHandler: sent OpenCraftAmount packet");
+            return true;
+        } catch (Exception e) {
+            ModLogger.info("EmiInteractionHandler: sendOpenCraftAmountPacket error: {}: {}",
+                    e.getClass().getSimpleName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean sendPullFromNetworkPacket(ItemStack itemStack) {
+        try {
+            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
+            Object aeKey = ofMethod.invoke(null, itemStack);
+            if (aeKey == null) return false;
+
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            var gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
+            Object genericStack = gsCtor.newInstance(aeKey, 1L);
+
+            Class<?> packetClass = Class.forName("org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket");
+            var packetCtor = packetClass.getConstructor(genericStackClass);
+            Object packet = packetCtor.newInstance(genericStack);
+
+            Class.forName("org.chatterjay.emilink.network.NetworkHandler")
+                    .getMethod("sendToServer", Object.class)
+                    .invoke(null, packet);
+
+            ModLogger.info("EmiInteractionHandler: sent PullFromNetwork packet");
+            return true;
+        } catch (Exception e) {
+            ModLogger.info("EmiInteractionHandler: sendPullFromNetworkPacket error: {}: {}",
+                    e.getClass().getSimpleName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean hasNetworkAccess(Player player) {
         if (!AE2Proxy.isLoaded()) return false;
+        // Wireless terminal in inventory
         var inventory = player.getInventory();
         for (int i = 0; i < inventory.items.size(); i++) {
             if (AE2Proxy.isWirelessTerminal(inventory.items.get(i))) {
+                ModLogger.info("EmiInteractionHandler: found wireless terminal in inventory slot {}", i);
                 return true;
             }
         }
         if (AE2Proxy.isWirelessTerminal(player.getOffhandItem())) {
+            ModLogger.info("EmiInteractionHandler: found wireless terminal in offhand");
             return true;
         }
+        // Curios bauble slot
+        Class<?> wtClass = AE2Proxy.getWirelessTerminalClass();
+        if (wtClass != null && CuriosProxy.hasWirelessTerminal(player, wtClass)) {
+            ModLogger.info("EmiInteractionHandler: found wireless terminal in curio slot");
+            return true;
+        }
+        // Wired AE2 terminal screen open (MEStorageScreen covers all terminal types)
+        var screen = Minecraft.getInstance().screen;
+        if (screen != null && AE2Proxy.isMEStorageScreen(screen)) {
+            ModLogger.info("EmiInteractionHandler: found wired terminal (screen open)");
+            return true;
+        }
+        ModLogger.info("EmiInteractionHandler: no network access found");
         return false;
     }
 }

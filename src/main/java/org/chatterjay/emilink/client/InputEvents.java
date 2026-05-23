@@ -3,6 +3,8 @@ package org.chatterjay.emilink.client;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.VanillaEmiRecipeCategories;
+import dev.emi.emi.api.recipe.handler.EmiCraftContext;
+import dev.emi.emi.registry.EmiRecipeFiller;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -16,6 +18,7 @@ import org.chatterjay.emilink.client.handler.BookmarkPriorityHandler;
 import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.util.ModLogger;
+import org.chatterjay.emilink.util.ProviderSearchHelper;
 
 import appeng.core.sync.network.NetworkHandler;
 import appeng.core.sync.packets.InventoryActionPacket;
@@ -53,12 +56,16 @@ public final class InputEvents {
         }
 
         if (ModKeybindings.QUICK_PATTERN_KEY.matches(keyCode, scanCode)) {
-            onQuickCraftKey(event);
+            if (handleQuickCraft()) {
+                event.setCanceled(true);
+            }
             return;
         }
 
         if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
-            onQuickFillSlotKey(event);
+            if (handleQuickFillSlot()) {
+                event.setCanceled(true);
+            }
             return;
         }
 
@@ -67,6 +74,22 @@ public final class InputEvents {
             ModLogger.info("InputEvents: TOGGLE_WRAP_BOOK_KEY pressed, active={}", WrapAsBookHandler.isActive());
             event.setCanceled(true);
         }
+    }
+
+    /**
+     * Quick pattern encode — called from both InputEvents (Forge event) and
+     * EmiInteractionHandler (mixin). Returns true if handled.
+     */
+    public static boolean handleQuickCraft() {
+        return quickCraft();
+    }
+
+    /**
+     * Quick fill to first empty FakeSlot — called from both InputEvents (Forge event)
+     * and EmiInteractionHandler (mixin). Returns true if handled.
+     */
+    public static boolean handleQuickFillSlot() {
+        return quickFillSlot();
     }
 
     private static void onFillSearchKey(ScreenEvent.KeyPressed.Pre event) {
@@ -173,7 +196,127 @@ public final class InputEvents {
         }
     }
 
-    private static void onQuickCraftKey(ScreenEvent.KeyPressed.Pre event) {
+    private static boolean fillPatternTerminal(EmiRecipe recipe, AbstractContainerScreen<?> handled) {
+        // Expand each recipe input to a single ItemStack (tag → first item)
+        var inputs = recipe.getInputs();
+        var items = new ArrayList<ItemStack>();
+        for (var input : inputs) {
+            var stacks = input.getEmiStacks();
+            if (!stacks.isEmpty()) {
+                var stack = stacks.get(0).getItemStack();
+                items.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+            } else {
+                items.add(ItemStack.EMPTY);
+            }
+        }
+
+        var outputs = recipe.getOutputs();
+        var outputItems = new ArrayList<ItemStack>();
+        for (var out : outputs) {
+            var stack = out.getItemStack();
+            outputItems.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+        }
+
+        var menu = handled.getMenu();
+        if (menu instanceof PatternEncodingTermMenu encodingMenu) {
+            if (encodingMenu.getMode() == EncodingMode.CRAFTING) {
+                // Crafting mode: fill the 3x3 grid only; result is computed by AE2
+                FakeSlot[] targetSlots = encodingMenu.getCraftingGridSlots();
+
+                for (FakeSlot slot : targetSlots) {
+                    NetworkHandler.instance().sendToServer(
+                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
+                }
+
+                int count = Math.min(items.size(), targetSlots.length);
+                for (int i = 0; i < count; i++) {
+                    if (!items.get(i).isEmpty()) {
+                        NetworkHandler.instance().sendToServer(
+                                new InventoryActionPacket(InventoryAction.SET_FILTER,
+                                        targetSlots[i].index, items.get(i)));
+                    }
+                }
+
+                BookmarkPriorityHandler.applyBookmarkPriority(
+                        encodingMenu.getCraftingGridSlots(), recipe.getInputs());
+
+                ModLogger.info("QuickPattern: encoded crafting pattern {} ({} inputs)", recipe.getId(), count);
+            } else {
+                ModLogger.info("QuickPattern: processing recipe id={}, category={}",
+                        recipe.getId(), recipe.getCategory().getId());
+                // Processing mode: fill both input and output slots
+                FakeSlot[] inputSlots = encodingMenu.getProcessingInputSlots();
+                FakeSlot[] outputSlots = encodingMenu.getProcessingOutputSlots();
+
+                for (FakeSlot slot : inputSlots) {
+                    NetworkHandler.instance().sendToServer(
+                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
+                }
+                for (FakeSlot slot : outputSlots) {
+                    NetworkHandler.instance().sendToServer(
+                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
+                }
+
+                int inputCount = Math.min(items.size(), inputSlots.length);
+                for (int i = 0; i < inputCount; i++) {
+                    if (!items.get(i).isEmpty()) {
+                        NetworkHandler.instance().sendToServer(
+                                new InventoryActionPacket(InventoryAction.SET_FILTER,
+                                        inputSlots[i].index, items.get(i)));
+                    }
+                }
+
+                int outputCount = Math.min(outputItems.size(), outputSlots.length);
+                for (int i = 0; i < outputCount; i++) {
+                    if (!outputItems.get(i).isEmpty()) {
+                        NetworkHandler.instance().sendToServer(
+                                new InventoryActionPacket(InventoryAction.SET_FILTER,
+                                        outputSlots[i].index, outputItems.get(i)));
+                    }
+                }
+
+                BookmarkPriorityHandler.applyBookmarkPriority(inputSlots, recipe.getInputs());
+
+                ModLogger.info("QuickPattern: encoded processing pattern {} ({} inputs, {} outputs)",
+                        recipe.getId(), inputCount, outputCount);
+            }
+
+            // Update EAEP provider search key so the recipe ID field shows the correct type
+            var categoryId = recipe.getCategory().getId();
+            if (categoryId != null) {
+                String searchKey = categoryId.getPath();
+                ModLogger.info("QuickPattern: setting EAEP provider search key to '{}' (from category {})",
+                        searchKey, categoryId);
+                ProviderSearchHelper.setLastProcessingName(searchKey);
+                // Also directly update the ExPatternTerminal search field if open
+                trySetExPatternTerminalSearchField(handled, searchKey);
+            } else {
+                ModLogger.info("QuickPattern: recipe {} has no category ID", recipe.getId());
+            }
+
+            return true;
+        }
+        return false;
+    }
+
+    private static void trySetExPatternTerminalSearchField(Screen screen, String searchKey) {
+        try {
+            Class<?> guiClass = Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal");
+            if (!guiClass.isInstance(screen)) return;
+
+            var field = guiClass.getDeclaredField("searchOutField");
+            field.setAccessible(true);
+            Object textField = field.get(screen);
+            if (textField == null) return;
+
+            ModLogger.info("QuickPattern: setting ExPatternTerminal searchOutField to '{}'", searchKey);
+            textField.getClass().getMethod("setValue", String.class).invoke(textField, searchKey);
+        } catch (Throwable e) {
+            ModLogger.debug("QuickPattern: trySetExPatternTerminalSearchField failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+    }
+
+    private static boolean quickCraft() {
         ModLogger.info("InputEvents: onQuickCraftKey called");
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
@@ -182,15 +325,10 @@ public final class InputEvents {
                 handled = container;
             }
         }
-        if (handled == null) return;
-
-        if (!isPatternEncodingTerminal(handled)) {
-            ModLogger.info("B key: not a pattern terminal, screen={}", handled.getClass().getName());
-            return;
-        }
+        if (handled == null) return false;
 
         var hovered = EmiApi.getHoveredStack(true);
-        if (hovered == null || hovered.isEmpty()) return;
+        if (hovered == null || hovered.isEmpty()) return false;
 
         EmiRecipe recipe = hovered.getRecipeContext();
         if (recipe == null) recipe = EmiApi.getRecipeContext(hovered.getStack());
@@ -212,86 +350,61 @@ public final class InputEvents {
 
         if (recipe == null) {
             ModLogger.info("B key: no recipe found for hovered stack");
-            return;
+            return false;
         }
 
-        // Expand each recipe input to a single ItemStack (tag → first item)
-        var inputs = recipe.getInputs();
-        var items = new ArrayList<ItemStack>();
-        for (var input : inputs) {
-            var stacks = input.getEmiStacks();
-            if (!stacks.isEmpty()) {
-                var stack = stacks.get(0).getItemStack();
-                items.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
-            } else {
-                items.add(ItemStack.EMPTY);
-            }
+        ModLogger.info("B key: recipe id = {}", recipe.getId());
+        var catId = recipe.getCategory().getId();
+        ModLogger.info("B key: recipe category = {} (path={})", catId, catId == null ? "null" : catId.getPath());
+
+        // Strategy 1: Pattern Encoding Terminal → direct FakeSlot filling
+        if (isPatternEncodingTerminal(handled)) {
+            return fillPatternTerminal(recipe, handled);
         }
 
-        var menu = handled.getMenu();
-        if (menu instanceof PatternEncodingTermMenu encodingMenu) {
-            FakeSlot[] targetSlots = encodingMenu.getMode() == EncodingMode.CRAFTING
-                    ? encodingMenu.getCraftingGridSlots()
-                    : encodingMenu.getProcessingInputSlots();
-
-            // Clear all target slots first
-            for (FakeSlot slot : targetSlots) {
-                NetworkHandler.instance().sendToServer(
-                        new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
+        // Strategy 2: EMI generic recipe filler (crafting tables, etc.)
+        ModLogger.info("B key: trying EmiRecipeFiller, screen={}", handled.getClass().getName());
+        try {
+            boolean filled = EmiRecipeFiller.performFill(recipe, handled,
+                    EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.NONE, 1);
+            if (filled) {
+                ModLogger.info("B key: EmiRecipeFiller filled recipe {}", recipe.getId());
+                return true;
             }
-
-            // Fill with expanded items (no tag expansion — first item only)
-            int count = Math.min(items.size(), targetSlots.length);
-            for (int i = 0; i < count; i++) {
-                if (!items.get(i).isEmpty()) {
-                    NetworkHandler.instance().sendToServer(
-                            new InventoryActionPacket(InventoryAction.SET_FILTER,
-                                    targetSlots[i].index, items.get(i)));
-                }
-            }
-
-            // Apply bookmark priority to replace with user favorites
-            if (encodingMenu.getMode() == EncodingMode.PROCESSING) {
-                BookmarkPriorityHandler.applyBookmarkPriority(
-                        encodingMenu.getProcessingInputSlots(), recipe.getInputs());
-            } else {
-                BookmarkPriorityHandler.applyBookmarkPriority(
-                        encodingMenu.getCraftingGridSlots(), recipe.getInputs());
-            }
-
-            ModLogger.info("QuickPattern: encoded {} ({} inputs)", recipe.getId(), count);
-            event.setCanceled(true);
-        } else {
-            ModLogger.info("QuickPattern: not a PatternEncodingTermMenu, screen={}", handled.getClass().getName());
+        } catch (Exception e) {
+            ModLogger.info("B key: EmiRecipeFiller exception: {}", e.getMessage());
         }
+
+        ModLogger.info("B key: no handler available for screen {}", handled.getClass().getName());
+        return false;
     }
 
-    private static void onQuickFillSlotKey(ScreenEvent.KeyPressed.Pre event) {
+    private static boolean quickFillSlot() {
         var hovered = EmiApi.getHoveredStack(true);
-        if (hovered == null || hovered.isEmpty()) return;
+        if (hovered == null || hovered.isEmpty()) return false;
 
         var ingredient = hovered.getStack();
-        if (ingredient == null || ingredient.isEmpty()) return;
+        if (ingredient == null || ingredient.isEmpty()) return false;
 
         var emiStacks = ingredient.getEmiStacks();
-        if (emiStacks.isEmpty()) return;
+        if (emiStacks.isEmpty()) return false;
 
         var emiStack = emiStacks.get(0);
 
         var itemStack = emiStack.getItemStack();
-        if (itemStack.isEmpty()) return;
+        if (itemStack.isEmpty()) return false;
 
         var mc = Minecraft.getInstance();
-        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return;
+        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
 
         for (var slot : containerScreen.getMenu().slots) {
             if (slot instanceof FakeSlot fakeSlot && slot.getItem().isEmpty()) {
                 NetworkHandler.instance().sendToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
                 ModLogger.info("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
-                event.setCanceled(true);
-                return;
+                return true;
             }
         }
+        return false;
     }
 }

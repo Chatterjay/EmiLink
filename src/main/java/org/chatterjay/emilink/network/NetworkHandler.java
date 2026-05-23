@@ -15,6 +15,8 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emilink.network.packet.c2s.AEQueryPacket;
+import org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket;
+import org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket;
 import org.chatterjay.emilink.network.packet.s2c.*;
 
 public class NetworkHandler {
@@ -41,10 +43,18 @@ public class NetworkHandler {
                 AEQueryPacket::encode, AEQueryPacket::decode, AEQueryPacket::handle);
         CHANNEL.registerMessage(packetId++, AEBatchQueryPacket.class,
                 AEBatchQueryPacket::encode, AEBatchQueryPacket::decode, AEBatchQueryPacket::handle);
+        CHANNEL.registerMessage(packetId++, OpenCraftAmountC2SPacket.class,
+                OpenCraftAmountC2SPacket::encode, OpenCraftAmountC2SPacket::decode, OpenCraftAmountC2SPacket::handle);
+        CHANNEL.registerMessage(packetId++, PullFromNetworkC2SPacket.class,
+                PullFromNetworkC2SPacket::encode, PullFromNetworkC2SPacket::decode, PullFromNetworkC2SPacket::handle);
     }
 
     public static void sendToPlayer(ServerPlayer player, Object packet) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+    }
+
+    public static void sendToServer(Object packet) {
+        CHANNEL.sendToServer(packet);
     }
 
     @Mod.EventBusSubscriber(modid = Emilink.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)

@@ -3,6 +3,7 @@ package org.chatterjay.emilink.util;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;
+import org.chatterjay.emilink.util.ModLogger;
 
 import java.lang.reflect.Method;
 
@@ -12,6 +13,9 @@ public final class ProviderSearchHelper {
     private static Method setLastProcessingName;
     private static Method presetCraftingProviderSearchKey;
     private static Method mapRecipeTypeToSearchKey;
+
+    /** Tracks the last non-"jemi" category from RecipeScreen's getFocusedCategory() */
+    private static String lastRecipeCategory;
 
     private ProviderSearchHelper() {}
 
@@ -31,7 +35,14 @@ public final class ProviderSearchHelper {
     public static void setLastProcessingName(String name) {
         init();
         if (available && name != null) {
-            try { setLastProcessingName.invoke(null, name); } catch (Throwable ignored) {}
+            try {
+                ModLogger.info("ProviderSearchHelper: setting EAEP RecipeTypeNameConfig to '{}'", name);
+                setLastProcessingName.invoke(null, name);
+            } catch (Throwable e) {
+                ModLogger.warn("ProviderSearchHelper: setLastProcessingName failed: {}", e.getMessage());
+            }
+        } else {
+            ModLogger.info("ProviderSearchHelper: setLastProcessingName skipped (available={}, name={})", available, name);
         }
     }
 
@@ -79,6 +90,29 @@ public final class ProviderSearchHelper {
             ModLogger.info("ProviderSearch: set search key '{}' from EMI recipe category '{}' (recipe {})",
                     searchKey, categoryId, emiRecipe.getId());
         }
+    }
+
+    /**
+     * Saves the last focused recipe category from EMI's RecipeScreen.
+     * This is a separate field from RecipeTypeNameConfig's lastProviderSearchKey
+     * so it won't be consumed by the ProviderSelectScreen constructor.
+     */
+    public static void setLastFocusedRecipeCategory(String category) {
+        lastRecipeCategory = category;
+        ModLogger.info("ProviderSearchHelper: saved last recipe category '{}'", category);
+    }
+
+    /**
+     * Returns and clears the last recipe category.
+     * Called by ProviderSelectHandler to set the search key directly.
+     */
+    public static String consumeLastRecipeCategory() {
+        String val = lastRecipeCategory;
+        lastRecipeCategory = null;
+        if (val != null) {
+            ModLogger.info("ProviderSearchHelper: consumed last recipe category '{}'", val);
+        }
+        return val;
     }
 
     private static String deriveSearchKey(Class<?> recipeClass) {

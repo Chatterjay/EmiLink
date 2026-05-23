@@ -6,6 +6,7 @@ import dev.emi.emi.screen.RecipeScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import org.chatterjay.emilink.Config;
@@ -38,22 +39,36 @@ public class RecipeScreenMixin {
     @Unique
     private static final int BTN_SIZE = 14;
 
+    @Unique
+    private static boolean emilink$isEncodingScreen(Screen screen) {
+        if (screen instanceof PatternEncodingTermScreen) return true;
+        try {
+            Class<?> guiClass = Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal");
+            return guiClass.isInstance(screen);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
     @Inject(method = "render", at = @At("RETURN"))
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         ModLogger.info("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
                 old == null ? "null" : old.getClass().getName(),
                 old instanceof PatternEncodingTermScreen);
 
-        if (!(old instanceof PatternEncodingTermScreen)) return;
+        if (!emilink$isEncodingScreen(old)) return;
 
         // Provider search key
         try {
             EmiRecipeCategory category = getFocusedCategory();
             if (category != null && category.getId() != null) {
                 String key = category.getId().getPath();
-                if (!key.equals(emilink$lastProviderSearchKey)) {
+                if ("jemi".equals(key)) {
+                    ModLogger.info("RecipeScreenMixin: skipping 'jemi' meta-category");
+                } else if (!key.equals(emilink$lastProviderSearchKey)) {
                     emilink$lastProviderSearchKey = key;
                     ProviderSearchHelper.setLastProcessingName(key);
+                    ProviderSearchHelper.setLastFocusedRecipeCategory(key);
                     ModLogger.info("RecipeScreenMixin: set provider search key to '{}'", key);
                 }
             }
@@ -88,7 +103,7 @@ public class RecipeScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void emilink$onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!(old instanceof PatternEncodingTermScreen)) {
+        if (!emilink$isEncodingScreen(old)) {
             ModLogger.info("RecipeScreenMixin: click ignored, old is {}",
                     old == null ? "null" : old.getClass().getSimpleName());
             return;
