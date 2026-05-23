@@ -27,7 +27,7 @@ side = "BOTH"
 [[dependencies."${mod_id}"]]
 modId = "emi"
 mandatory = true
-versionRange = "[1.1.24,)"
+versionRange = "[1.1.0,)"
 ordering = "NONE"
 side = "CLIENT"
 
