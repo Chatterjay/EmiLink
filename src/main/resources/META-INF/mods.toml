@@ -29,7 +29,7 @@ modId = "emi"
 mandatory = true
 versionRange = "[1.1.24,)"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "ae2"
