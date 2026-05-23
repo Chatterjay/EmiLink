@@ -1,6 +1,7 @@
 package org.chatterjay.emilink.mixin;
 
 import appeng.client.gui.me.items.PatternEncodingTermScreen;
+import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.screen.RecipeScreen;
 import net.minecraft.client.Minecraft;
@@ -9,6 +10,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.util.ModLogger;
@@ -37,6 +39,19 @@ public class RecipeScreenMixin {
     private String emilink$lastProviderSearchKey;
 
     @Unique
+    private void emilink$saveCategory(String path) {
+        if (path == null || path.isBlank() || "jemi".equals(path)) {
+            ModLogger.info("RecipeScreenMixin: skip saving category '{}'", path);
+            return;
+        }
+        if (path.equals(emilink$lastProviderSearchKey)) return;
+        emilink$lastProviderSearchKey = path;
+        ProviderSearchHelper.setLastProcessingName(path);
+        ProviderSearchHelper.setLastFocusedRecipeCategory(path);
+        ModLogger.info("RecipeScreenMixin: saved category '{}' (from focusCategory/focusRecipe)", path);
+    }
+
+    @Unique
     private static final int BTN_SIZE = 14;
 
     @Unique
@@ -50,6 +65,20 @@ public class RecipeScreenMixin {
         }
     }
 
+    // Capture category when player clicks a category tab (works in EMI 1.1.24+)
+    @Inject(method = "focusCategory", at = @At("HEAD"), require = 0)
+    private void emilink$onFocusCategory(EmiRecipeCategory category, CallbackInfo ci) {
+        if (category == null || category.getId() == null) return;
+        emilink$saveCategory(category.getId().getPath());
+    }
+
+    // Capture category when player selects a specific recipe (works in EMI 1.1.24+)
+    @Inject(method = "focusRecipe", at = @At("HEAD"), require = 0)
+    private void emilink$onFocusRecipe(EmiRecipe recipe, CallbackInfo ci) {
+        if (recipe == null || recipe.getCategory() == null || recipe.getCategory().getId() == null) return;
+        emilink$saveCategory(recipe.getCategory().getId().getPath());
+    }
+
     @Inject(method = {"render", "renderWidget"}, at = @At("TAIL"), require = 0)
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         ModLogger.info("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
@@ -58,19 +87,11 @@ public class RecipeScreenMixin {
 
         if (!emilink$isEncodingScreen(old)) return;
 
-        // Provider search key
+        // Provider search key (fallback for EMI versions without focusCategory support)
         try {
             EmiRecipeCategory category = getFocusedCategory();
             if (category != null && category.getId() != null) {
-                String key = category.getId().getPath();
-                if ("jemi".equals(key)) {
-                    ModLogger.info("RecipeScreenMixin: skipping 'jemi' meta-category");
-                } else if (!key.equals(emilink$lastProviderSearchKey)) {
-                    emilink$lastProviderSearchKey = key;
-                    ProviderSearchHelper.setLastProcessingName(key);
-                    ProviderSearchHelper.setLastFocusedRecipeCategory(key);
-                    ModLogger.info("RecipeScreenMixin: set provider search key to '{}'", key);
-                }
+                emilink$saveCategory(category.getId().getPath());
             }
         } catch (Throwable e) {
             ModLogger.warn("RecipeScreenMixin: failed to get focused category: {}", e.getMessage());

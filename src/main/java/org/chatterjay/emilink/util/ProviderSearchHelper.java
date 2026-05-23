@@ -49,27 +49,45 @@ public final class ProviderSearchHelper {
     public static void presetCraftingProviderSearchKey() {
         init();
         if (available) {
-            try { presetCraftingProviderSearchKey.invoke(null); } catch (Throwable ignored) {}
+            try {
+                ModLogger.info("ProviderSearchHelper: calling EAEP presetCraftingProviderSearchKey");
+                presetCraftingProviderSearchKey.invoke(null);
+                ModLogger.info("ProviderSearchHelper: EAEP presetCraftingProviderSearchKey succeeded");
+            } catch (Throwable e) {
+                ModLogger.warn("ProviderSearchHelper: presetCraftingProviderSearchKey failed: {}", e.getMessage());
+            }
+        } else {
+            ModLogger.info("ProviderSearchHelper: presetCraftingProviderSearchKey skipped (EAEP not available)");
         }
     }
 
     public static String mapRecipeTypeToSearchKey(Recipe<?> recipe) {
         init();
 
+        if (recipe == null) {
+            ModLogger.info("ProviderSearchHelper: mapRecipeTypeToSearchKey called with null recipe");
+            return null;
+        }
+
+        ModLogger.info("ProviderSearchHelper: mapping recipe type to search key, recipe={}", recipe.getId());
+
         // Try EAEP's mapping first
-        if (available && recipe != null) {
+        if (available) {
             try {
                 String result = (String) mapRecipeTypeToSearchKey.invoke(null, recipe);
+                ModLogger.info("ProviderSearchHelper: EAEP mapRecipeTypeToSearchKey returned '{}' for recipe {}",
+                        result, recipe.getId());
                 if (result != null) return result;
-            } catch (Throwable ignored) {}
+            } catch (Throwable e) {
+                ModLogger.warn("ProviderSearchHelper: EAEP mapRecipeTypeToSearchKey failed: {}", e.getMessage());
+            }
         }
 
         // Fallback: derive search key from recipe class name
-        if (recipe != null) {
-            return deriveSearchKey(recipe.getClass());
-        }
-
-        return null;
+        String fallback = deriveSearchKey(recipe.getClass());
+        ModLogger.info("ProviderSearchHelper: fallback derived search key '{}' from recipe class {}",
+                fallback, recipe.getClass().getSimpleName());
+        return fallback;
     }
 
     /**
