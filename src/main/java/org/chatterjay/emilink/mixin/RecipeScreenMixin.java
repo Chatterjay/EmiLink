@@ -50,7 +50,7 @@ public class RecipeScreenMixin {
         }
     }
 
-    @Inject(method = "render", at = @At("RETURN"))
+    @Inject(method = {"render", "renderWidget"}, at = @At("TAIL"), require = 0)
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         ModLogger.info("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
                 old == null ? "null" : old.getClass().getName(),
@@ -101,7 +101,7 @@ public class RecipeScreenMixin {
         }
     }
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
     private void emilink$onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (!emilink$isEncodingScreen(old)) {
             ModLogger.info("RecipeScreenMixin: click ignored, old is {}",
