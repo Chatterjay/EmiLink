@@ -15,8 +15,6 @@ import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
 import org.chatterjay.emilink.util.ModLogger;
 
-import java.util.List;
-
 public final class EmiInteractionHandler {
 
     private EmiInteractionHandler() {}

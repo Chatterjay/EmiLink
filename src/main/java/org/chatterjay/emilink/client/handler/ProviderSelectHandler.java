@@ -4,7 +4,6 @@ import appeng.menu.me.items.PatternEncodingTermMenu;
 import appeng.parts.encoding.EncodingMode;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.stack.EmiStack;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.item.ItemStack;
