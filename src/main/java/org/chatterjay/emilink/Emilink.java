@@ -12,7 +12,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.network.NetworkRegistry;
 import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.network.NetworkHandler;
 import org.slf4j.Logger;
@@ -32,15 +31,6 @@ public class Emilink {
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         NetworkHandler.register();
-
-        // 允许服务端安装本模组后，客户端可选择性安装、也可不安装直接连接
-        ModLoadingContext.get().registerExtensionPoint(
-                net.minecraftforge.fml.IExtensionPoint.DisplayTest.class,
-                () -> new net.minecraftforge.fml.IExtensionPoint.DisplayTest(
-                        () -> NetworkRegistry.IGNORESERVERONLY,
-                        (remoteVersion, isFromServer) -> true
-                )
-        );
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
