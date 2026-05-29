@@ -3,12 +3,15 @@ package org.chatterjay.emiextend;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
@@ -37,6 +40,24 @@ public class EmiAE2 {
         modBus.addListener(RegisterKeyMappingsEvent.class, ModKeybindings::register);
         modBus.addListener(this::registerPackets);
         NeoForge.EVENT_BUS.register(ServerEvents.class);
+        NeoForge.EVENT_BUS.addListener(EmiAE2::onRegisterClientCommands);
+    }
+
+    private static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
+        event.getDispatcher().register(
+                Commands.literal("emilink")
+                        .then(Commands.literal("debug")
+                                .executes(ctx -> {
+                                    boolean current = EmiLinkConfig.DEBUG_MODE.get();
+                                    EmiLinkConfig.DEBUG_MODE.set(!current);
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("EmiLink debug mode: " + (!current ? "ON" : "OFF")),
+                                            false
+                                    );
+                                    return 1;
+                                })
+                        )
+        );
     }
 
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
