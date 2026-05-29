@@ -37,10 +37,15 @@ public class EmiEncodePatternHandlerMixin {
             }
 
             Recipe<?> recipe = holder.value();
-            String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
-            if (name != null && !name.isBlank()) {
-                ProviderSearchHelper.setLastProcessingName(name);
-                ModLogger.info("HEAD: set processing name '{}' for recipe {}", name, holder.id());
+            String rawKey = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
+            if (rawKey != null && !rawKey.isBlank()) {
+                // Resolve through EAEP's CUSTOM_ALIASES so the search box gets the
+                // Chinese provider name (e.g. "反应") instead of the English class
+                // derived key (e.g. "reaction chamber"), enabling name matching.
+                String resolved = ProviderSearchHelper.resolveKeyToAlias(rawKey);
+                ProviderSearchHelper.setLastProcessingName(resolved);
+                ModLogger.info("HEAD: set processing name '{}' (raw '{}') for recipe {}",
+                        resolved, rawKey, holder.id());
             }
         } catch (Throwable t) {
             ModLogger.warn("EmiEncodePatternHandlerMixin HEAD error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
@@ -74,7 +79,7 @@ public class EmiEncodePatternHandlerMixin {
                 ProviderSearchHelper.presetCraftingProviderSearchKey();
                 String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
                 if (name != null && !name.isBlank()) {
-                    ProviderSearchHelper.setLastProcessingName(name);
+                    ProviderSearchHelper.setLastProcessingName(ProviderSearchHelper.resolveKeyToAlias(name));
                 }
                 if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
                     BookmarkPriorityHandler.applyBookmarkPriority(menu.getCraftingGridSlots(), emiRecipe.getInputs());
@@ -82,7 +87,7 @@ public class EmiEncodePatternHandlerMixin {
             } else {
                 String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
                 if (name != null && !name.isBlank()) {
-                    ProviderSearchHelper.setLastProcessingName(name);
+                    ProviderSearchHelper.setLastProcessingName(ProviderSearchHelper.resolveKeyToAlias(name));
                 }
                 if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
                     BookmarkPriorityHandler.applyBookmarkPriority(menu.getProcessingInputSlots(), emiRecipe.getInputs());

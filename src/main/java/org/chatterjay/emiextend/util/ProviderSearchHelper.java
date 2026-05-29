@@ -4,7 +4,9 @@ import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Map;
 
 public final class ProviderSearchHelper {
     private static boolean checked = false;
@@ -91,9 +93,30 @@ public final class ProviderSearchHelper {
     }
 
     /**
-     * Derive a search key from the recipe class when EAEP has no mapping.
-     * e.g. ReactionChamberRecipe → "reaction chamber"
+     * Resolve a search key through EAEP's CUSTOM_ALIASES map via reflection.
+     * e.g. "reaction chamber" → "反应" (the Chinese provider name the user saved)
+     * <p>
+     * This ensures that when ProviderSelectScreen opens, the search box contains
+     * the actual provider name (Chinese) rather than an English class-derived key,
+     * so the filter can match providers by name.
      */
+    public static String resolveKeyToAlias(String key) {
+        if (key == null || key.isBlank()) return key;
+        try {
+            Class<?> clazz = Class.forName("com.extendedae_plus.util.uploadPattern.ExtendedAEPatternUploadUtil");
+            Field aliasesField = clazz.getDeclaredField("CUSTOM_ALIASES");
+            aliasesField.setAccessible(true);
+            Map<String, String> aliases = (Map<String, String>) aliasesField.get(null);
+            String alias = aliases.get(key.toLowerCase());
+            if (alias != null && !alias.isBlank()) {
+                ModLogger.info("ProviderSearchHelper: resolved alias '{}' -> '{}'", key, alias);
+                return alias;
+            }
+        } catch (Throwable ignored) {
+        }
+        return key;
+    }
+
     private static String deriveSearchKey(Class<?> recipeClass) {
         String simpleName = recipeClass.getSimpleName();
 
