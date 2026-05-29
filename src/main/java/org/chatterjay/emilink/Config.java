@@ -68,7 +68,7 @@ public class Config {
 
         ENABLE_WRAP_BOOK = BUILDER
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
-                .define("enableWrapBook", false);
+                .define("enableWrapBook", true);
 
         ENABLE_NETWORK_BADGES = BUILDER
                 .comment("Show AE network status corner badges on EMI item icons")
