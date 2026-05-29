@@ -1,9 +1,10 @@
 # 更新日志
 
-## [1.1.9] - 2026-05-29
+## [1.1.9] - 2026-05-30
 
 ### 修复
 
+- 修复 EAEP 配方类型映射无法持久化的问题：在 HEAD 阶段设搜索键后，通过反射读取 EAEP 的 `CUSTOM_ALIASES` Map 将英文推导键（如 `"reaction chamber"`）解析为用户保存的中文提供商名（如 `"反应"`），ProviderSelect 搜索框自动填入中文名能匹配到提供商，避免每次重新选择
 - 修复 EAEP 1.5.3 兼容性：ProviderSearchHelper 改用 `ExtendedAEPatternUploadUtil`，`presetCraftingProviderSearchKey` 可选查找，避免低版本 EAEP 因找不到方法导致初始化静默失败
 - 修复合成配方写入时 EAEP 上传搜索框没有配方 ID 的问题
 
