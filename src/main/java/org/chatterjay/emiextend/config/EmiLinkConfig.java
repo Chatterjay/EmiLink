@@ -67,7 +67,7 @@ public final class EmiLinkConfig {
 
         ENABLE_WRAP_BOOK = BUILDER
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
-                .define("enableWrapBook", true);
+                .define("enableWrapBook", false);
 
         ENABLE_NETWORK_BADGES = BUILDER
                 .comment("Show AE network status corner badges on EMI item icons " +
