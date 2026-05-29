@@ -5,11 +5,13 @@
 ### 修复
 
 - 修复 EAEP 1.5.3 兼容性：ProviderSearchHelper 改用 `ExtendedAEPatternUploadUtil`，`presetCraftingProviderSearchKey` 可选查找，避免低版本 EAEP 因找不到方法导致初始化静默失败
+- 修复合成配方写入时 EAEP 上传搜索框没有配方 ID 的问题
 
 ### 变更
 
-- `enableWrapBook` 默认改为关闭
+- `enableWrapBook` 默认改为开启
 - 添加 `/emilink debug` 客户端命令，可在运行时切换调试日志输出
+- 添加 `/emilink wb` 客户端命令，可在运行时切换成书包裹模式
 
 ## [1.1.8] - 2026-05-19
 
