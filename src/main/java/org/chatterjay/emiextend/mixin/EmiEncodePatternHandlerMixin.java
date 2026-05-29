@@ -15,8 +15,37 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(value = EmiEncodePatternHandler.class, remap = false)
+@Mixin(value = EmiEncodePatternHandler.class, remap = false, priority = 1500)
 public class EmiEncodePatternHandlerMixin {
+
+    /**
+     * HEAD injection: Derive and set the provider search key BEFORE EAEP's
+     * mixin processes the recipe. EAEP's mapRecipeTypeToSearchKey returns null
+     * for custom recipe types (e.g. ReactionChamberRecipe), so without this,
+     * EAEP always shows ProviderSelect even when a mapping was previously saved.
+     */
+    @Inject(method = "transferRecipe", at = @At("HEAD"), require = 0)
+    private void emilink$beforeTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<Boolean> cir) {
+        try {
+            if (!doTransfer) return;
+
+            if (holder == null || holder.value() == null) {
+                if (emiRecipe != null) {
+                    ProviderSearchHelper.setFromEmiRecipe(emiRecipe);
+                }
+                return;
+            }
+
+            Recipe<?> recipe = holder.value();
+            String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
+            if (name != null && !name.isBlank()) {
+                ProviderSearchHelper.setLastProcessingName(name);
+                ModLogger.info("HEAD: set processing name '{}' for recipe {}", name, holder.id());
+            }
+        } catch (Throwable t) {
+            ModLogger.warn("EmiEncodePatternHandlerMixin HEAD error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
+        }
+    }
 
     @Inject(method = "transferRecipe", at = @At("RETURN"), require = 0)
     private void emilink$afterTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<?> cir) {
