@@ -23,10 +23,14 @@ public final class ProviderSearchHelper {
         if (checked) return;
         checked = true;
         try {
-            Class<?> clazz = Class.forName("com.extendedae_plus.util.uploadPattern.RecipeTypeNameConfig");
+            Class<?> clazz = Class.forName("com.extendedae_plus.util.uploadPattern.ExtendedAEPatternUploadUtil");
             setLastProcessingName = clazz.getMethod("setLastProcessingName", String.class);
-            presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
             mapRecipeTypeToSearchKey = clazz.getMethod("mapRecipeTypeToSearchKey", Recipe.class);
+            // presetCraftingProviderSearchKey is only available in EAEP 1.5.4+
+            try {
+                presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
+            } catch (NoSuchMethodException ignored) {
+            }
             available = true;
         } catch (Throwable t) {
         }
@@ -48,16 +52,9 @@ public final class ProviderSearchHelper {
 
     public static void presetCraftingProviderSearchKey() {
         init();
-        if (available) {
-            try {
-                ModLogger.info("ProviderSearchHelper: calling EAEP presetCraftingProviderSearchKey");
-                presetCraftingProviderSearchKey.invoke(null);
-                ModLogger.info("ProviderSearchHelper: EAEP presetCraftingProviderSearchKey succeeded");
-            } catch (Throwable e) {
-                ModLogger.warn("ProviderSearchHelper: presetCraftingProviderSearchKey failed: {}", e.getMessage());
+        if (presetCraftingProviderSearchKey != null) {
+            try { presetCraftingProviderSearchKey.invoke(null); } catch (Throwable t) {
             }
-        } else {
-            ModLogger.info("ProviderSearchHelper: presetCraftingProviderSearchKey skipped (EAEP not available)");
         }
     }
 
