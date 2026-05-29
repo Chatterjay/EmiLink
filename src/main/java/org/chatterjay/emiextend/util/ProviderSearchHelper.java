@@ -21,10 +21,14 @@ public final class ProviderSearchHelper {
         try {
             Class<?> clazz = Class.forName("com.extendedae_plus.util.uploadPattern.ExtendedAEPatternUploadUtil");
             setLastProcessingName = clazz.getMethod("setLastProcessingName", String.class);
-            presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
             mapRecipeTypeToSearchKey = clazz.getMethod("mapRecipeTypeToSearchKey", Recipe.class);
+            // presetCraftingProviderSearchKey is only available in EAEP 1.5.4+
+            try {
+                presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
+            } catch (NoSuchMethodException ignored) {
+            }
             available = true;
-        } catch (Throwable t) {
+        } catch (Throwable ignored) {
         }
     }
 
@@ -37,7 +41,7 @@ public final class ProviderSearchHelper {
 
     public static void presetCraftingProviderSearchKey() {
         init();
-        if (available) {
+        if (presetCraftingProviderSearchKey != null) {
             try { presetCraftingProviderSearchKey.invoke(null); } catch (Throwable ignored) {}
         }
     }
