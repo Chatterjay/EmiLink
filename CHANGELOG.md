@@ -1,5 +1,16 @@
 # 更新日志
 
+## [1.1.9] - 2026-05-29
+
+### 修复
+
+- 修复 EAEP 1.5.3 兼容性：ProviderSearchHelper 改用 `ExtendedAEPatternUploadUtil`，`presetCraftingProviderSearchKey` 可选查找，避免低版本 EAEP 因找不到方法导致初始化静默失败
+
+### 变更
+
+- `enableWrapBook` 默认改为关闭
+- 添加 `/emilink debug` 客户端命令，可在运行时切换调试日志输出
+
 ## [1.1.8] - 2026-05-19
 
 ### 新增
