@@ -57,6 +57,17 @@ public class EmiAE2 {
                                     return 1;
                                 })
                         )
+                        .then(Commands.literal("wb")
+                                .executes(ctx -> {
+                                    boolean current = EmiLinkConfig.ENABLE_WRAP_BOOK.get();
+                                    EmiLinkConfig.ENABLE_WRAP_BOOK.set(!current);
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("EmiLink wrap book mode: " + (!current ? "ON" : "OFF")),
+                                            false
+                                    );
+                                    return 1;
+                                })
+                        )
         );
     }
 

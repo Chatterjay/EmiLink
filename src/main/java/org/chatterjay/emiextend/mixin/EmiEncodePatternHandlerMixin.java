@@ -43,6 +43,10 @@ public class EmiEncodePatternHandlerMixin {
 
             if (recipe.getType() == RecipeType.CRAFTING) {
                 ProviderSearchHelper.presetCraftingProviderSearchKey();
+                String name = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
+                if (name != null && !name.isBlank()) {
+                    ProviderSearchHelper.setLastProcessingName(name);
+                }
                 if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
                     BookmarkPriorityHandler.applyBookmarkPriority(menu.getCraftingGridSlots(), emiRecipe.getInputs());
                 }
