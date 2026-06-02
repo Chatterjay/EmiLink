@@ -19,6 +19,7 @@ public class BDProxy {
     private static Boolean loaded;
     private static Class<?> baseMenuClass;
     private static Class<?> netGUIClass;
+    private static Class<?> craftGUIClass;
     private static Class<?> craftMenuClass;
     private static Class<?> netClass;
     private static Class<?> itemKeyClass;
@@ -35,6 +36,7 @@ public class BDProxy {
         try {
             netGUIClass = Class.forName("com.wintercogs.beyonddimensions.client.gui.DimensionsNetGUI");
             baseMenuClass = Class.forName("com.wintercogs.beyonddimensions.common.menu.BDBaseMenu");
+            craftGUIClass = Class.forName("com.wintercogs.beyonddimensions.client.gui.DimensionsCraftGUI");
             craftMenuClass = Class.forName("com.wintercogs.beyonddimensions.common.menu.DimensionsCraftMenu");
             netClass = Class.forName("com.wintercogs.beyonddimensions.api.dimensionnet.DimensionsNet");
             itemKeyClass = Class.forName("com.wintercogs.beyonddimensions.api.storage.key.impl.ItemStackKey");
@@ -60,7 +62,7 @@ public class BDProxy {
     }
 
     public static boolean isBDCraftGUI(Screen screen) {
-        return isLoaded() && craftMenuClass.isInstance(screen);
+        return isLoaded() && craftGUIClass.isInstance(screen);
     }
 
     public static boolean isBDBaseMenu(AbstractContainerMenu menu) {
@@ -285,6 +287,61 @@ public class BDProxy {
             var sendMethod = PacketDistributor.class.getMethod("sendToServer", net.minecraft.network.protocol.common.custom.CustomPacketPayload.class);
             sendMethod.invoke(null, packet);
         } catch (Exception e) {
+        }
+    }
+
+    // ---- Single craft: craft one item from BD network to inventory ----
+
+    public static boolean singleCraft(Player player) {
+        if (!isLoaded()) return false;
+        try {
+            var menu = player.containerMenu;
+            if (!craftMenuClass.isInstance(menu)) return false;
+
+            int resultSlotIndex = (int) craftMenuClass.getField("resultSlotIndex").get(menu);
+            if (resultSlotIndex < 0 || resultSlotIndex >= menu.slots.size()) return false;
+
+            var inventory = player.getInventory();
+
+            var resultSlot = menu.slots.get(resultSlotIndex);
+            if (!resultSlot.hasItem()) return false;
+
+            // Simulate taking the result item via PICKUP (triggers BD's native craft logic)
+            menu.clicked(resultSlotIndex, 0, ClickType.PICKUP, player);
+
+            // The crafted item is now on the cursor
+            ItemStack carried = menu.getCarried();
+            if (carried.isEmpty()) return false;
+
+            // Move carried item to inventory
+            ItemStack remaining = carried.copy();
+            for (int i = 0; i < inventory.items.size() && !remaining.isEmpty(); i++) {
+                ItemStack slotStack = inventory.getItem(i);
+                if (slotStack.isEmpty()) {
+                    int toAdd = Math.min(remaining.getCount(), remaining.getMaxStackSize());
+                    inventory.setItem(i, remaining.split(toAdd));
+                } else if (ItemStack.isSameItemSameComponents(slotStack, remaining)) {
+                    int space = slotStack.getMaxStackSize() - slotStack.getCount();
+                    if (space > 0) {
+                        int toAdd = Math.min(remaining.getCount(), space);
+                        slotStack.grow(toAdd);
+                        remaining.shrink(toAdd);
+                    }
+                }
+            }
+            menu.setCarried(ItemStack.EMPTY);
+
+            if (!remaining.isEmpty()) {
+                resultSlot.set(remaining);
+            }
+
+            inventory.setChanged();
+            if (player.containerMenu != null) {
+                player.containerMenu.broadcastChanges();
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 
