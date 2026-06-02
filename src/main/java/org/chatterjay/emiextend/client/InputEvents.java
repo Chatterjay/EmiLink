@@ -23,6 +23,7 @@ import appeng.integration.modules.emi.EmiStackHelper;
 import appeng.menu.slot.FakeSlot;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class InputEvents {
@@ -187,8 +188,16 @@ public final class InputEvents {
         }
         if (handled == null) return;
 
+        // BD Craft GUI → single craft to inventory
+        if (BDProxy.isBDCraftGUI(handled)) {
+            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+            event.setCanceled(true);
+            ModLogger.info("B key: BD single craft triggered");
+            return;
+        }
+
         if (!isPatternEncodingTerminal(handled)) {
-            ModLogger.info("B key: not a pattern terminal, screen={}", handled.getClass().getName());
+            ModLogger.info("B key: not a pattern terminal or BD craft, screen={}", handled.getClass().getName());
             return;
         }
 

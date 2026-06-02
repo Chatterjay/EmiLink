@@ -15,6 +15,7 @@ import org.chatterjay.emiextend.integration.BDProxy;
 public record BDActionPacket(ItemStack targetStack, int action) implements CustomPacketPayload {
     // action: 0 = extract from network to player inventory
     // action: 1 = mass craft (Space+Click on result slot)
+    // action: 2 = single craft (Ctrl+Click on result slot or B key)
 
     public static final Type<BDActionPacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "bd_action"));
@@ -39,6 +40,9 @@ public record BDActionPacket(ItemStack targetStack, int action) implements Custo
             }
             case 1 -> {
                 BDProxy.massCraft(player);
+            }
+            case 2 -> {
+                BDProxy.singleCraft(player);
             }
         }
     }
