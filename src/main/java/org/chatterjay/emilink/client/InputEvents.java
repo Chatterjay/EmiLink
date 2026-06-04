@@ -329,10 +329,14 @@ public final class InputEvents {
         }
         if (handled == null) return false;
 
-        // BD Craft GUI → single craft to inventory
+        // BD Craft GUI → single craft to inventory (requires EmiLink server)
         if (BDProxy.isBDCraftGUI(handled)) {
-            org.chatterjay.emilink.network.NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
-            ModLogger.info("B key: BD single craft triggered");
+            if (org.chatterjay.emilink.network.packet.s2c.ServerHasModPacket.serverHasMod) {
+                org.chatterjay.emilink.network.NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+                ModLogger.info("B key: BD single craft triggered");
+            } else {
+                ModLogger.info("B key: BD single craft skipped (no EmiLink server)");
+            }
             return true;
         }
 

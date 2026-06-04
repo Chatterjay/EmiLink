@@ -191,10 +191,13 @@ public final class EmiInteractionHandler {
         var screen = mc.screen;
         if (screen == null) return false;
         if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return false;
-        // Normalize count to avoid byte overflow in network serialization
         ItemStack sendStack = itemStack.copy();
         sendStack.setCount(1);
-        BDProxy.pullFromNetwork(sendStack);
+        if (org.chatterjay.emilink.network.packet.s2c.ServerHasModPacket.serverHasMod) {
+            BDProxy.pullFromNetwork(sendStack);
+        } else {
+            BDProxy.clientExtract(sendStack);
+        }
         ModLogger.info("EmiInteractionHandler: handleShiftClickBDEmi extracted {}", itemStack.getHoverName().getString());
         return true;
     }

@@ -361,28 +361,67 @@ public class BDProxy {
         }
     }
 
-    // ---- Space+Click fallback: BD's BatchTransferPacket ----
+    // ---- BD native channel: send packet via BD's own network ----
+
+    private static void sendViaBDChannel(Object packet) {
+        if (!isLoaded()) return;
+        try {
+            var channel = Class.forName("com.wintercogs.beyonddimensions.common.init.BDPackets")
+                    .getField("INSTANCE")
+                    .get(null);
+            var sendMethod = channel.getClass().getMethod("sendToServer", Object.class);
+            sendMethod.invoke(channel, packet);
+        } catch (Exception e) {
+            ModLogger.debug("BDProxy: sendViaBDChannel error: {}", e.getMessage());
+        }
+    }
+
+    // ---- BD's BatchTransferPacket (works without EmiLink on server) ----
+    // dirToStorage=true: player inventory → network, dirToStorage=false: network → player inventory
 
     public static void sendBatchTransfer(ItemStack stack, boolean dirToStorage) {
-        if (!isLoaded() || stack == null) return;
+        if (!isLoaded() || stack == null || stack.isEmpty()) return;
         try {
-            var keyAmountCtor = keyAmountClass.getConstructor(iStackKeyClass, long.class);
             var keyCtor = itemKeyClass.getConstructor(ItemStack.class);
             Object key = keyCtor.newInstance(stack);
-            Object keyAmount = keyAmountCtor.newInstance(key, (long) stack.getCount());
+            var keyAmount = keyAmountClass.getConstructor(iStackKeyClass, long.class)
+                    .newInstance(key, (long) stack.getCount());
 
             Constructor<?> packetCtor = batchTransferPacketClass.getConstructor(keyAmountClass, boolean.class);
             Object packet = packetCtor.newInstance(keyAmount, dirToStorage);
-
-            // For 1.20.1, use Forge's SimpleChannel to send the BD packet
-            // BatchTransferPacket is sent via BD's own network channel, not EmiLink's
-            // We need to access BD's PacketDistributor equivalent
-            var bdChannelClass = Class.forName("com.wintercogs.beyonddimensions.network.BDNetwork");
-            var sendMethod = bdChannelClass.getMethod("sendToServer", Object.class);
-            sendMethod.invoke(null, packet);
+            sendViaBDChannel(packet);
         } catch (Exception e) {
             ModLogger.debug("BDProxy: sendBatchTransfer error: {}", e.getMessage());
         }
+    }
+
+    // ---- BD's PickBlockFromNetPacket: extract one stack to main hand ----
+
+    public static void sendPickFromNet(ItemStack stack) {
+        if (!isLoaded() || stack == null || stack.isEmpty()) return;
+        try {
+            var packetClass = Class.forName("com.wintercogs.beyonddimensions.network.packet.c2s.PickBlockFromNetPacket");
+            Object packet = packetClass.getConstructor(ItemStack.class).newInstance(stack);
+            sendViaBDChannel(packet);
+        } catch (Exception e) {
+            ModLogger.debug("BDProxy: sendPickFromNet error: {}", e.getMessage());
+        }
+    }
+
+    // ---- Convenience: extract matching items from BD network → inventory (client-only) ----
+
+    public static void clientExtract(ItemStack stack) {
+        ItemStack copy = stack.copy();
+        copy.setCount(1); // Normalize to avoid byte overflow in BD's serialization too
+        sendBatchTransfer(copy, false);
+    }
+
+    // ---- Convenience: deposit matching items from inventory → BD network (client-only) ----
+
+    public static void clientDeposit(ItemStack stack) {
+        ItemStack copy = stack.copy();
+        copy.setCount(1);
+        sendBatchTransfer(copy, true);
     }
 
     // ---- Locked slot check ----

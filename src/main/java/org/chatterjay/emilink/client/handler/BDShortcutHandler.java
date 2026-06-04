@@ -126,7 +126,9 @@ public class BDShortcutHandler {
         // ---- Ctrl+Click: single craft on BD result slot ----
         if (isCtrl && !isSpace && !isShift) {
             if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-                NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+                if (hasServerMod()) {
+                    NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+                }
                 event.setCanceled(true);
             }
             return;
@@ -148,11 +150,17 @@ public class BDShortcutHandler {
                 return;
             }
             lastShiftClickTime = now;
-            ItemStack sendStack = clickedItem.copy();
-            sendStack.setCount(1); // Normalize count to avoid byte overflow in network serialization
-            ModLogger.info("BDShortcutHandler: shift+click sending TransferMatchingPacket mode=3 slot={} item={} count={}",
-                    slot.index, sendStack.getHoverName().getString(), sendStack.getCount());
-            NetworkHandler.sendToServer(new TransferMatchingPacket(sendStack, 3, new int[0]));
+            if (hasServerMod()) {
+                ItemStack sendStack = clickedItem.copy();
+                sendStack.setCount(1);
+                ModLogger.info("BDShortcutHandler: shift+click sending TransferMatchingPacket mode=3 slot={} item={}",
+                        slot.index, sendStack.getHoverName().getString());
+                NetworkHandler.sendToServer(new TransferMatchingPacket(sendStack, 3, new int[0]));
+            } else {
+                ModLogger.info("BDShortcutHandler: shift+click client-only extract item={}",
+                        clickedItem.getHoverName().getString());
+                BDProxy.clientExtract(clickedItem);
+            }
             event.setCanceled(true);
         }
     }
@@ -202,9 +210,11 @@ public class BDShortcutHandler {
     private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
                                           ScreenEvent.MouseButtonPressed.Pre event) {
-        // Space+click on result slot → mass craft
+        // Space+click on result slot → mass craft (requires EmiLink server)
         if (slot.index == BDProxy.getResultSlotIndex(menu)) {
-            NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
+            if (hasServerMod()) {
+                NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 1));
+            }
             event.setCanceled(true);
             return;
         }
@@ -217,19 +227,26 @@ public class BDShortcutHandler {
 
         boolean isPlayerSlot = slot.index >= inventoryStart && slot.index < inventoryEnd;
 
-        int mode;
-        if (isPlayerSlot) {
-            mode = (slot.getSlotIndex() >= 0 && slot.getSlotIndex() < 9) ? 2 : 1;
+        if (hasServerMod()) {
+            int mode;
+            if (isPlayerSlot) {
+                mode = (slot.getSlotIndex() >= 0 && slot.getSlotIndex() < 9) ? 2 : 1;
+            } else {
+                mode = 0;
+            }
+            ItemStack sendStack = mode == 0 ? clickedItem.copy() : clickedItem;
+            if (mode == 0) sendStack.setCount(1);
+            int[] locked = getLockedIndices(mode);
+            NetworkHandler.sendToServer(new TransferMatchingPacket(sendStack, mode, locked));
+            ModLogger.debug("handleSpaceClick: mode={}, hasServerMod={}, locked={}", mode, hasServerMod(), locked.length);
         } else {
-            mode = 0;
+            // Client-only: use BD's native BatchTransferPacket
+            if (isPlayerSlot) {
+                BDProxy.clientDeposit(clickedItem);
+            } else {
+                BDProxy.clientExtract(clickedItem);
+            }
         }
-
-        // Normalize count to avoid byte overflow in network serialization for BD network slots
-        ItemStack sendStack = mode == 0 ? clickedItem.copy() : clickedItem;
-        if (mode == 0) sendStack.setCount(1);
-        int[] locked = getLockedIndices(mode);
-        NetworkHandler.sendToServer(new TransferMatchingPacket(sendStack, mode, locked));
-        ModLogger.debug("handleSpaceClick: mode={}, hasServerMod={}, locked={}", mode, hasServerMod(), locked.length);
 
         event.setCanceled(true);
     }
