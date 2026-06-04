@@ -17,6 +17,8 @@ import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.client.handler.BookmarkPriorityHandler;
 import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.integration.BDProxy;
+import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.util.ModLogger;
 import org.chatterjay.emilink.util.ProviderSearchHelper;
 
@@ -326,6 +328,13 @@ public final class InputEvents {
             }
         }
         if (handled == null) return false;
+
+        // BD Craft GUI → single craft to inventory
+        if (BDProxy.isBDCraftGUI(handled)) {
+            org.chatterjay.emilink.network.NetworkHandler.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+            ModLogger.info("B key: BD single craft triggered");
+            return true;
+        }
 
         var hovered = EmiApi.getHoveredStack(true);
         if (hovered == null || hovered.isEmpty()) return false;

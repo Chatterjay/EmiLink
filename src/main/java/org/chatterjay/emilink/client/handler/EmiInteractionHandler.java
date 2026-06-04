@@ -11,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emilink.client.InputEvents;
 import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.integration.BDProxy;
 import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
 import org.chatterjay.emilink.util.ModLogger;
@@ -45,6 +46,16 @@ public final class EmiInteractionHandler {
                 if (EmiScreenManager.stackInteraction(
                         new EmiStackInteraction(emiStack),
                         bind -> bind.matchesKey(keyCode, scanCode))) {
+                    return true;
+                }
+            }
+        }
+        // AE2 terminal screen: forward unhandled key to EMI stack interaction
+        if (AE2Proxy.isMEStorageScreen(mc.screen)) {
+            EmiStackInteraction hovered = EmiApi.getHoveredStack(mouseX, mouseY, false);
+            if (hovered != null && !hovered.isEmpty()) {
+                if (EmiScreenManager.stackInteraction(hovered, bind -> bind.matchesKey(keyCode, scanCode))) {
+                    ModLogger.info("EmiInteractionHandler: AE2 terminal key handled via stackInteraction");
                     return true;
                 }
             }
@@ -132,7 +143,8 @@ public final class EmiInteractionHandler {
         }
 
         if (button == 0 && Screen.hasShiftDown()) {
-            if (handleShiftClickAE2(itemStack)) return true;
+            if (handleShiftClickBDEmi(itemStack)) return true;
+            return handleShiftClickAE2(itemStack);
         }
 
         return false;
@@ -172,6 +184,19 @@ public final class EmiInteractionHandler {
         if (player == null) return false;
         if (!hasNetworkAccess(player)) return false;
         return EAEPProxy.pullFromNetwork(itemStack);
+    }
+
+    private static boolean handleShiftClickBDEmi(ItemStack itemStack) {
+        var mc = Minecraft.getInstance();
+        var screen = mc.screen;
+        if (screen == null) return false;
+        if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return false;
+        // Normalize count to avoid byte overflow in network serialization
+        ItemStack sendStack = itemStack.copy();
+        sendStack.setCount(1);
+        BDProxy.pullFromNetwork(sendStack);
+        ModLogger.info("EmiInteractionHandler: handleShiftClickBDEmi extracted {}", itemStack.getHoverName().getString());
+        return true;
     }
 
     private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {

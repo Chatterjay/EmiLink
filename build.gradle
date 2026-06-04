@@ -134,12 +134,16 @@ dependencies {
     implementation fg.deobf("maven.modrinth:applied-energistics-2-wireless-terminals:${ae2wt_version}")
 
     // AE2WTLib 的前置依赖
-    implementation fg.deobf("top.theillusivec4.curios:curios-forge:5.2.0+1.20.1")
+    implementation fg.deobf("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1")
     implementation fg.deobf("curse.maven:architectury-api-419699:4581905")
     implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:11.1.118")
 
     // JEI — 可选（dev 环境可用）
     implementation fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+
+    // Beyond Dimensions — 可选（dev 环境可用）
+    implementation fg.deobf("maven.modrinth:beyonddimensions:${beyonddimensions_version}")
+
 }
 
 tasks.named('processResources', ProcessResources).configure {

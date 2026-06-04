@@ -29,14 +29,23 @@ public class CuriosProxy {
         try {
             var curiosApi = Class.forName("top.theillusivec4.curios.api.CuriosApi");
             var getCuriosInventory = curiosApi.getMethod("getCuriosInventory", net.minecraft.world.entity.LivingEntity.class);
-            Optional<?> opt = (Optional<?>) getCuriosInventory.invoke(null, player);
+            Object lazyOpt = getCuriosInventory.invoke(null, player);
+
+            // Curios 5.14.1 returns LazyOptional<ICuriosItemHandler>, not Optional
+            var lazyOptClass = Class.forName("net.minecraftforge.common.util.LazyOptional");
+            var isPresent = (boolean) lazyOptClass.getMethod("isPresent").invoke(lazyOpt);
+            if (!isPresent) {
+                ModLogger.info("CuriosProxy: getCuriosInventory LazyOptional not present");
+                return false;
+            }
+            var resolveMethod = lazyOptClass.getMethod("resolve");
+            Optional<?> opt = (Optional<?>) resolveMethod.invoke(lazyOpt);
             if (opt.isEmpty()) {
-                ModLogger.info("CuriosProxy: getCuriosInventory returned empty");
+                ModLogger.info("CuriosProxy: getCuriosInventory resolved empty");
                 return false;
             }
 
             Object handler = opt.get();
-            ModLogger.info("CuriosProxy: handler={}", handler.getClass().getName());
             Method isEquipped = handler.getClass().getMethod("isEquipped", Predicate.class);
             Predicate<ItemStack> predicate = s -> {
                 boolean match = !s.isEmpty() && terminalItemClass.isInstance(s.getItem());
@@ -44,7 +53,6 @@ public class CuriosProxy {
                 return match;
             };
             boolean result = (boolean) isEquipped.invoke(handler, predicate);
-            ModLogger.info("CuriosProxy: isEquipped result={}", result);
             return result;
         } catch (Exception e) {
             ModLogger.info("CuriosProxy: exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());

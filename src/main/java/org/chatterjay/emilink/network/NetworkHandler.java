@@ -15,8 +15,10 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emilink.network.packet.c2s.AEQueryPacket;
+import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket;
 import org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket;
+import org.chatterjay.emilink.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emilink.network.packet.s2c.*;
 
 public class NetworkHandler {
@@ -47,6 +49,10 @@ public class NetworkHandler {
                 OpenCraftAmountC2SPacket::encode, OpenCraftAmountC2SPacket::decode, OpenCraftAmountC2SPacket::handle);
         CHANNEL.registerMessage(packetId++, PullFromNetworkC2SPacket.class,
                 PullFromNetworkC2SPacket::encode, PullFromNetworkC2SPacket::decode, PullFromNetworkC2SPacket::handle);
+        CHANNEL.registerMessage(packetId++, BDActionPacket.class,
+                BDActionPacket::encode, BDActionPacket::decode, BDActionPacket::handle);
+        CHANNEL.registerMessage(packetId++, TransferMatchingPacket.class,
+                TransferMatchingPacket::encode, TransferMatchingPacket::decode, TransferMatchingPacket::handle);
     }
 
     public static void sendToPlayer(ServerPlayer player, Object packet) {
