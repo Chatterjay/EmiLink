@@ -12,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.WrittenBookContent;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,19 +51,21 @@ public final class WrapAsBookHandler {
                     InventoryAction.SET_FILTER, outSlots[0].index, book));
         }
 
-        var inSlots = menu.getProcessingInputSlots();
-        int target = -1;
-        for (int i = 0; i < inSlots.length; i++) {
-            if (inSlots[i].getItem().isEmpty()) {
-                target = i;
-                break;
+        if (EmiLinkConfig.WB_FILL_INPUT_GRID.get()) {
+            var inSlots = menu.getProcessingInputSlots();
+            int target = -1;
+            for (int i = 0; i < inSlots.length; i++) {
+                if (inSlots[i].getItem().isEmpty()) {
+                    target = i;
+                    break;
+                }
             }
-        }
-        if (target < 0 && inSlots.length > 0) target = 0;
+            if (target < 0 && inSlots.length > 0) target = 0;
 
-        if (target >= 0) {
-            PacketDistributor.sendToServer(new InventoryActionPacket(
-                    InventoryAction.SET_FILTER, inSlots[target].index, original));
+            if (target >= 0) {
+                PacketDistributor.sendToServer(new InventoryActionPacket(
+                        InventoryAction.SET_FILTER, inSlots[target].index, original));
+            }
         }
     }
 

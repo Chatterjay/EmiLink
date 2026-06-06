@@ -1,24 +1,33 @@
 # 更新日志
 
-## [1.1.9] - 2026-06-02
+## [1.1.9] - 2026-06-06
 
 ### 新增
 
 - BD 合成 GUI 快速合成：B 键或 Ctrl+点击结果槽单次合成到背包（`singleCraft`）
 - Shift+点击 EMI 侧边栏物品从网络提取到背包：BD 界面 BD 优先→AE2 兜底，其他界面 AE2（需无线终端）优先→BD 兜底
+- NeoForge 内置配置界面：Mods 列表中显示 Config 按钮，支持游戏内修改所有配置项
+- ExtendedAE `GuiExPatternTerminal` F/Alt+F 搜索兼容
+- AdvancedAE 量子合成终端 `QuantumCrafterTermScreen` F/Alt+F 搜索兼容
+- RefinedStorage 网格终端 F/Alt+F 搜索兼容（GridScreen、PatternGridScreen 等）
+- RefinedStorage 自动合成仓管理器 F/Alt+F 搜索兼容
+- RefinedStorage PatternGridScreen B 键快速编写样板
+- RefinedStorage FilterSlot N 键快捷填充过滤槽
 
 ### 修复
 
-- 修复 `BDProxy.isBDCraftGUI()` 使用 `DimensionsCraftMenu`（Menu 类）而非 `DimensionsCraftGUI`（Screen 类）导致 BD 合成界面检测始终失败的问题
 - 修复 EAEP 配方类型映射无法持久化的问题：在 HEAD 阶段设搜索键后，通过反射读取 EAEP 的 `CUSTOM_ALIASES` Map 将英文推导键（如 `"reaction chamber"`）解析为用户保存的中文提供商名（如 `"反应"`），ProviderSelect 搜索框自动填入中文名能匹配到提供商，避免每次重新选择
 - 修复 EAEP 1.5.3 兼容性：ProviderSearchHelper 改用 `ExtendedAEPatternUploadUtil`，`presetCraftingProviderSearchKey` 可选查找，避免低版本 EAEP 因找不到方法导致初始化静默失败
 - 修复合成配方写入时 EAEP 上传搜索框没有配方 ID 的问题
 
 ### 变更
 
-- `enableWrapBook` 默认改为开启
+- `enableWrapBook` 默认改为关闭
 - 添加 `/emilink debug` 客户端命令，可在运行时切换调试日志输出
 - 添加 `/emilink wb` 客户端命令，可在运行时切换成书包裹模式
+- 新增 `wbFillInputGrid` 配置项（默认关闭）：WB 模式时是否将原输出物品放入空白输入槽
+- 补全所有配置项中英文翻译与 tooltip
+- `/emilink debug` 和 `/emilink wb` 命令现自动保存配置到文件
 
 ## [1.1.8] - 2026-05-19
 

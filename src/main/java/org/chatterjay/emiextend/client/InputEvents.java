@@ -125,6 +125,104 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: EAEP GuiWirelessExPAT exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
+        // ExtendedAE: GuiExPatternTerminal
+        try {
+            var exTermClass = Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal");
+            if (exTermClass.isInstance(screen)) {
+                java.lang.reflect.Field searchField = null;
+                Class<?> cls = screen.getClass();
+                while (cls != null && searchField == null) {
+                    try {
+                        searchField = cls.getDeclaredField("searchField");
+                    } catch (NoSuchFieldException ignored) {}
+                    cls = cls.getSuperclass();
+                }
+                if (searchField != null) {
+                    searchField.setAccessible(true);
+                    Object fieldObj = searchField.get(screen);
+                    if (fieldObj != null) {
+                        fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
+                        fillSearchHandled = true;
+                        event.setCanceled(true);
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: ExtendedAE terminal exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        // AdvancedAE: QuantumCrafterTermScreen / QuantumCrafterWirelessTermScreen
+        try {
+            boolean isQuantum = false;
+            try {
+                isQuantum = Class.forName("net.pedroksl.advanced_ae.client.gui.QuantumCrafterTermScreen").isInstance(screen);
+            } catch (Throwable ignored) {}
+            if (!isQuantum) {
+                try {
+                    isQuantum = Class.forName("net.pedroksl.advanced_ae.client.gui.QuantumCrafterWirelessTermScreen").isInstance(screen);
+                } catch (Throwable ignored) {}
+            }
+            if (isQuantum) {
+                java.lang.reflect.Field searchField = null;
+                Class<?> cls = screen.getClass();
+                while (cls != null && searchField == null) {
+                    try {
+                        searchField = cls.getDeclaredField("searchField");
+                    } catch (NoSuchFieldException ignored) {}
+                    cls = cls.getSuperclass();
+                }
+                if (searchField != null) {
+                    searchField.setAccessible(true);
+                    Object fieldObj = searchField.get(screen);
+                    if (fieldObj != null) {
+                        fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
+                        fillSearchHandled = true;
+                        event.setCanceled(true);
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: AdvancedAE quantum terminal exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        // RefinedStorage: AbstractGridScreen (GridScreen, PatternGridScreen, etc.)
+        try {
+            var rsGridClass = Class.forName("com.refinedmods.refinedstorage.common.grid.screen.AbstractGridScreen");
+            if (rsGridClass.isInstance(screen)) {
+                var searchField = rsGridClass.getDeclaredField("searchField");
+                searchField.setAccessible(true);
+                Object fieldObj = searchField.get(screen);
+                if (fieldObj != null) {
+                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
+                    fillSearchHandled = true;
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: RS screen exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        // RefinedStorage: AutocrafterManagerScreen
+        try {
+            var rsManagerClass = Class.forName("com.refinedmods.refinedstorage.common.autocrafting.autocraftermanager.AutocrafterManagerScreen");
+            if (rsManagerClass.isInstance(screen)) {
+                var searchField = rsManagerClass.getDeclaredField("searchField");
+                searchField.setAccessible(true);
+                Object fieldObj = searchField.get(screen);
+                if (fieldObj != null) {
+                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
+                    fillSearchHandled = true;
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: RS autocrafter manager exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
         // AE2 terminal search field
         try {
             var meStorageClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
@@ -167,14 +265,16 @@ public final class InputEvents {
         }
     }
 
-    /** Check if screen is any supported pattern encoding terminal (AE2 or ExtendedAE) */
+    /** Check if screen is any supported pattern encoding terminal (AE2, ExtendedAE, or RS) */
     private static boolean isPatternEncodingTerminal(Screen screen) {
         if (AE2Proxy.isPatternEncodingTermScreen(screen)) return true;
         try {
-            return Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal").isInstance(screen);
-        } catch (Throwable e) {
-            return false;
-        }
+            if (Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal").isInstance(screen)) return true;
+        } catch (Throwable e) { /* not ExtendedAE */ }
+        try {
+            if (Class.forName("com.refinedmods.refinedstorage.common.autocrafting.patterngrid.PatternGridScreen").isInstance(screen)) return true;
+        } catch (Throwable e) { /* not RS */ }
+        return false;
     }
 
     /** B key — encode pattern in PatternEncodingTermScreen */
@@ -244,25 +344,43 @@ public final class InputEvents {
 
         var emiStack = emiStacks.getFirst();
 
-        var itemStack = emiStack.getItemStack();
-        if (itemStack.isEmpty()) {
-            var genericStack = EmiStackHelper.toGenericStack(emiStack);
-            if (genericStack == null) return;
-            itemStack = GenericStack.wrapInItemStack(genericStack);
-            if (itemStack.isEmpty()) return;
-        }
-
         var mc = Minecraft.getInstance();
         if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return;
 
         for (var slot : containerScreen.getMenu().slots) {
-            if (slot instanceof FakeSlot fakeSlot && slot.getItem().isEmpty()) {
+            if (!slot.getItem().isEmpty()) continue;
+
+            // AE2 FakeSlot — try with ItemStack, fallback to GenericStack for fluids/chemicals
+            if (slot instanceof FakeSlot fakeSlot) {
+                var itemStack = emiStack.getItemStack();
+                if (itemStack.isEmpty()) {
+                    var genericStack = EmiStackHelper.toGenericStack(emiStack);
+                    if (genericStack == null) continue;
+                    itemStack = GenericStack.wrapInItemStack(genericStack);
+                    if (itemStack.isEmpty()) continue;
+                }
                 PacketDistributor.sendToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
                 ModLogger.info("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
                 event.setCanceled(true);
                 return;
             }
+
+            // RS FilterSlot — only use ItemStack directly
+            try {
+                Class<?> filterSlotClass = Class.forName("com.refinedmods.refinedstorage.common.support.containermenu.FilterSlot");
+                if (filterSlotClass.isInstance(slot)) {
+                    var itemStack = emiStack.getItemStack();
+                    if (itemStack.isEmpty()) continue;
+                    Class<?> packetClass = Class.forName("com.refinedmods.refinedstorage.common.support.packet.c2s.FilterSlotChangePacket");
+                    var constructor = packetClass.getConstructor(int.class, net.minecraft.world.item.ItemStack.class);
+                    Object packet = constructor.newInstance(slot.index, itemStack.copy());
+                    PacketDistributor.sendToServer((net.minecraft.network.protocol.common.custom.CustomPacketPayload) packet);
+                    ModLogger.info("QuickFillSlot: RS set slot {} with {}", slot.index, emiStack.getId());
+                    event.setCanceled(true);
+                    return;
+                }
+            } catch (Throwable ignored) {}
         }
     }
 }

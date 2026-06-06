@@ -2,7 +2,11 @@ package org.chatterjay.emiextend;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -14,6 +18,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
+import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
@@ -23,10 +28,6 @@ import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.config.ModConfigEvent;
-import org.chatterjay.emiextend.network.PacketRateLimiter;
 
 @Mod(EmiAE2.MODID)
 public class EmiAE2 {
@@ -34,8 +35,19 @@ public class EmiAE2 {
 
     public EmiAE2(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
-        modBus.addListener((ModConfigEvent.Loading e) -> EmiLinkConfig.validate());
-        modBus.addListener((ModConfigEvent.Reloading e) -> EmiLinkConfig.onReload());
+        if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+            registerConfigScreen(container);
+        }
+        modBus.addListener((ModConfigEvent.Loading e) -> {
+            if (MODID.equals(e.getConfig().getModId())) {
+                EmiLinkConfig.validate();
+            }
+        });
+        modBus.addListener((ModConfigEvent.Reloading e) -> {
+            if (MODID.equals(e.getConfig().getModId())) {
+                EmiLinkConfig.onReload();
+            }
+        });
 
         modBus.addListener(RegisterKeyMappingsEvent.class, ModKeybindings::register);
         modBus.addListener(this::registerPackets);
@@ -50,6 +62,7 @@ public class EmiAE2 {
                                 .executes(ctx -> {
                                     boolean current = EmiLinkConfig.DEBUG_MODE.get();
                                     EmiLinkConfig.DEBUG_MODE.set(!current);
+                                    EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
                                             () -> Component.literal("EmiLink debug mode: " + (!current ? "ON" : "OFF")),
                                             false
@@ -61,6 +74,7 @@ public class EmiAE2 {
                                 .executes(ctx -> {
                                     boolean current = EmiLinkConfig.ENABLE_WRAP_BOOK.get();
                                     EmiLinkConfig.ENABLE_WRAP_BOOK.set(!current);
+                                    EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
                                             () -> Component.literal("EmiLink wrap book mode: " + (!current ? "ON" : "OFF")),
                                             false
@@ -117,6 +131,15 @@ public class EmiAE2 {
                 ServerHasModPacket.TYPE,
                 ServerHasModPacket.STREAM_CODEC,
                 ServerHasModPacket::handle
+        );
+    }
+
+    /** Client-only: register NeoForge built-in config screen. */
+    private static void registerConfigScreen(net.neoforged.fml.ModContainer container) {
+        container.registerExtensionPoint(
+                net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
+                (java.util.function.Supplier<net.neoforged.neoforge.client.gui.IConfigScreenFactory>) () ->
+                        (modContainer, parent) -> new net.neoforged.neoforge.client.gui.ConfigurationScreen(modContainer, parent)
         );
     }
 
