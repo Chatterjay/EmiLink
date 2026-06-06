@@ -36,7 +36,7 @@ public class EmiAE2 {
     public EmiAE2(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
         if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
-            registerConfigScreen(container);
+            registerConfigScreenReflectively(container);
         }
         modBus.addListener((ModConfigEvent.Loading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
@@ -134,13 +134,24 @@ public class EmiAE2 {
         );
     }
 
-    /** Client-only: register NeoForge built-in config screen. */
-    private static void registerConfigScreen(net.neoforged.fml.ModContainer container) {
-        container.registerExtensionPoint(
-                net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
-                (java.util.function.Supplier<net.neoforged.neoforge.client.gui.IConfigScreenFactory>) () ->
-                        (modContainer, parent) -> new net.neoforged.neoforge.client.gui.ConfigurationScreen(modContainer, parent)
-        );
+    /** Client-only: register NeoForge built-in config screen via reflection. */
+    private static void registerConfigScreenReflectively(net.neoforged.fml.ModContainer container) {
+        try {
+            Class<?> factoryClass = Class.forName("net.neoforged.neoforge.client.gui.IConfigScreenFactory");
+            Class<?> configScreenClass = Class.forName("net.neoforged.neoforge.client.gui.ConfigurationScreen");
+            Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
+            var regMethod = net.neoforged.fml.ModContainer.class.getMethod("registerExtensionPoint", Class.class, java.util.function.Supplier.class);
+            regMethod.invoke(container, factoryClass, (java.util.function.Supplier<?>) () -> {
+                try {
+                    var ctor = configScreenClass.getConstructor(net.neoforged.fml.ModContainer.class, screenClass);
+                    return ctor.newInstance(container, null);
+                } catch (Exception e) {
+                    return null;
+                }
+            });
+        } catch (Exception e) {
+            // Config screen not available (shouldn't happen on client)
+        }
     }
 
     public static class ServerEvents {
