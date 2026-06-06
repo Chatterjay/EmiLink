@@ -13,23 +13,15 @@ public class EmiScreenBaseMixin {
 
     @Redirect(method = "of", at = @At(value = "INVOKE", target = "Lnet/minecraft/core/NonNullList;isEmpty()Z"), remap = false)
     private static boolean emilink$redirectIsEmpty(NonNullList<Slot> slots, Screen screen) {
-        // Check via reflection so AE2 can be absent
+        // Check via reflection so optional mods can be absent
         try {
             Class<?> ccs = Class.forName("appeng.client.gui.me.crafting.CraftConfirmScreen");
-            if (ccs.isInstance(screen)) {
-                return false;
-            }
-        } catch (Exception ignored) {
-            // AE2 not loaded
-        }
+            if (ccs.isInstance(screen)) return false;
+        } catch (Exception ignored) {}
         try {
             Class<?> cpuScreen = Class.forName("appeng.client.gui.me.crafting.CraftingCPUScreen");
-            if (cpuScreen.isInstance(screen)) {
-                return false;
-            }
-        } catch (Exception ignored) {
-            // AE2 not loaded
-        }
+            if (cpuScreen.isInstance(screen)) return false;
+        } catch (Exception ignored) {}
         return slots.isEmpty();
     }
 }

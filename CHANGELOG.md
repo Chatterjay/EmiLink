@@ -12,7 +12,6 @@
 - RefinedStorage 网格终端 F/Alt+F 搜索兼容（GridScreen、PatternGridScreen 等）
 - RefinedStorage 自动合成仓管理器 F/Alt+F 搜索兼容
 - RefinedStorage PatternGridScreen B 键快速编写样板
-- RefinedStorage FilterSlot N 键快捷填充过滤槽
 
 ### 修复
 

@@ -202,7 +202,7 @@ public final class InputEvents {
                 }
             }
         } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: RS screen exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            // RS not installed or class mismatch
         }
 
         // RefinedStorage: AutocrafterManagerScreen
@@ -220,7 +220,7 @@ public final class InputEvents {
                 }
             }
         } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: RS autocrafter manager exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            // RS not installed or class mismatch
         }
 
         // AE2 terminal search field
@@ -366,21 +366,6 @@ public final class InputEvents {
                 return;
             }
 
-            // RS FilterSlot — only use ItemStack directly
-            try {
-                Class<?> filterSlotClass = Class.forName("com.refinedmods.refinedstorage.common.support.containermenu.FilterSlot");
-                if (filterSlotClass.isInstance(slot)) {
-                    var itemStack = emiStack.getItemStack();
-                    if (itemStack.isEmpty()) continue;
-                    Class<?> packetClass = Class.forName("com.refinedmods.refinedstorage.common.support.packet.c2s.FilterSlotChangePacket");
-                    var constructor = packetClass.getConstructor(int.class, net.minecraft.world.item.ItemStack.class);
-                    Object packet = constructor.newInstance(slot.index, itemStack.copy());
-                    PacketDistributor.sendToServer((net.minecraft.network.protocol.common.custom.CustomPacketPayload) packet);
-                    ModLogger.info("QuickFillSlot: RS set slot {} with {}", slot.index, emiStack.getId());
-                    event.setCanceled(true);
-                    return;
-                }
-            } catch (Throwable ignored) {}
         }
     }
 }
