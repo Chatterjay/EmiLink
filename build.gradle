@@ -85,6 +85,7 @@ dependencies {
     runtimeOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
     implementation files('libs/extendedae_plus-1.21.1-1.5.4.jar')
     compileOnly files('../BeyondDimensions/beyonddimensions-1.21.1-neoforge-0.7.14.jar')
+    compileOnly files('run/mods/ars_nouveau-1.21.1-5.11.7.jar')
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

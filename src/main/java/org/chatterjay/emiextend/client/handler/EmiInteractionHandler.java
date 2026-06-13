@@ -55,6 +55,34 @@ public final class EmiInteractionHandler {
                 }
             }
         }
+        // Ars Nouveau storage terminal: route hovered item to EMI stack interaction
+        try {
+            Class<?> arsScreenClass = Class.forName("com.hollingsworth.arsnouveau.client.container.AbstractStorageTerminalScreen");
+            if (arsScreenClass.isInstance(mc.screen)) {
+                var slotField = arsScreenClass.getDeclaredField("slotIDUnderMouse");
+                slotField.setAccessible(true);
+                int idx = slotField.getInt(mc.screen);
+                if (idx >= 0) {
+                    var itemsField = arsScreenClass.getDeclaredField("itemsSorted");
+                    itemsField.setAccessible(true);
+                    Object items = itemsField.get(mc.screen);
+                    if (items instanceof List<?> list && idx < list.size()) {
+                        Object entry = list.get(idx);
+                        if (entry != null) {
+                            ItemStack stack = (ItemStack) entry.getClass().getMethod("getStack").invoke(entry);
+                            if (!stack.isEmpty()) {
+                                EmiStack emiStack = EmiStack.of(stack);
+                                if (EmiScreenManager.stackInteraction(
+                                        new EmiStackInteraction(emiStack),
+                                        bind -> bind.matchesKey(keyCode, scanCode))) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         return false;
     }
 

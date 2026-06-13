@@ -244,6 +244,25 @@ public final class InputEvents {
             ModLogger.warn("FILL_SEARCH_KEY: AE2 terminal search exception: {}", e.getMessage());
         }
 
+        // Ars Nouveau: AbstractStorageTerminalScreen / CraftingTerminalScreen
+        try {
+            Class<?> arsClass = Class.forName("com.hollingsworth.arsnouveau.client.container.AbstractStorageTerminalScreen");
+            if (arsClass.isInstance(screen)) {
+                var field = arsClass.getDeclaredField("searchField");
+                field.setAccessible(true);
+                Object eb = field.get(screen);
+                if (eb instanceof net.minecraft.client.gui.components.EditBox editBox) {
+                    editBox.setValue(text);
+                    editBox.setCursorPosition(text.length());
+                    fillSearchHandled = true;
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.warn("FILL_SEARCH_KEY: Ars Nouveau exception: {}", e.getMessage());
+        }
+
         // BD search field
         if (BDProxy.isBDNetGUI(screen)) {
             if (BDProxy.setSearchText(screen, text)) {
