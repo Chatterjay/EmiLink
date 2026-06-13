@@ -82,6 +82,20 @@ public class EmiAE2 {
                                     return 1;
                                 })
                         )
+                        .then(Commands.literal("shiftclick")
+                                .executes(ctx -> {
+                                    var current = EmiLinkConfig.EXTRACT_MODIFIER.get();
+                                    var options = EmiLinkConfig.ExtractTrigger.values();
+                                    var next = options[(current.ordinal() + 1) % options.length];
+                                    EmiLinkConfig.EXTRACT_MODIFIER.set(next);
+                                    EmiLinkConfig.SPEC.save();
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.literal("EmiLink extract: " + next),
+                                            false
+                                    );
+                                    return 1;
+                                })
+                        )
         );
     }
 
@@ -140,15 +154,20 @@ public class EmiAE2 {
             Class<?> factoryClass = Class.forName("net.neoforged.neoforge.client.gui.IConfigScreenFactory");
             Class<?> configScreenClass = Class.forName("net.neoforged.neoforge.client.gui.ConfigurationScreen");
             Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
+            var ctor = configScreenClass.getConstructor(net.neoforged.fml.ModContainer.class, screenClass);
             var regMethod = net.neoforged.fml.ModContainer.class.getMethod("registerExtensionPoint", Class.class, java.util.function.Supplier.class);
-            regMethod.invoke(container, factoryClass, (java.util.function.Supplier<?>) () -> {
-                try {
-                    var ctor = configScreenClass.getConstructor(net.neoforged.fml.ModContainer.class, screenClass);
-                    return ctor.newInstance(container, null);
-                } catch (Exception e) {
-                    return null;
-                }
-            });
+
+            Object factory = java.lang.reflect.Proxy.newProxyInstance(
+                    factoryClass.getClassLoader(),
+                    new Class<?>[]{factoryClass},
+                    (_proxy, method, args) -> {
+                        if ("createScreen".equals(method.getName()) && args != null && args.length == 2) {
+                            return ctor.newInstance(container, args[1]);
+                        }
+                        return null;
+                    }
+            );
+            regMethod.invoke(container, factoryClass, (java.util.function.Supplier<?>) () -> factory);
         } catch (Exception e) {
             // Config screen not available (shouldn't happen on client)
         }

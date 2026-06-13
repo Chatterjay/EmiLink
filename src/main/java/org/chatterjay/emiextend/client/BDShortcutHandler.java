@@ -1,13 +1,10 @@
 package org.chatterjay.emiextend.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.emi.emi.api.EmiApi;
-import dev.emi.emi.api.stack.EmiStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.entity.player.Inventory;
@@ -18,10 +15,10 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.EmiAE2;
+import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
-import org.chatterjay.emiextend.integration.CuriosProxy;
-import org.chatterjay.emiextend.integration.EAEPProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
@@ -113,8 +110,10 @@ public class BDShortcutHandler {
             if (isShift && !carried.isEmpty()) {
                 batchDropByType(containerScreen, carried);
                 event.setCanceled(true);
-            } else if (isShift && carried.isEmpty()) {
-                tryExtractFromEmi(event);
+            } else if (carried.isEmpty() && matchesExtractModifier()) {
+                if (EmiInteractionHandler.tryExtractFromHovered()) {
+                    event.setCanceled(true);
+                }
             }
             return;
         }
@@ -180,64 +179,16 @@ public class BDShortcutHandler {
         }
     }
 
-    /**
-     * Shift+click on EMI sidebar: extract item with priority:
-     * BD screen → BD first → AE2 fallback
-     * Non-BD → AE2 first (needs wireless terminal) → BD fallback
-     */
-    private static void tryExtractFromEmi(ScreenEvent.MouseButtonPressed.Pre event) {
-        var hovered = EmiApi.getHoveredStack((int) event.getMouseX(), (int) event.getMouseY(), false);
-        if (hovered == null || hovered.isEmpty()) return;
 
-        var stack = hovered.getStack().getEmiStacks().stream()
-                .map(EmiStack::getItemStack)
-                .filter(s -> !s.isEmpty())
-                .findFirst()
-                .orElse(null);
-        if (stack == null) return;
 
-        Screen screen = event.getScreen();
-        boolean isBDScreen = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
 
-        if (isBDScreen) {
-            if (BDProxy.isLoaded()) {
-                BDProxy.pullFromNetwork(stack);
-                event.setCanceled(true);
-                return;
-            }
-            // BD fallback → AE2
-            if (tryAE2Extract(stack)) {
-                event.setCanceled(true);
-            }
-        } else {
-            if (tryAE2Extract(stack)) {
-                event.setCanceled(true);
-                return;
-            }
-            // AE2 fallback → BD
-            if (BDProxy.isLoaded()) {
-                BDProxy.pullFromNetwork(stack);
-                event.setCanceled(true);
-            }
-        }
-    }
-
-    private static boolean tryAE2Extract(ItemStack stack) {
-        var player = Minecraft.getInstance().player;
-        if (player == null) return false;
-        if (!AE2Proxy.isLoaded()) return false;
-        if (!hasWirelessTerminal(player)) return false;
-        return EAEPProxy.pullFromNetwork(stack);
-    }
-
-    private static boolean hasWirelessTerminal(Player player) {
-        if (!AE2Proxy.isLoaded()) return false;
-        for (int i = 0; i < player.getInventory().items.size(); i++) {
-            if (AE2Proxy.isWirelessTerminal(player.getInventory().items.get(i))) return true;
-        }
-        if (AE2Proxy.isWirelessTerminal(player.getOffhandItem())) return true;
-        Class<?> wtClass = AE2Proxy.getWirelessTerminalClass();
-        return wtClass != null && CuriosProxy.hasWirelessTerminal(player, wtClass);
+    private static boolean matchesExtractModifier() {
+        return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
+            case SHIFT -> Screen.hasShiftDown();
+            case CONTROL -> Screen.hasControlDown();
+            case ALT -> Screen.hasAltDown();
+            case OFF -> false;
+        };
     }
 
     private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,

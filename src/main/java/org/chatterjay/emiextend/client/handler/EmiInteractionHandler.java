@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
@@ -136,21 +137,51 @@ public final class EmiInteractionHandler {
             return handleMiddleClick(itemStack);
         }
 
-        if (button == 0 && Screen.hasShiftDown()) {
-            var mc = Minecraft.getInstance();
-            boolean isBDScreen = mc.screen != null
-                    && (BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen));
-
-            if (isBDScreen) {
-                if (handleShiftClickBD(itemStack)) return true;
-                return handleShiftClickAE2(itemStack);
-            } else {
-                if (handleShiftClickAE2(itemStack)) return true;
-                return handleShiftClickBD(itemStack);
-            }
+        if (button == 0 && matchesExtractModifier()) {
+            return doShiftClickExtract(itemStack);
         }
 
         return false;
+    }
+
+    private static boolean matchesExtractModifier() {
+        return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
+            case SHIFT -> Screen.hasShiftDown();
+            case CONTROL -> Screen.hasControlDown();
+            case ALT -> Screen.hasAltDown();
+            case OFF -> false;
+        };
+    }
+
+    /**
+     * Public entry point for keyboard-triggered extraction (e.g. from InputEvents).
+     * Uses EMI's last-known mouse position to resolve the hovered stack.
+     */
+    public static boolean tryExtractFromHovered() {
+        EmiStackInteraction hovered = EmiApi.getHoveredStack(
+                EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
+        if (hovered == null || hovered.isEmpty()) return false;
+        var itemStack = hovered.getStack().getEmiStacks().stream()
+                .map(EmiStack::getItemStack)
+                .filter(s -> !s.isEmpty())
+                .findFirst()
+                .orElse(null);
+        if (itemStack == null) return false;
+        return doShiftClickExtract(itemStack);
+    }
+
+    private static boolean doShiftClickExtract(ItemStack itemStack) {
+        var mc = Minecraft.getInstance();
+        boolean isBDScreen = mc.screen != null
+                && (BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen));
+
+        if (isBDScreen) {
+            if (handleShiftClickBD(itemStack)) return true;
+            return handleShiftClickAE2(itemStack);
+        } else {
+            if (handleShiftClickAE2(itemStack)) return true;
+            return handleShiftClickBD(itemStack);
+        }
     }
 
     /**

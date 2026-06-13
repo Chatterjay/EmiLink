@@ -6,6 +6,13 @@ import org.chatterjay.emiextend.util.ModLogger;
 public final class EmiLinkConfig {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    public enum ExtractTrigger {
+        SHIFT,
+        CONTROL,
+        ALT,
+        OFF
+    }
+
     // ---- General ----
     public static final ModConfigSpec.BooleanValue DEBUG_MODE;
 
@@ -23,6 +30,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue WB_FILL_INPUT_GRID;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
     public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
+    public static final ModConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -94,6 +102,12 @@ public final class EmiLinkConfig {
                          "2 = top-left 6x6 hollow border")
                 .translation("emilink.config.features.networkBadgeStyle")
                 .defineInRange("networkBadgeStyle", 1, 1, 2);
+
+        EXTRACT_MODIFIER = BUILDER
+                .comment("Modifier for Click-to-extract from AE/BD network. " +
+                         "SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, or OFF to disable")
+                .translation("emilink.config.features.extractModifier")
+                .defineEnum("extractModifier", ExtractTrigger.SHIFT);
 
         BUILDER.pop();
         BUILDER.push("network");

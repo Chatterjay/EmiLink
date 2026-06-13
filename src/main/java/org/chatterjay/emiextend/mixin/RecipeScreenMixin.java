@@ -1,6 +1,5 @@
 package org.chatterjay.emiextend.mixin;
 
-import appeng.client.gui.me.items.PatternEncodingTermScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -28,9 +27,25 @@ public class RecipeScreenMixin {
     @Unique
     private static final int BTN_SIZE = 14;
 
+    @Unique
+    private static Class<?> patternTermClass;
+    @Unique
+    private static boolean patternTermChecked;
+
+    @Unique
+    private static boolean isPatternEncodingTermScreen(AbstractContainerScreen<?> screen) {
+        if (!patternTermChecked) {
+            patternTermChecked = true;
+            try {
+                patternTermClass = Class.forName("appeng.client.gui.me.items.PatternEncodingTermScreen");
+            } catch (Exception ignored) {}
+        }
+        return patternTermClass != null && patternTermClass.isInstance(screen);
+    }
+
     @Inject(method = "render", at = @At("RETURN"))
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
-        if (!(old instanceof PatternEncodingTermScreen)) return;
+        if (!isPatternEncodingTermScreen(old)) return;
         if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) return;
 
         boolean active = WrapAsBookHandler.isActive();
@@ -52,7 +67,7 @@ public class RecipeScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void emilink$onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        if (!(old instanceof PatternEncodingTermScreen)) return;
+        if (!isPatternEncodingTermScreen(old)) return;
         if (!EmiLinkConfig.ENABLE_WRAP_BOOK.get()) return;
         if (button != 0) return;
 

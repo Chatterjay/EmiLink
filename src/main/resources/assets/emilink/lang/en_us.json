@@ -39,6 +39,8 @@
   "emilink.config.features.networkBadgeStyle.tooltip": "Badge rendering style: 1 = bottom-right filled square, 2 = top-left hollow border",
   "emilink.config.features.wbFillInputGrid": "WB Fill Input Grid",
   "emilink.config.features.wbFillInputGrid.tooltip": "When wrap book is enabled, also place the original output item into an empty input slot",
+  "emilink.config.features.extractModifier": "Click Extract Modifier",
+  "emilink.config.features.extractModifier.tooltip": "Modifier for Click-to-extract: SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, OFF=disabled",
 
   "emilink.config.network.enableDebugPacketLimit": "Debug Packet Limit",
   "emilink.config.network.enableDebugPacketLimit.tooltip": "Limit debug-related packets to 1 per tick to prevent congestion"
