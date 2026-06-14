@@ -7,6 +7,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
+import org.chatterjay.emiextend.network.PacketHelper;
 import org.chatterjay.emiextend.util.ServerIPNState;
 
 public record AELockedSlotsPacket(int[] lockedSlots, int clickedSlotIndex) implements CustomPacketPayload {
@@ -40,9 +41,7 @@ public record AELockedSlotsPacket(int[] lockedSlots, int clickedSlotIndex) imple
     }
 
     public static void handle(final AELockedSlotsPacket packet, final IPayloadContext context) {
-        if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
-            context.enqueueWork(() -> packet.handleInServer(context));
-        }
+        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
     }
 
     @Override

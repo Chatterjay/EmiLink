@@ -290,6 +290,41 @@ public class BDProxy {
         }
     }
 
+    // ---- Craft one item and move to inventory ----
+
+    private static boolean craftOneResult(Player player, AbstractContainerMenu menu, int resultSlotIndex, boolean ejectRemaining) {
+        var inventory = player.getInventory();
+        var resultSlot = menu.slots.get(resultSlotIndex);
+        if (!resultSlot.hasItem()) return false;
+
+        menu.clicked(resultSlotIndex, 0, ClickType.PICKUP, player);
+        ItemStack carried = menu.getCarried();
+        if (carried.isEmpty()) return false;
+
+        ItemStack remaining = carried.copy();
+        for (int i = 0; i < inventory.items.size() && !remaining.isEmpty(); i++) {
+            ItemStack slotStack = inventory.getItem(i);
+            if (slotStack.isEmpty()) {
+                int toAdd = Math.min(remaining.getCount(), remaining.getMaxStackSize());
+                inventory.setItem(i, remaining.split(toAdd));
+            } else if (ItemStack.isSameItemSameComponents(slotStack, remaining)) {
+                int space = slotStack.getMaxStackSize() - slotStack.getCount();
+                if (space > 0) {
+                    int toAdd = Math.min(remaining.getCount(), space);
+                    slotStack.grow(toAdd);
+                    remaining.shrink(toAdd);
+                }
+            }
+        }
+        menu.setCarried(ItemStack.EMPTY);
+
+        if (!remaining.isEmpty()) {
+            if (ejectRemaining) resultSlot.set(remaining);
+            return false; // inventory full
+        }
+        return true;
+    }
+
     // ---- Single craft: craft one item from BD network to inventory ----
 
     public static boolean singleCraft(Player player) {
@@ -301,45 +336,13 @@ public class BDProxy {
             int resultSlotIndex = (int) craftMenuClass.getField("resultSlotIndex").get(menu);
             if (resultSlotIndex < 0 || resultSlotIndex >= menu.slots.size()) return false;
 
-            var inventory = player.getInventory();
+            boolean ok = craftOneResult(player, menu, resultSlotIndex, true);
 
-            var resultSlot = menu.slots.get(resultSlotIndex);
-            if (!resultSlot.hasItem()) return false;
-
-            // Simulate taking the result item via PICKUP (triggers BD's native craft logic)
-            menu.clicked(resultSlotIndex, 0, ClickType.PICKUP, player);
-
-            // The crafted item is now on the cursor
-            ItemStack carried = menu.getCarried();
-            if (carried.isEmpty()) return false;
-
-            // Move carried item to inventory
-            ItemStack remaining = carried.copy();
-            for (int i = 0; i < inventory.items.size() && !remaining.isEmpty(); i++) {
-                ItemStack slotStack = inventory.getItem(i);
-                if (slotStack.isEmpty()) {
-                    int toAdd = Math.min(remaining.getCount(), remaining.getMaxStackSize());
-                    inventory.setItem(i, remaining.split(toAdd));
-                } else if (ItemStack.isSameItemSameComponents(slotStack, remaining)) {
-                    int space = slotStack.getMaxStackSize() - slotStack.getCount();
-                    if (space > 0) {
-                        int toAdd = Math.min(remaining.getCount(), space);
-                        slotStack.grow(toAdd);
-                        remaining.shrink(toAdd);
-                    }
-                }
-            }
-            menu.setCarried(ItemStack.EMPTY);
-
-            if (!remaining.isEmpty()) {
-                resultSlot.set(remaining);
-            }
-
-            inventory.setChanged();
+            player.getInventory().setChanged();
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }
-            return true;
+            return ok;
         } catch (Exception e) {
             return false;
         }
@@ -356,47 +359,11 @@ public class BDProxy {
             int resultSlotIndex = (int) craftMenuClass.getField("resultSlotIndex").get(menu);
             if (resultSlotIndex < 0 || resultSlotIndex >= menu.slots.size()) return false;
 
-            var inventory = player.getInventory();
-            int maxCrafts = 512;
-
-            for (int c = 0; c < maxCrafts; c++) {
-                var resultSlot = menu.slots.get(resultSlotIndex);
-                if (!resultSlot.hasItem()) break;
-
-                // Simulate taking the result item via PICKUP click
-                // This triggers BD's native slot.onTake → consume grid → refill from network → recalculate
-                menu.clicked(resultSlotIndex, 0, ClickType.PICKUP, player);
-
-                // The crafted item is now on the cursor (carried)
-                ItemStack carried = menu.getCarried();
-                if (carried.isEmpty()) break;
-
-                // Move carried item to inventory
-                ItemStack remaining = carried.copy();
-                for (int i = 0; i < inventory.items.size() && !remaining.isEmpty(); i++) {
-                    ItemStack slotStack = inventory.getItem(i);
-                    if (slotStack.isEmpty()) {
-                        int toAdd = Math.min(remaining.getCount(), remaining.getMaxStackSize());
-                        inventory.setItem(i, remaining.split(toAdd));
-                    } else if (ItemStack.isSameItemSameComponents(slotStack, remaining)) {
-                        int space = slotStack.getMaxStackSize() - slotStack.getCount();
-                        if (space > 0) {
-                            int toAdd = Math.min(remaining.getCount(), space);
-                            slotStack.grow(toAdd);
-                            remaining.shrink(toAdd);
-                        }
-                    }
-                }
-                menu.setCarried(ItemStack.EMPTY);
-
-                if (!remaining.isEmpty()) {
-                    // Inventory full — place back in result slot
-                    resultSlot.set(remaining);
-                    break;
-                }
+            for (int c = 0; c < 512; c++) {
+                if (!craftOneResult(player, menu, resultSlotIndex, false)) break;
             }
 
-            inventory.setChanged();
+            player.getInventory().setChanged();
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }

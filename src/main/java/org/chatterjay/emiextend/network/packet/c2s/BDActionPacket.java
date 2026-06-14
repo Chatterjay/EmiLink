@@ -11,6 +11,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.network.PacketHelper;
 
 public record BDActionPacket(ItemStack targetStack, int action) implements CustomPacketPayload {
     // action: 0 = extract from network to player inventory
@@ -48,9 +49,7 @@ public record BDActionPacket(ItemStack targetStack, int action) implements Custo
     }
 
     public static void handle(final BDActionPacket packet, final IPayloadContext context) {
-        if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
-            context.enqueueWork(() -> packet.handleInServer(context));
-        }
+        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
     }
 
     @Override

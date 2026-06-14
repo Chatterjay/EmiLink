@@ -31,6 +31,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
     public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
     public static final ModConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
+    public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -108,6 +109,12 @@ public final class EmiLinkConfig {
                          "SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, or OFF to disable")
                 .translation("emilink.config.features.extractModifier")
                 .defineEnum("extractModifier", ExtractTrigger.SHIFT);
+
+        ENABLE_BULK_TRANSFER = BUILDER
+                .comment("Enable Space+Click bulk transfer for regular containers (non-AE, non-BD). " +
+                         "Disable if it conflicts with other mods' Space+Click handlers.")
+                .translation("emilink.config.features.enableBulkTransfer")
+                .define("enableBulkTransfer", true);
 
         BUILDER.pop();
         BUILDER.push("network");

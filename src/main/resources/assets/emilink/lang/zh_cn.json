@@ -39,6 +39,8 @@
   "emilink.config.features.networkBadgeStyle.tooltip": "角标渲染样式：1 = 右下实心方框，2 = 左上空心边框",
   "emilink.config.features.wbFillInputGrid": "WB 填充输入栏",
   "emilink.config.features.wbFillInputGrid.tooltip": "开启成书包裹时，将原输出物品也放入一个空白输入槽位",
+  "emilink.config.features.enableBulkTransfer": "Space+Click 批量转移",
+  "emilink.config.features.enableBulkTransfer.tooltip": "在普通容器上 Space+Click 时批量转移物品；关闭后与其他模组的 Space+Click 冲突时可禁用",
   "emilink.config.features.extractModifier": "网络提取点击修饰键",
   "emilink.config.features.extractModifier.tooltip": "在 EMI 物品上 Click 时从网络中提取物品的修饰键：SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, OFF=关闭",
 

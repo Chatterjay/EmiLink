@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
@@ -133,9 +134,11 @@ public class BDShortcutHandler {
         if (isSpace) {
             boolean isBDScreen = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
             if (!isBDScreen) {
-                // If IE is installed, let it handle regular containers (our screens already in its ignore list)
-                if (!net.neoforged.fml.ModList.get().isLoaded("inventoryessentials")) {
-                    bulkTransferAll(containerScreen, slot);
+                if (EmiLinkConfig.ENABLE_BULK_TRANSFER.get()) {
+                    // If IE is installed, let it handle regular containers (our screens already in its ignore list)
+                    if (!net.neoforged.fml.ModList.get().isLoaded("inventoryessentials")) {
+                        bulkTransferAll(containerScreen, slot);
+                    }
                 }
                 event.setCanceled(true);
                 return;

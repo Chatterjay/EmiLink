@@ -12,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.network.PacketHelper;
 
 public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] lockedSlots) implements CustomPacketPayload {
     // mode: 0 = network→player (matching items), 1 = main inventory→network, 2 = hotbar→network
@@ -56,9 +57,7 @@ public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] loc
     }
 
     public static void handle(final TransferMatchingPacket packet, final IPayloadContext context) {
-        if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
-            context.enqueueWork(() -> packet.handleInServer(context));
-        }
+        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
     }
 
     @Override
