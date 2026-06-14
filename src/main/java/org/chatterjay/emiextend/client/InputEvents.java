@@ -4,9 +4,12 @@ import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.registry.EmiRecipeFiller;
+import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -353,6 +356,29 @@ public final class InputEvents {
             }
         } catch (Exception ignored) {}
         return false;
+    }
+
+    /** Draw deposit hint tooltip when cursor has an item over the EMI sidebar. */
+    @SubscribeEvent
+    public static void onRenderPost(ScreenEvent.Render.Post event) {
+        if (!org.chatterjay.emiextend.config.EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) return;
+        var mc = Minecraft.getInstance();
+        if (!(event.getScreen() instanceof AbstractContainerScreen<?> cs)) return;
+        var carried = cs.getMenu().getCarried();
+        if (carried.isEmpty()) return;
+
+        var space = EmiScreenManager.getHoveredSpace(event.getMouseX(), event.getMouseY());
+        if (space == null) return;
+        if (mc.player == null || !org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(mc.player)) return;
+
+        var text = Component.translatable(Screen.hasShiftDown()
+                ? "emilink.tooltip.deposit_all"
+                : "emilink.tooltip.deposit");
+        var pose = event.getGuiGraphics().pose();
+        pose.pushPose();
+        pose.translate(0, 0, 400);
+        event.getGuiGraphics().renderTooltip(mc.font, text, event.getMouseX(), event.getMouseY());
+        pose.popPose();
     }
 
     @javax.annotation.Nullable

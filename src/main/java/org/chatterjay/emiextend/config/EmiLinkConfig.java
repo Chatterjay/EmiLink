@@ -32,6 +32,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
     public static final ModConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
     public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
+    public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -115,6 +116,12 @@ public final class EmiLinkConfig {
                          "Disable if it conflicts with other mods' Space+Click handlers.")
                 .translation("emilink.config.features.enableBulkTransfer")
                 .define("enableBulkTransfer", true);
+
+        ENABLE_AE_DEPOSIT = BUILDER
+                .comment("Drag-and-drop items onto the EMI sidebar to deposit into the AE network. " +
+                         "Requires a wireless terminal or an open AE2 terminal.")
+                .translation("emilink.config.features.enableAeDeposit")
+                .define("enableAeDeposit", true);
 
         BUILDER.pop();
         BUILDER.push("network");

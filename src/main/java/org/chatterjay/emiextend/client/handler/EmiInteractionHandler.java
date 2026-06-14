@@ -10,6 +10,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.integration.AE2Proxy;
@@ -151,6 +153,34 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
+        // Deposit: if cursor has an item and mouse is over EMI sidebar, insert into AE network
+        if (button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
+            var mc = Minecraft.getInstance();
+            if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
+                var carried = cs.getMenu().getCarried();
+                if (!carried.isEmpty()) {
+                    var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
+                    if (space != null && hasWirelessTerminal(mc.player)) {
+                        boolean matchAll = Screen.hasShiftDown();
+                        if (matchAll) {
+                            // Deposit cursor item first
+                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            // Then deposit all matching items from inventory
+                            for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
+                                var s = mc.player.getInventory().getItem(i);
+                                if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, carried)) {
+                                    PacketDistributor.sendToServer(new AEDepositPacket(s.copy(), i));
+                                }
+                            }
+                        } else {
+                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+
         var itemStack = getItemStack(EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false));
         if (itemStack == null) return false;
 
@@ -230,9 +260,9 @@ public final class EmiInteractionHandler {
                 .orElse(ItemStack.EMPTY);
         if (stack.isEmpty()) return original;
 
-        var tooltip = new ArrayList<ClientTooltipComponent>(original);
-        AENetworkCache.addToTooltip(stack, tooltip);
-        return tooltip;
+        var result = new ArrayList<>(original);
+        AENetworkCache.addToTooltip(stack, result);
+        return result;
     }
 
     // ---- AE2 / EAEP handlers ----
@@ -265,7 +295,7 @@ public final class EmiInteractionHandler {
         return true;
     }
 
-    private static boolean hasWirelessTerminal(Player player) {
+    public static boolean hasWirelessTerminal(Player player) {
         if (!AE2Proxy.isLoaded()) return false;
         var inventory = player.getInventory();
         for (int i = 0; i < inventory.items.size(); i++) {
