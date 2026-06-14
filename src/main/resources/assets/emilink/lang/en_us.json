@@ -43,6 +43,7 @@
   "emilink.config.features.wbFillInputGrid.tooltip": "When wrap book is enabled, also place the original output item into an empty input slot",
   "emilink.config.features.enableAeDeposit": "Deposit EMI Sidebar into AE",
   "emilink.config.features.enableAeDeposit.tooltip": "Click on the EMI sidebar with a carried item to deposit into the AE network. Requires a wireless terminal or open AE2 terminal.",
+  "emilink.config.features.enableDragFill": "EMI Drag Fill Search",
   "emilink.config.features.depositBatchModifier": "EMI Sidebar Batch Deposit Modifier",
   "emilink.config.features.enableAeDeposit.tooltip": "Drop carried items onto the EMI sidebar to deposit into the AE network. Requires a wireless terminal or an open AE2 terminal.",
   "emilink.config.features.enableBulkTransfer": "Space+Click Bulk Transfer",

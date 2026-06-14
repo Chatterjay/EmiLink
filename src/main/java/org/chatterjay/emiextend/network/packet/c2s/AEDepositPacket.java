@@ -67,9 +67,6 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
                 player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
             }
 
-            ModLogger.debug("AEDeposit: {} slot={} inserted={}, remaining={}",
-                    stack, slotIndex, stack.getCount() - notInserted, notInserted);
-
             player.containerMenu.broadcastChanges();
 
         } catch (Exception e) {
@@ -98,10 +95,7 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
     private static Object resolveInventoryFromWirelessTerminal(Player player, Class<?> aeItemKeyClass) {
         try {
             ItemStack terminal = findWirelessTerminal(player);
-            if (terminal == null || terminal.isEmpty()) {
-                ModLogger.debug("AEDeposit: wireless terminal not found");
-                return null;
-            }
+            if (terminal == null || terminal.isEmpty()) return null;
 
             java.util.function.Consumer<?> noop = msg -> {};
             Object grid = terminal.getItem().getClass()

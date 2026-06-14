@@ -34,6 +34,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
     public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ModConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
+    public static final ModConfigSpec.BooleanValue ENABLE_DRAG_FILL;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -127,6 +128,10 @@ public final class EmiLinkConfig {
         DEPOSIT_BATCH_MODIFIER = BUILDER
                 .translation("emilink.config.features.depositBatchModifier")
                 .defineEnum("depositBatchModifier", ExtractTrigger.SHIFT);
+
+        ENABLE_DRAG_FILL = BUILDER
+                .translation("emilink.config.features.enableDragFill")
+                .define("enableDragFill", true);
 
         BUILDER.pop();
         BUILDER.push("network");

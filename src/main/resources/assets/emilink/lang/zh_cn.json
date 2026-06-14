@@ -43,6 +43,7 @@
   "emilink.config.features.wbFillInputGrid.tooltip": "开启成书包裹时，将原输出物品也放入一个空白输入槽位",
   "emilink.config.features.enableAeDeposit": "EMI 侧边栏存入 AE",
   "emilink.config.features.enableAeDeposit.tooltip": "将鼠标指针上的物品点击 EMI 侧边栏存入 AE 网络；需要无线终端或已打开 AE 终端",
+  "emilink.config.features.enableDragFill": "EMI 拖拽填入搜索栏",
   "emilink.config.features.depositBatchModifier": "EMI 侧边栏批量存入修饰键",
   "emilink.config.features.enableAeDeposit.tooltip": "将鼠标指针上的物品拖到 EMI 侧边栏存入 AE 网络；需要无线终端或已打开 AE 终端",
   "emilink.config.features.enableBulkTransfer": "Space+Click 批量转移",
