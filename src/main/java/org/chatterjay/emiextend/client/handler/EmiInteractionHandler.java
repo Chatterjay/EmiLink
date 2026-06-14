@@ -153,19 +153,17 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
-        // Deposit: if cursor has an item and mouse is over EMI sidebar, insert into AE network
+        // Deposit: cursor has item → deposit into AE
         if (button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
             var mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
-                if (!carried.isEmpty()) {
+                if (!carried.isEmpty() && hasWirelessTerminal(mc.player)) {
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
-                    if (space != null && hasWirelessTerminal(mc.player)) {
-                        boolean matchAll = Screen.hasShiftDown();
+                    if (space != null) {
+                        boolean matchAll = matchesDepositBatchModifier();
                         if (matchAll) {
-                            // Deposit cursor item first
                             PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
-                            // Then deposit all matching items from inventory
                             for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
                                 var s = mc.player.getInventory().getItem(i);
                                 if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, carried)) {
@@ -197,6 +195,15 @@ public final class EmiInteractionHandler {
 
     public static boolean matchesExtractModifier() {
         return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
+            case SHIFT -> Screen.hasShiftDown();
+            case CONTROL -> Screen.hasControlDown();
+            case ALT -> Screen.hasAltDown();
+            case OFF -> false;
+        };
+    }
+
+    public static boolean matchesDepositBatchModifier() {
+        return switch (EmiLinkConfig.DEPOSIT_BATCH_MODIFIER.get()) {
             case SHIFT -> Screen.hasShiftDown();
             case CONTROL -> Screen.hasControlDown();
             case ALT -> Screen.hasAltDown();

@@ -367,13 +367,14 @@ public final class InputEvents {
         var carried = cs.getMenu().getCarried();
         if (carried.isEmpty()) return;
 
-        var space = EmiScreenManager.getHoveredSpace(event.getMouseX(), event.getMouseY());
+        var space = dev.emi.emi.screen.EmiScreenManager.getHoveredSpace(event.getMouseX(), event.getMouseY());
         if (space == null) return;
         if (mc.player == null || !org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(mc.player)) return;
 
-        var text = Component.translatable(Screen.hasShiftDown()
-                ? "emilink.tooltip.deposit_all"
-                : "emilink.tooltip.deposit");
+        var text = Component.translatable(
+                org.chatterjay.emiextend.client.handler.EmiInteractionHandler.matchesDepositBatchModifier()
+                        ? "emilink.tooltip.deposit_all"
+                        : "emilink.tooltip.deposit");
         var pose = event.getGuiGraphics().pose();
         pose.pushPose();
         pose.translate(0, 0, 400);
