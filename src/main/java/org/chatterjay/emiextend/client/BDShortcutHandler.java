@@ -16,7 +16,6 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
-import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
@@ -110,7 +109,7 @@ public class BDShortcutHandler {
             if (isShift && !carried.isEmpty()) {
                 batchDropByType(containerScreen, carried);
                 event.setCanceled(true);
-            } else if (carried.isEmpty() && matchesExtractModifier()) {
+            } else if (carried.isEmpty() && EmiInteractionHandler.matchesExtractModifier()) {
                 if (EmiInteractionHandler.tryExtractFromHovered()) {
                     event.setCanceled(true);
                 }
@@ -181,15 +180,6 @@ public class BDShortcutHandler {
 
 
 
-
-    private static boolean matchesExtractModifier() {
-        return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
-            case SHIFT -> Screen.hasShiftDown();
-            case CONTROL -> Screen.hasControlDown();
-            case ALT -> Screen.hasAltDown();
-            case OFF -> false;
-        };
-    }
 
     private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,

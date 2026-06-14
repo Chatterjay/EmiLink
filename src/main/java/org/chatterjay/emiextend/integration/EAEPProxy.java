@@ -18,21 +18,26 @@ public class EAEPProxy {
         return loaded;
     }
 
-    public static boolean openCraftScreen(ItemStack stack) {
+    /** Build an AEItemKey then wrap in a GenericStack, all via reflection. */
+    private static Object buildGenericStack(ItemStack stack) throws Exception {
+        Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+        var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
+        Object aeKey = ofMethod.invoke(null, stack);
+        if (aeKey == null) return null;
+
+        Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+        Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+        Constructor<?> gsCtor = genericStackClass.getConstructor(aeKeyClass, long.class);
+        return gsCtor.newInstance(aeKey, 1L);
+    }
+
+    private static boolean sendPacket(ItemStack stack, String packetClassName) {
         if (!isLoaded() || stack == null || stack.isEmpty()) return false;
         try {
-            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
-            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
-            Object aeKey = ofMethod.invoke(null, stack);
-            if (aeKey == null) return false;
-
-            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
-            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
-            Constructor<?> gsCtor = genericStackClass.getConstructor(aeKeyClass, long.class);
-            Object genericStack = gsCtor.newInstance(aeKey, 1L);
-
-            var clazz = Class.forName("com.extendedae_plus.network.OpenCraftFromJeiC2SPacket");
-            var ctor = clazz.getConstructor(genericStackClass);
+            Object genericStack = buildGenericStack(stack);
+            if (genericStack == null) return false;
+            var clazz = Class.forName(packetClassName);
+            var ctor = clazz.getConstructor(genericStack.getClass());
             var packet = ctor.newInstance(genericStack);
             PacketDistributor.sendToServer((CustomPacketPayload) packet);
             return true;
@@ -41,26 +46,11 @@ public class EAEPProxy {
         }
     }
 
+    public static boolean openCraftScreen(ItemStack stack) {
+        return sendPacket(stack, "com.extendedae_plus.network.OpenCraftFromJeiC2SPacket");
+    }
+
     public static boolean pullFromNetwork(ItemStack stack) {
-        if (!isLoaded() || stack == null || stack.isEmpty()) return false;
-        try {
-            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
-            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
-            Object aeKey = ofMethod.invoke(null, stack);
-            if (aeKey == null) return false;
-
-            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
-            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
-            Constructor<?> gsCtor = genericStackClass.getConstructor(aeKeyClass, long.class);
-            Object genericStack = gsCtor.newInstance(aeKey, 1L);
-
-            var clazz = Class.forName("com.extendedae_plus.network.PullFromJeiOrCraftC2SPacket");
-            var ctor = clazz.getConstructor(genericStackClass);
-            var packet = ctor.newInstance(genericStack);
-            PacketDistributor.sendToServer((CustomPacketPayload) packet);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return sendPacket(stack, "com.extendedae_plus.network.PullFromJeiOrCraftC2SPacket");
     }
 }

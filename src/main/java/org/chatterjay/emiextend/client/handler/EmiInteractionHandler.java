@@ -151,14 +151,7 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
-        EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
-        if (hovered == null || hovered.isEmpty()) return false;
-
-        var itemStack = hovered.getStack().getEmiStacks().stream()
-                .map(EmiStack::getItemStack)
-                .filter(s -> !s.isEmpty())
-                .findFirst()
-                .orElse(null);
+        var itemStack = getItemStack(EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false));
         if (itemStack == null) return false;
 
         if (button == 2) {
@@ -172,7 +165,7 @@ public final class EmiInteractionHandler {
         return false;
     }
 
-    private static boolean matchesExtractModifier() {
+    public static boolean matchesExtractModifier() {
         return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
             case SHIFT -> Screen.hasShiftDown();
             case CONTROL -> Screen.hasControlDown();
@@ -186,16 +179,23 @@ public final class EmiInteractionHandler {
      * Uses EMI's last-known mouse position to resolve the hovered stack.
      */
     public static boolean tryExtractFromHovered() {
-        EmiStackInteraction hovered = EmiApi.getHoveredStack(
-                EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
-        if (hovered == null || hovered.isEmpty()) return false;
-        var itemStack = hovered.getStack().getEmiStacks().stream()
+        var itemStack = getItemStack(EmiApi.getHoveredStack(
+                EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false));
+        if (itemStack == null) return false;
+        return doShiftClickExtract(itemStack);
+    }
+
+    /**
+     * Extract the first non-empty ItemStack from an EmiStackInteraction, or null.
+     */
+    @javax.annotation.Nullable
+    private static ItemStack getItemStack(EmiStackInteraction hovered) {
+        if (hovered == null || hovered.isEmpty()) return null;
+        return hovered.getStack().getEmiStacks().stream()
                 .map(EmiStack::getItemStack)
                 .filter(s -> !s.isEmpty())
                 .findFirst()
                 .orElse(null);
-        if (itemStack == null) return false;
-        return doShiftClickExtract(itemStack);
     }
 
     private static boolean doShiftClickExtract(ItemStack itemStack) {
