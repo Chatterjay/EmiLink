@@ -7,6 +7,7 @@ import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
+import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -51,7 +52,7 @@ public abstract class EmiScreenSpaceMixin {
             remap = false)
     private void emilink$initialScan(EmiDrawContext context, int mouseX, int mouseY,
                                      float delta, int scrollOffset, CallbackInfo ci) {
-        if (!EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
+        if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
         if (!AENetworkCache.hasAEAccess()) return;
         if (!AENetworkCache.consumeInitialScanFlag()) return;
 
@@ -91,7 +92,7 @@ public abstract class EmiScreenSpaceMixin {
             remap = false)
     private void emilink$renderBadgeOverlay(EmiDrawContext context, int mouseX, int mouseY,
                                             float delta, int scrollOffset, CallbackInfo ci) {
-        if (!EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
+        if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
         if (!AENetworkCache.hasAEAccess()) return;
         if (!AENetworkCache.hasAnyCached()) return;
 
@@ -145,7 +146,7 @@ public abstract class EmiScreenSpaceMixin {
      */
     private static void drawBadge(EmiDrawContext context, int x, int y, boolean inStock) {
         int color = inStock ? 0xFF00CC00 : 0xFFFFCC00;
-        if (EmiLinkConfig.NETWORK_BADGE_STYLE.get() == 2) {
+        if (AE2Proxy.isLoaded() && EmiLinkConfig.NETWORK_BADGE_STYLE.get() == 2) {
             // Style 2: top-left 6x6 hollow border
             // 1-pixel border at x+1,y+1, inner 4x4 transparent
             context.fill(x + 1, y + 1, 6, 1, color);     // top

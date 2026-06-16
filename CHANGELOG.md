@@ -1,5 +1,35 @@
 # 更新日志
 
+## [1.1.10] - 2026-06-14
+
+### 新增
+
+- Ars Nouveau 存储讲台 F/Alt+F 搜索填充兼容
+- EMI 侧边栏拖入 AE 网络：鼠标指针有物品时点击 EMI 侧边栏存入 AE，Shift+点击批量存入（需无线终端或打开 AE 终端）
+- EMI 拖拽填入搜索：从 EMI 拖拽物品到搜索框/文本栏自动填入物品名称，Alt+拖拽填入模组 ID
+- Space+Click 批量转移、拖入存入、拖拽填入均支持配置开关
+
+### 修复
+
+- 修复 NeoForge 配置界面 ClassCastException：IConfigScreenFactory 改为动态代理注册
+- 修复 RecipeScreenMixin 直接引用 PatternEncodingTermScreen 导致的 AE2 强依赖崩溃
+- 修复服务端因 EmiAE2 构造时加载客户端 Screen 类崩溃
+
+### 变更
+
+- 提取修饰键从硬编码 Shift+Click 改为可配置（extractModifier：SHIFT/CONTROL/ALT/OFF）
+- 批量存入修饰键可配置（depositBatchModifier），默认 Shift
+- 新增 enableAeDeposit、enableDragFill、enableBulkTransfer 配置项
+
+### 重构
+
+- 抽取 AE2GridQueryUtil 共享 resolveGrid/queryItemCount/queryCraftability
+- 抽取 PacketHelper 简化包处理模板
+- BDProxy.singleCraft/massCraft 抽取 craftOneResult 内部逻辑
+- EAEPProxy 抽取 buildGenericStack/sendPacket
+- matchesExtractModifier 合并到 EmiInteractionHandler 公开方法
+- InputEvents 抽取 findFieldInHierarchy/trySetSearchField
+
 ## [1.1.9] - 2026-06-06
 
 ### 新增

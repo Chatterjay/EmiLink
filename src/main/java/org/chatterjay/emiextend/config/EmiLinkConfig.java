@@ -1,5 +1,6 @@
 package org.chatterjay.emiextend.config;
 
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.chatterjay.emiextend.util.ModLogger;
 
