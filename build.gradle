@@ -141,6 +141,18 @@ dependencies {
     // JEI — 可选（dev 环境可用）
     implementation fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
 
+    // IPN (Inventory Profiles Next) — 测试 IPN 锁定槽位同步功能需要
+    // libipn 和 IPN 在 Modrinth 上没有 forge 1.20.1 版本，改用 CurseMaven
+    implementation fg.deobf("curse.maven:libipn-679177:5208511")
+    implementation fg.deobf("curse.maven:inventory-profiles-next-495267:6095062")
+
+    // Ars Nouveau + GeckoLib — dev 环境测试 Ars 存储终端交互
+    implementation fg.deobf("curse.maven:geckolib-388172:4627674")
+    implementation fg.deobf("curse.maven:ars-nouveau-401955:6688854")
+
+    // Refined Storage — dev 环境测试 RS 模板屏识别
+    implementation fg.deobf("curse.maven:refined-storage-243076:7986568")
+
     // Beyond Dimensions — 可选（dev 环境可用）
     implementation fg.deobf("maven.modrinth:beyonddimensions:${beyonddimensions_version}")
 

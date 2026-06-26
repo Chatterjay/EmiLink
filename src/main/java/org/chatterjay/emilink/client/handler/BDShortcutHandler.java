@@ -23,6 +23,7 @@ import org.chatterjay.emilink.integration.BDProxy;
 import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
 import org.chatterjay.emilink.network.NetworkHandler;
+import org.chatterjay.emilink.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emilink.util.IPNProxy;
@@ -96,6 +97,12 @@ public class BDShortcutHandler {
 
         // ---- AE terminal Space+click: let native MOVE_REGION handle deposit ----
         if (isSpace && AE2Proxy.isMEStorageScreen(screen)) {
+            // Send locked slots to server so AEBaseMenuMixin can protect them during MOVE_REGION
+            // Always send, even when empty, to clear server-side locked slots on unlock
+            var lockedSet = IPNProxy.getLockedSlots();
+            int[] arr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
+            NetworkHandler.sendToServer(new AELockedSlotsPacket(arr));
+            ModLogger.debug("Sent locked slots to server ({} slots)", arr.length);
             return;
         }
 
@@ -307,8 +314,8 @@ public class BDShortcutHandler {
             if (!slot.hasItem()) continue;
             if (!canPlayerAccessSlot(slot)) continue;
             if (isSameInventory(slot, clickedSlot)) {
-                if (slot.container instanceof Inventory) {
-                    int idx = slot.getContainerSlot();
+                if (slot.container instanceof Inventory inv) {
+                    int idx = slot.getSlotIndex();
                     if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
                 }
                 click(menu, containerId, slot.index, 0, ClickType.QUICK_MOVE);

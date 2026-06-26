@@ -37,7 +37,7 @@ public final class BookmarkPriorityHandler {
         return ids;
     }
 
-    public static void applyBookmarkPriority(FakeSlot[] slots, List<EmiIngredient> inputs) {
+    public static void applyBookmarkPriority(Object[] slots, List<EmiIngredient> inputs) {
         if (inputs == null || inputs.isEmpty()) return;
         if (slots == null || slots.length == 0) return;
 
@@ -55,6 +55,8 @@ public final class BookmarkPriorityHandler {
             var inputStacks = ingredient.getEmiStacks();
             if (inputStacks == null || inputStacks.isEmpty()) continue;
 
+            int slotIndex = getSlotIndex(slots[i]);
+
             // Phase 1: Try to find a user-bookmarked match by item ID
             boolean didReplace = false;
             if (hasFavorites) {
@@ -70,7 +72,7 @@ public final class BookmarkPriorityHandler {
                         for (var inputStack : inputStacks) {
                             if (inputStack == null || inputStack.isEmpty()) continue;
                             if (favId.equals(inputStack.getId())) {
-                                sendSetFilter(slots[i].index, favItem);
+                                sendSetFilter(slotIndex, favItem);
                                 didReplace = true;
                                 replaced++;
                                 break;
@@ -95,7 +97,7 @@ public final class BookmarkPriorityHandler {
                 if (id != null && !syntheticIds.contains(id)) {
                     var itemStack = stack.getItemStack();
                     if (!itemStack.isEmpty()) {
-                        sendSetFilter(slots[i].index, itemStack);
+                        sendSetFilter(slotIndex, itemStack);
                         replaced++;
                         break;
                     }
@@ -108,7 +110,19 @@ public final class BookmarkPriorityHandler {
         }
     }
 
-    public static void applyFromGenericStack(FakeSlot[] slots, List<List<GenericStack>> genericInputs) {
+    private static int getSlotIndex(Object slot) {
+        try {
+            return (int) slot.getClass().getField("index").getInt(slot);
+        } catch (Exception e) {
+            try {
+                return (int) slot.getClass().getMethod("getSlotIndex").invoke(slot);
+            } catch (Exception e2) {
+                return -1;
+            }
+        }
+    }
+
+    public static void applyFromGenericStack(Object[] slots, List<List<GenericStack>> genericInputs) {
         if (genericInputs == null || genericInputs.isEmpty()) return;
         if (slots == null || slots.length == 0) return;
 
@@ -140,7 +154,7 @@ public final class BookmarkPriorityHandler {
                         for (var favStack : fav.getEmiStacks()) {
                             if (favStack == null || favStack.isEmpty()) continue;
                             if (stackId.equals(favStack.getId())) {
-                                sendSetFilter(slots[i].index, stack);
+                                sendSetFilter(getSlotIndex(slots[i]), stack);
                                 didReplace = true;
                                 replaced++;
                                 break;
@@ -169,7 +183,7 @@ public final class BookmarkPriorityHandler {
                 var stackId = ForgeRegistries.ITEMS.getKey(stack.getItem());
                 if (stackId == null) continue;
                 if (!syntheticIds.contains(stackId)) {
-                    sendSetFilter(slots[i].index, stack);
+                    sendSetFilter(getSlotIndex(slots[i]), stack);
                     replaced++;
                     break;
                 }

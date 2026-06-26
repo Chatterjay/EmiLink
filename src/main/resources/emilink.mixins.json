@@ -4,7 +4,9 @@
   "package": "org.chatterjay.emilink.mixin",
   "compatibilityLevel": "JAVA_8",
   "refmap": "emilink.refmap.json",
+  "plugin": "org.chatterjay.emilink.mixin.MixinConditionalPlugin",
   "mixins": [
+    "AEBaseMenuMixin"
   ],
   "client": [
     "CraftConfirmScreenMixin",

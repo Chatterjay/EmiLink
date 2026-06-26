@@ -6,14 +6,17 @@ import dev.emi.emi.api.recipe.VanillaEmiRecipeCategories;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.registry.EmiRecipeFiller;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.chatterjay.emilink.Emilink;
+import org.chatterjay.emilink.client.handler.AENetworkCache;
 import org.chatterjay.emilink.client.handler.BookmarkPriorityHandler;
 import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.integration.AE2Proxy;
@@ -22,18 +25,122 @@ import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.util.ModLogger;
 import org.chatterjay.emilink.util.ProviderSearchHelper;
 
-import appeng.core.sync.network.NetworkHandler;
-import appeng.core.sync.packets.InventoryActionPacket;
-import appeng.helpers.InventoryAction;
-import appeng.menu.me.items.PatternEncodingTermMenu;
-import appeng.menu.slot.FakeSlot;
-import appeng.parts.encoding.EncodingMode;
-
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 @Mod.EventBusSubscriber(modid = Emilink.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class InputEvents {
     private InputEvents() {}
+
+    private static Boolean ae2Available;
+    private static Class<?> patternEncodingMenuClass;
+    private static Class<?> fakeSlotClass;
+    private static Class<?> inventoryActionClass;
+    private static Class<?> inventoryActionPacketClass;
+    private static Object ae2NetworkHandler;
+    private static Method ae2SendToServerMethod;
+    private static Object inventoryActionSetFilter;
+    private static Object encodingModeCrafting;
+
+    private static boolean initAE2Reflection() {
+        if (ae2Available != null) return ae2Available;
+        try {
+            patternEncodingMenuClass = Class.forName("appeng.menu.me.items.PatternEncodingTermMenu");
+            fakeSlotClass = Class.forName("appeng.menu.slot.FakeSlot");
+            inventoryActionClass = Class.forName("appeng.helpers.InventoryAction");
+            inventoryActionPacketClass = Class.forName("appeng.core.sync.packets.InventoryActionPacket");
+
+            var nhClass = Class.forName("appeng.core.sync.network.NetworkHandler");
+            var instanceMethod = nhClass.getMethod("instance");
+            ae2NetworkHandler = instanceMethod.invoke(null);
+            ae2SendToServerMethod = ae2NetworkHandler.getClass().getMethod("sendToServer", Object.class);
+
+            for (var field : inventoryActionClass.getEnumConstants()) {
+                if (field.toString().equals("SET_FILTER")) {
+                    inventoryActionSetFilter = field;
+                    break;
+                }
+            }
+
+            var encodingModeClass = Class.forName("appeng.parts.encoding.EncodingMode");
+            for (var field : encodingModeClass.getEnumConstants()) {
+                if (field.toString().equals("CRAFTING")) {
+                    encodingModeCrafting = field;
+                    break;
+                }
+            }
+
+            ae2Available = true;
+        } catch (Throwable e) {
+            ae2Available = false;
+        }
+        return ae2Available;
+    }
+
+    private static void sendInventoryAction(int slotIndex, ItemStack stack) {
+        if (!initAE2Reflection()) return;
+        try {
+            Object packet = inventoryActionPacketClass.getConstructor(inventoryActionClass, int.class, ItemStack.class)
+                    .newInstance(inventoryActionSetFilter, slotIndex, stack);
+            ae2SendToServerMethod.invoke(ae2NetworkHandler, packet);
+        } catch (Exception e) {
+            ModLogger.debug("InputEvents: sendInventoryAction error: {}", e.getMessage());
+        }
+    }
+
+    private static boolean isPatternEncodingMenu(Object menu) {
+        return initAE2Reflection() && patternEncodingMenuClass.isInstance(menu);
+    }
+
+    private static Object getMenuMode(Object menu) {
+        if (!initAE2Reflection() || !patternEncodingMenuClass.isInstance(menu)) return null;
+        try {
+            return patternEncodingMenuClass.getMethod("getMode").invoke(menu);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Object[] getCraftingGridSlots(Object menu) {
+        if (!initAE2Reflection()) return new Object[0];
+        try {
+            return (Object[]) patternEncodingMenuClass.getMethod("getCraftingGridSlots").invoke(menu);
+        } catch (Exception e) {
+            return new Object[0];
+        }
+    }
+
+    private static Object[] getProcessingInputSlots(Object menu) {
+        if (!initAE2Reflection()) return new Object[0];
+        try {
+            return (Object[]) patternEncodingMenuClass.getMethod("getProcessingInputSlots").invoke(menu);
+        } catch (Exception e) {
+            return new Object[0];
+        }
+    }
+
+    private static Object[] getProcessingOutputSlots(Object menu) {
+        if (!initAE2Reflection()) return new Object[0];
+        try {
+            return (Object[]) patternEncodingMenuClass.getMethod("getProcessingOutputSlots").invoke(menu);
+        } catch (Exception e) {
+            return new Object[0];
+        }
+    }
+
+    private static int getFakeSlotIndex(Object fakeSlot) {
+        if (!initAE2Reflection()) return -1;
+        try {
+            return (int) fakeSlotClass.getField("index").getInt(fakeSlot);
+        } catch (Exception e) {
+            // Try method
+            try {
+                return (int) fakeSlotClass.getMethod("getSlotIndex").invoke(fakeSlot);
+            } catch (Exception e2) {
+                return -1;
+            }
+        }
+    }
 
     private static boolean fillSearchHandled = false;
 
@@ -112,6 +219,33 @@ public final class InputEvents {
 
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
+
+        // Ars Nouveau storage terminal: target searchField directly
+        try {
+            Class<?> arsScreenClass = Class.forName("com.hollingsworth.arsnouveau.client.container.AbstractStorageTerminalScreen");
+            if (arsScreenClass.isInstance(screen)) {
+                java.lang.reflect.Field sf = arsScreenClass.getDeclaredField("searchField");
+                sf.setAccessible(true);
+                Object searchField = sf.get(screen);
+                if (searchField != null) {
+                    searchField.getClass().getMethod("setValue", String.class).invoke(searchField, text);
+                    fillSearchHandled = true;
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        } catch (Throwable e) {
+            ModLogger.debug("FILL_SEARCH_KEY: Ars storage terminal exception: {}", e.getMessage());
+        }
+
+        // Universal: try focused EditBox on ANY screen (after Ars check)
+        if (screen.getFocused() instanceof EditBox editBox) {
+            editBox.setValue(text);
+            editBox.moveCursorToEnd();
+            fillSearchHandled = true;
+            event.setCanceled(true);
+            return;
+        }
 
         // AE2: PatternAccessTermScreen
         try {
@@ -192,13 +326,19 @@ public final class InputEvents {
     private static boolean isPatternEncodingTerminal(Screen screen) {
         if (AE2Proxy.isPatternEncodingTermScreen(screen)) return true;
         try {
-            return Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal").isInstance(screen);
-        } catch (Throwable e) {
-            return false;
-        }
+            if (Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal").isInstance(screen)) return true;
+        } catch (Throwable e) { /* not ExtendedAE */ }
+        try {
+            if (Class.forName("com.refinedmods.refinedstorage.common.autocrafting.patterngrid.PatternGridScreen").isInstance(screen)) return true;
+        } catch (Throwable e) { /* not RS */ }
+        return false;
     }
 
     private static boolean fillPatternTerminal(EmiRecipe recipe, AbstractContainerScreen<?> handled) {
+        if (!isPatternEncodingMenu(handled.getMenu())) return false;
+
+        var menu = handled.getMenu();
+
         // Expand each recipe input to a single ItemStack (tag → first item)
         var inputs = recipe.getInputs();
         var items = new ArrayList<ItemStack>();
@@ -219,86 +359,74 @@ public final class InputEvents {
             outputItems.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
         }
 
-        var menu = handled.getMenu();
-        if (menu instanceof PatternEncodingTermMenu encodingMenu) {
-            if (encodingMenu.getMode() == EncodingMode.CRAFTING) {
-                // Crafting mode: fill the 3x3 grid only; result is computed by AE2
-                FakeSlot[] targetSlots = encodingMenu.getCraftingGridSlots();
+        Object mode = getMenuMode(menu);
+        boolean isCrafting = encodingModeCrafting != null && encodingModeCrafting.equals(mode);
 
-                for (FakeSlot slot : targetSlots) {
-                    NetworkHandler.instance().sendToServer(
-                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
-                }
+        if (isCrafting) {
+            Object[] targetSlots = getCraftingGridSlots(menu);
 
-                int count = Math.min(items.size(), targetSlots.length);
-                for (int i = 0; i < count; i++) {
-                    if (!items.get(i).isEmpty()) {
-                        NetworkHandler.instance().sendToServer(
-                                new InventoryActionPacket(InventoryAction.SET_FILTER,
-                                        targetSlots[i].index, items.get(i)));
-                    }
-                }
-
-                BookmarkPriorityHandler.applyBookmarkPriority(
-                        encodingMenu.getCraftingGridSlots(), recipe.getInputs());
-
-                ModLogger.info("QuickPattern: encoded crafting pattern {} ({} inputs)", recipe.getId(), count);
-            } else {
-                ModLogger.info("QuickPattern: processing recipe id={}, category={}",
-                        recipe.getId(), recipe.getCategory().getId());
-                // Processing mode: fill both input and output slots
-                FakeSlot[] inputSlots = encodingMenu.getProcessingInputSlots();
-                FakeSlot[] outputSlots = encodingMenu.getProcessingOutputSlots();
-
-                for (FakeSlot slot : inputSlots) {
-                    NetworkHandler.instance().sendToServer(
-                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
-                }
-                for (FakeSlot slot : outputSlots) {
-                    NetworkHandler.instance().sendToServer(
-                            new InventoryActionPacket(InventoryAction.SET_FILTER, slot.index, ItemStack.EMPTY));
-                }
-
-                int inputCount = Math.min(items.size(), inputSlots.length);
-                for (int i = 0; i < inputCount; i++) {
-                    if (!items.get(i).isEmpty()) {
-                        NetworkHandler.instance().sendToServer(
-                                new InventoryActionPacket(InventoryAction.SET_FILTER,
-                                        inputSlots[i].index, items.get(i)));
-                    }
-                }
-
-                int outputCount = Math.min(outputItems.size(), outputSlots.length);
-                for (int i = 0; i < outputCount; i++) {
-                    if (!outputItems.get(i).isEmpty()) {
-                        NetworkHandler.instance().sendToServer(
-                                new InventoryActionPacket(InventoryAction.SET_FILTER,
-                                        outputSlots[i].index, outputItems.get(i)));
-                    }
-                }
-
-                BookmarkPriorityHandler.applyBookmarkPriority(inputSlots, recipe.getInputs());
-
-                ModLogger.info("QuickPattern: encoded processing pattern {} ({} inputs, {} outputs)",
-                        recipe.getId(), inputCount, outputCount);
+            for (Object slot : targetSlots) {
+                sendInventoryAction(getFakeSlotIndex(slot), ItemStack.EMPTY);
             }
 
-            // Update EAEP provider search key so the recipe ID field shows the correct type
-            var categoryId = recipe.getCategory().getId();
-            if (categoryId != null) {
-                String searchKey = categoryId.getPath();
-                ModLogger.info("QuickPattern: setting EAEP provider search key to '{}' (from category {})",
-                        searchKey, categoryId);
-                ProviderSearchHelper.setLastProcessingName(searchKey);
-                // Also directly update the ExPatternTerminal search field if open
-                trySetExPatternTerminalSearchField(handled, searchKey);
-            } else {
-                ModLogger.info("QuickPattern: recipe {} has no category ID", recipe.getId());
+            int count = Math.min(items.size(), targetSlots.length);
+            for (int i = 0; i < count; i++) {
+                if (!items.get(i).isEmpty()) {
+                    sendInventoryAction(getFakeSlotIndex(targetSlots[i]), items.get(i));
+                }
             }
 
-            return true;
+            BookmarkPriorityHandler.applyBookmarkPriority(
+                    getCraftingGridSlots(menu), recipe.getInputs());
+
+            ModLogger.info("QuickPattern: encoded crafting pattern {} ({} inputs)", recipe.getId(), count);
+        } else {
+            ModLogger.info("QuickPattern: processing recipe id={}, category={}",
+                    recipe.getId(), recipe.getCategory().getId());
+
+            Object[] inputSlots = getProcessingInputSlots(menu);
+            Object[] outputSlots = getProcessingOutputSlots(menu);
+
+            for (Object slot : inputSlots) {
+                sendInventoryAction(getFakeSlotIndex(slot), ItemStack.EMPTY);
+            }
+            for (Object slot : outputSlots) {
+                sendInventoryAction(getFakeSlotIndex(slot), ItemStack.EMPTY);
+            }
+
+            int inputCount = Math.min(items.size(), inputSlots.length);
+            for (int i = 0; i < inputCount; i++) {
+                if (!items.get(i).isEmpty()) {
+                    sendInventoryAction(getFakeSlotIndex(inputSlots[i]), items.get(i));
+                }
+            }
+
+            int outputCount = Math.min(outputItems.size(), outputSlots.length);
+            for (int i = 0; i < outputCount; i++) {
+                if (!outputItems.get(i).isEmpty()) {
+                    sendInventoryAction(getFakeSlotIndex(outputSlots[i]), outputItems.get(i));
+                }
+            }
+
+            BookmarkPriorityHandler.applyBookmarkPriority(inputSlots, recipe.getInputs());
+
+            ModLogger.info("QuickPattern: encoded processing pattern {} ({} inputs, {} outputs)",
+                    recipe.getId(), inputCount, outputCount);
         }
-        return false;
+
+        // Update EAEP provider search key
+        var categoryId = recipe.getCategory().getId();
+        if (categoryId != null) {
+            String searchKey = categoryId.getPath();
+            ModLogger.info("QuickPattern: setting EAEP provider search key to '{}' (from category {})",
+                    searchKey, categoryId);
+            ProviderSearchHelper.setLastProcessingName(searchKey);
+            trySetExPatternTerminalSearchField(handled, searchKey);
+        } else {
+            ModLogger.info("QuickPattern: recipe {} has no category ID", recipe.getId());
+        }
+
+        return true;
     }
 
     private static void trySetExPatternTerminalSearchField(Screen screen, String searchKey) {
@@ -410,14 +538,21 @@ public final class InputEvents {
         var mc = Minecraft.getInstance();
         if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
 
+        if (!initAE2Reflection()) return false;
+
         for (var slot : containerScreen.getMenu().slots) {
-            if (slot instanceof FakeSlot fakeSlot && slot.getItem().isEmpty()) {
-                NetworkHandler.instance().sendToServer(
-                        new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
-                ModLogger.info("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
+            if (fakeSlotClass.isInstance(slot) && slot.getItem().isEmpty()) {
+                sendInventoryAction(getFakeSlotIndex(slot), itemStack.copy());
+                ModLogger.info("QuickFillSlot: set slot {} with {}", getFakeSlotIndex(slot), emiStack.getId());
                 return true;
             }
         }
         return false;
+    }
+
+    @SubscribeEvent
+    public static void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
+        AENetworkCache.save();
+        ModLogger.debug("Disconnected: AE network cache saved to disk");
     }
 }

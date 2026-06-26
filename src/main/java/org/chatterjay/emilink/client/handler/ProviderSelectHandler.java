@@ -1,7 +1,5 @@
 package org.chatterjay.emilink.client.handler;
 
-import appeng.menu.me.items.PatternEncodingTermMenu;
-import appeng.parts.encoding.EncodingMode;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.stack.EmiStack;
 import net.minecraft.client.gui.screens.Screen;
@@ -19,6 +17,25 @@ import org.chatterjay.emilink.util.ProviderSearchHelper;
 public final class ProviderSelectHandler {
 
     private static final String PROVIDER_SCREEN_CLASS = "com.extendedae_plus.client.screen.ProviderSelectScreen";
+
+    private static Boolean ae2Available;
+    private static Class<?> encodingMenuClass;
+    private static Object encodingModeCrafting;
+
+    private static boolean initAE2() {
+        if (ae2Available != null) return ae2Available;
+        try {
+            encodingMenuClass = Class.forName("appeng.menu.me.items.PatternEncodingTermMenu");
+            var encodingModeClass = Class.forName("appeng.parts.encoding.EncodingMode");
+            for (var c : encodingModeClass.getEnumConstants()) {
+                if (c.toString().equals("CRAFTING")) { encodingModeCrafting = c; break; }
+            }
+            ae2Available = true;
+        } catch (Throwable e) {
+            ae2Available = false;
+        }
+        return ae2Available;
+    }
 
     private ProviderSelectHandler() {}
 
@@ -99,71 +116,67 @@ public final class ProviderSelectHandler {
 
         ModLogger.info("ProviderSelectHandler: parent menu class={}", container.getMenu().getClass().getName());
 
-        // PatternEncodingTermScreen → menu has the encoding slots
-        if (container.getMenu() instanceof PatternEncodingTermMenu encodingMenu) {
-            ModLogger.info("ProviderSelectHandler: parent menu is PatternEncodingTermMenu, checking slots");
-            return deriveFromEncodingMenu(encodingMenu);
+        if (!initAE2()) return null;
+
+        Object menu = container.getMenu();
+        if (!encodingMenuClass.isInstance(menu)) {
+            ModLogger.info("ProviderSelectHandler: parent menu is not PatternEncodingTermMenu, cannot access encoding slots");
+            return null;
         }
 
-        ModLogger.info("ProviderSelectHandler: parent menu is not PatternEncodingTermMenu, cannot access encoding slots");
-        return null;
+        ModLogger.info("ProviderSelectHandler: parent menu is PatternEncodingTermMenu, checking slots");
+        return deriveFromEncodingMenu(menu);
     }
 
-    private static String deriveFromEncodingMenu(PatternEncodingTermMenu menu) {
-        if (menu.getMode() == EncodingMode.CRAFTING) {
-            ModLogger.info("ProviderSelectHandler: encoding mode=CRAFTING, checking crafting grid");
+    private static String deriveFromEncodingMenu(Object menu) {
+        try {
+            Object mode = encodingMenuClass.getMethod("getMode").invoke(menu);
+            boolean isCrafting = encodingModeCrafting != null && encodingModeCrafting.equals(mode);
 
-            // Check if crafting grid has items
-            var craftingSlots = menu.getCraftingGridSlots();
-            boolean hasItems = false;
-            for (int i = 0; i < craftingSlots.length; i++) {
-                var stack = craftingSlots[i].getItem();
-                if (!stack.isEmpty()) {
-                    ModLogger.info("ProviderSelectHandler: crafting slot[{}] has item: {}", i, stack.getHoverName().getString());
-                    hasItems = true;
+            if (isCrafting) {
+                ModLogger.info("ProviderSelectHandler: encoding mode=CRAFTING, checking crafting grid");
+                Object[] craftingSlots = (Object[]) encodingMenuClass.getMethod("getCraftingGridSlots").invoke(menu);
+                boolean hasItems = false;
+                for (int i = 0; i < craftingSlots.length; i++) {
+                    var stack = (ItemStack) craftingSlots[i].getClass().getMethod("getItem").invoke(craftingSlots[i]);
+                    if (!stack.isEmpty()) {
+                        ModLogger.info("ProviderSelectHandler: crafting slot[{}] has item: {}", i, stack.getHoverName().getString());
+                        hasItems = true;
+                    }
                 }
+                if (hasItems) {
+                    ModLogger.info("ProviderSelectHandler: crafting grid has items, returning 'crafting'");
+                    return "crafting";
+                }
+                ModLogger.info("ProviderSelectHandler: crafting grid is empty");
+            } else {
+                ModLogger.info("ProviderSelectHandler: encoding mode=PROCESSING, checking output slots");
             }
-            if (hasItems) {
-                ModLogger.info("ProviderSelectHandler: crafting grid has items, returning 'crafting'");
-                return "crafting";
+
+            ModLogger.info("ProviderSelectHandler: checking processing output slots");
+            Object[] outSlots = (Object[]) encodingMenuClass.getMethod("getProcessingOutputSlots").invoke(menu);
+            for (int i = 0; i < outSlots.length; i++) {
+                var stack = (ItemStack) outSlots[i].getClass().getMethod("getItem").invoke(outSlots[i]);
+                if (stack.isEmpty()) {
+                    ModLogger.info("ProviderSelectHandler: output slot[{}] is empty", i);
+                    continue;
+                }
+                ModLogger.info("ProviderSelectHandler: output slot[{}] has item: {}", i, stack.getHoverName().getString());
+                String key = matchEmiRecipeByOutput(stack);
+                if (key != null) return key;
             }
-            ModLogger.info("ProviderSelectHandler: crafting grid is empty");
-        } else {
-            ModLogger.info("ProviderSelectHandler: encoding mode=PROCESSING, checking output slots");
+
+            ModLogger.info("ProviderSelectHandler: no match from output slots, checking input slots as fallback");
+            Object[] inSlots = (Object[]) encodingMenuClass.getMethod("getProcessingInputSlots").invoke(menu);
+            for (int i = 0; i < inSlots.length; i++) {
+                var stack = (ItemStack) inSlots[i].getClass().getMethod("getItem").invoke(inSlots[i]);
+                if (stack.isEmpty()) continue;
+                String key = matchEmiRecipeByOutput(stack);
+                if (key != null) return key;
+            }
+        } catch (Exception e) {
+            ModLogger.debug("ProviderSelectHandler: deriveFromEncodingMenu error: {}", e.getMessage());
         }
-
-        // Processing mode: check output slots for items, then match to EMI recipe
-        ModLogger.info("ProviderSelectHandler: checking processing output slots");
-        var outSlots = menu.getProcessingOutputSlots();
-        for (int i = 0; i < outSlots.length; i++) {
-            var stack = outSlots[i].getItem();
-            if (stack.isEmpty()) {
-                ModLogger.info("ProviderSelectHandler: output slot[{}] is empty", i);
-                continue;
-            }
-            ModLogger.info("ProviderSelectHandler: output slot[{}] has item: {}", i, stack.getHoverName().getString());
-
-            // Direct item in processing output: match to EMI recipe
-            String key = matchEmiRecipeByOutput(stack);
-            if (key != null) return key;
-        }
-        ModLogger.info("ProviderSelectHandler: no match from output slots, checking input slots as fallback");
-
-        // Also check input slots as fallback
-        var inSlots = menu.getProcessingInputSlots();
-        for (int i = 0; i < inSlots.length; i++) {
-            var stack = inSlots[i].getItem();
-            if (stack.isEmpty()) {
-                ModLogger.info("ProviderSelectHandler: input slot[{}] is empty", i);
-                continue;
-            }
-            ModLogger.info("ProviderSelectHandler: input slot[{}] has item: {}", i, stack.getHoverName().getString());
-
-            String key = matchEmiRecipeByOutput(stack);
-            if (key != null) return key;
-        }
-
-        ModLogger.info("ProviderSelectHandler: all slots checked, no match found");
         return null;
     }
 

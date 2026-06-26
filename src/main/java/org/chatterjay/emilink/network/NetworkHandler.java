@@ -14,6 +14,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.network.packet.c2s.AEBatchQueryPacket;
+import org.chatterjay.emilink.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emilink.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket;
@@ -26,8 +27,8 @@ public class NetworkHandler {
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Emilink.MODID, "main"),
             () -> PROTOCOL_VERSION,
-            PROTOCOL_VERSION::equals,
-            PROTOCOL_VERSION::equals
+            v -> true, // Client: accept any server (including servers without EmiLink)
+            v -> true  // Server: accept any client (including clients without EmiLink)
     );
 
     private static int packetId = 0;
@@ -53,6 +54,8 @@ public class NetworkHandler {
                 BDActionPacket::encode, BDActionPacket::decode, BDActionPacket::handle);
         CHANNEL.registerMessage(packetId++, TransferMatchingPacket.class,
                 TransferMatchingPacket::encode, TransferMatchingPacket::decode, TransferMatchingPacket::handle);
+        CHANNEL.registerMessage(packetId++, AELockedSlotsPacket.class,
+                AELockedSlotsPacket::encode, AELockedSlotsPacket::decode, AELockedSlotsPacket::handle);
     }
 
     public static void sendToPlayer(ServerPlayer player, Object packet) {
@@ -65,6 +68,11 @@ public class NetworkHandler {
 
     @Mod.EventBusSubscriber(modid = Emilink.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class ServerEvents {
+
+        @SubscribeEvent
+        public static void onServerStarting(net.minecraftforge.event.server.ServerStartingEvent event) {
+            org.chatterjay.emilink.util.ModLogger.info("EmiLink server starting");
+        }
 
         @SubscribeEvent
         public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {

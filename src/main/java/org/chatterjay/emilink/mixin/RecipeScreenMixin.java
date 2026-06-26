@@ -1,6 +1,5 @@
 package org.chatterjay.emilink.mixin;
 
-import appeng.client.gui.me.items.PatternEncodingTermScreen;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.screen.RecipeScreen;
@@ -56,7 +55,10 @@ public class RecipeScreenMixin {
 
     @Unique
     private static boolean emilink$isEncodingScreen(Screen screen) {
-        if (screen instanceof PatternEncodingTermScreen) return true;
+        try {
+            Class<?> encodingClass = Class.forName("appeng.client.gui.me.items.PatternEncodingTermScreen");
+            if (encodingClass.isInstance(screen)) return true;
+        } catch (Throwable ignored) {}
         try {
             Class<?> guiClass = Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal");
             return guiClass.isInstance(screen);
@@ -83,7 +85,7 @@ public class RecipeScreenMixin {
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         ModLogger.info("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
                 old == null ? "null" : old.getClass().getName(),
-                old instanceof PatternEncodingTermScreen);
+                emilink$isEncodingScreen(old));
 
         if (!emilink$isEncodingScreen(old)) return;
 
