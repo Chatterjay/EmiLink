@@ -110,7 +110,24 @@ public final class InputEvents {
             }
         }
 
-        // 4. EMI search fallback
+        // 4. Common search field field names via reflection
+        // Catches mods whose search widget isn't in screen.children() (e.g. Sophisticated Storage)
+        for (var fieldName : new String[]{"searchBox", "searchField", "search"}) {
+            var field = findScreenField(screen, fieldName);
+            if (field == null) continue;
+            try {
+                field.setAccessible(true);
+                Object widget = field.get(screen);
+                if (widget == null) continue;
+                var setValue = widget.getClass().getMethod("setValue", String.class);
+                setValue.invoke(widget, text);
+                fillSearchHandled = true;
+                event.setCanceled(true);
+                return;
+            } catch (Exception ignored) {}
+        }
+
+        // 5. EMI search fallback
         EmiApi.setSearchText(text);
         fillSearchHandled = true;
         event.setCanceled(true);
@@ -248,4 +265,16 @@ public final class InputEvents {
         pose.popPose();
     }
 
+    @javax.annotation.Nullable
+    private static java.lang.reflect.Field findScreenField(Screen screen, String name) {
+        Class<?> cls = screen.getClass();
+        while (cls != null && cls != Screen.class) {
+            try {
+                var field = cls.getDeclaredField(name);
+                if (field != null) return field;
+            } catch (NoSuchFieldException ignored) {}
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
 }
