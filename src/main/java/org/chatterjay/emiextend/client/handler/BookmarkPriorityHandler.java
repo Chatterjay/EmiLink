@@ -51,7 +51,7 @@ public final class BookmarkPriorityHandler {
      * 2. Otherwise, if the input is a tag, exclude backpack-derived variants
      */
     public static void applyBookmarkPriority(FakeSlot[] slots, List<EmiIngredient> inputs) {
-        ModLogger.info("BookmarkPriority: CALLED inputs size={}, slots={}", inputs == null ? 0 : inputs.size(), slots == null ? 0 : slots.length);
+        ModLogger.debug("BookmarkPriority: CALLED inputs size={}, slots={}", inputs == null ? 0 : inputs.size(), slots == null ? 0 : slots.length);
 
         if (inputs == null || inputs.isEmpty()) return;
         if (slots == null || slots.length == 0) return;
@@ -112,7 +112,7 @@ public final class BookmarkPriorityHandler {
                             ModLogger.debug("BookmarkPriority: slot[{}] compare fav={} input={} match={}",
                                     i, favId, inputId, match);
                             if (match) {
-                                ModLogger.info("BookmarkPriority: slot[{}] replaced with bookmarked {} (slot index {})",
+                                ModLogger.debug("BookmarkPriority: slot[{}] replaced with bookmarked {} (slot index {})",
                                         i, favId, slots[i].index);
                                 sendSetFilter(slots[i].index, favItem);
                                 replaced = true;
@@ -144,7 +144,7 @@ public final class BookmarkPriorityHandler {
                 if (id != null && !isSynthetic) {
                     var itemStack = stack.getItemStack();
                     if (!itemStack.isEmpty()) {
-                        ModLogger.info("BookmarkPriority: slot[{}] replaced with non-synthetic {} (slot index {})",
+                        ModLogger.debug("BookmarkPriority: slot[{}] replaced with non-synthetic {} (slot index {})",
                                 i, id, slots[i].index);
                         sendSetFilter(slots[i].index, itemStack);
                         break;

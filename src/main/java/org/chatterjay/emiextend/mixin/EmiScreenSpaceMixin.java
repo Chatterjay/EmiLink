@@ -107,7 +107,7 @@ public abstract class EmiScreenSpaceMixin {
             int w = widths[row];
             for (int col = 0; col < w; col++) {
                 if (index >= stacks.size()) {
-                    if (drawnAny) ModLogger.debug("Badge summary: evaluated={} cached={}", itemsRendered, cacheHits);
+                    if (drawnAny && badgeLogRateLimit()) ModLogger.debug("Badge summary: evaluated={} cached={}", itemsRendered, cacheHits);
                     return;
                 }
 
@@ -133,7 +133,19 @@ public abstract class EmiScreenSpaceMixin {
             }
         }
 
-        if (drawnAny) ModLogger.debug("Badge summary: evaluated={} cached={}", itemsRendered, cacheHits);
+        if (drawnAny && badgeLogRateLimit()) ModLogger.debug("Badge summary: evaluated={} cached={}", itemsRendered, cacheHits);
+    }
+
+    /** Rate limiter for per-frame debug logs — at most once per 2 seconds. */
+    private static long lastBadgeLogTime = 0;
+
+    private static boolean badgeLogRateLimit() {
+        long now = System.currentTimeMillis();
+        if (now - lastBadgeLogTime >= 2000) {
+            lastBadgeLogTime = now;
+            return true;
+        }
+        return false;
     }
 
     /**

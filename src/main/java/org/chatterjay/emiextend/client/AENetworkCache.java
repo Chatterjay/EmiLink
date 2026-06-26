@@ -336,7 +336,7 @@ public final class AENetworkCache {
 
         try {
             PacketDistributor.sendToServer(new AEBatchQueryPacket(toQuery));
-            ModLogger.info("Batch: flushed {} items ({} unique since last flush)", toQuery.size(), toQuery.size());
+            ModLogger.debug("Batch: flushed {} items ({} unique since last flush)", toQuery.size(), toQuery.size());
         } catch (Exception e) {
             ModLogger.warn("AEQuery: server doesn't have EmiLink, disabling cache");
             current.cache.clear();
