@@ -117,14 +117,25 @@ public final class InputEvents {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
 
-        if (ModKeybindings.FILL_SEARCH_KEY.matches(keyCode, scanCode)) {
+        ModLogger.info("InputEvents: KeyPressed.Pre keyCode={} scanCode={} screen={}",
+                keyCode, scanCode, event.getScreen().getClass().getSimpleName());
+
+        boolean fillMatch = ModKeybindings.FILL_SEARCH_KEY.matches(keyCode, scanCode);
+        boolean quickMatch = ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode);
+        ModLogger.info("InputEvents:  FILL_SEARCH_KEY.match={} QUICK_FILL_SLOT_KEY.match={}", fillMatch, quickMatch);
+
+        if (fillMatch) {
             onFillSearchKey(event);
             return;
         }
 
-        if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
+        if (quickMatch) {
+            ModLogger.info("InputEvents: QUICK_FILL_SLOT_KEY matched, calling handleQuickFillSlot");
             if (handleQuickFillSlot()) {
+                ModLogger.info("InputEvents: handleQuickFillSlot succeeded, canceling event");
                 event.setCanceled(true);
+            } else {
+                ModLogger.info("InputEvents: handleQuickFillSlot returned false");
             }
             return;
         }

@@ -28,11 +28,14 @@ public final class EmiInteractionHandler {
     public static boolean onKeyPressed(int keyCode, int scanCode, int modifiers, int mouseX, int mouseY) {
         ModLogger.info("EmiInteractionHandler: onKeyPressed keyCode={} scanCode={}", keyCode, scanCode);
 
-        // Quick fill slot (N key)
+        // Quick fill slot (N key) — check early before other screen checks
         if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
+            ModLogger.info("EmiInteractionHandler: QUICK_FILL_SLOT_KEY matched via EmiScreenManager");
             if (InputEvents.handleQuickFillSlot()) {
+                ModLogger.info("EmiInteractionHandler: quickFillSlot succeeded");
                 return true;
             }
+            ModLogger.info("EmiInteractionHandler: quickFillSlot returned false");
         }
 
         var mc = Minecraft.getInstance();

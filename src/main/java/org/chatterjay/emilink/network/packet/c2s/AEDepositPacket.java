@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
+import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.util.ModLogger;
 
 import java.lang.reflect.Method;
@@ -265,14 +266,24 @@ public class AEDepositPacket {
                 try {
                     ModLogger.info("AEDeposit: trying approach 6 - NBT direct gridKey");
                     var tag = terminal.getTag();
-                    if (tag != null && tag.contains("gridKey", net.minecraft.nbt.Tag.TAG_LONG)) {
-                        long gridKey = tag.getLong("gridKey");
-                        ModLogger.info("AEDeposit: approach 6 - found gridKey {} in NBT", gridKey);
-                        grid = lookupGridByKey(player, gridKey);
-                        ModLogger.info("AEDeposit: approach 6 result = {}", grid == null ? "null" : "FOUND");
+                    if (tag != null) {
+                        ModLogger.info("AEDeposit: approach 6 - NBT keys: {}", tag.getAllKeys());
+                        if (tag.contains("gridKey", net.minecraft.nbt.Tag.TAG_LONG)) {
+                            long gridKey = tag.getLong("gridKey");
+                            ModLogger.info("AEDeposit: approach 6 - found gridKey {} in NBT", gridKey);
+                            grid = lookupGridByKey(player, gridKey);
+                        } else {
+                            ModLogger.info("AEDeposit: approach 6 - no gridKey in NBT, checking other tags...");
+                            // Dump first-level NBT values for debugging
+                            for (String k : tag.getAllKeys()) {
+                                var v = tag.get(k);
+                                ModLogger.info("AEDeposit:  NBT[{}] = {} ({})", k, v, v.getClass().getSimpleName());
+                            }
+                        }
                     } else {
-                        ModLogger.info("AEDeposit: approach 6 - no gridKey in NBT, keys: {}", tag == null ? "null tag" : tag.getAllKeys());
+                        ModLogger.info("AEDeposit: approach 6 - NBT tag is null");
                     }
+                    ModLogger.info("AEDeposit: approach 6 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
                     ModLogger.info("AEDeposit: approach 6 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
@@ -317,10 +328,29 @@ public class AEDepositPacket {
                 }
             }
 
-            // Approach 9: Method name scan — look for any grid-returning method on the item
+            // Approach 9: Diagnostic — list all implemented interfaces and grid-related methods
+            if (grid == null && Config.DEBUG_MODE.get()) {
+                try {
+                    ModLogger.info("AEDeposit: DIAG - interfaces of {}:", terminal.getItem().getClass().getName());
+                    for (var iface : getAllInterfaces(terminal.getItem().getClass())) {
+                        ModLogger.info("AEDeposit:  implements {}", iface.getName());
+                    }
+                    ModLogger.info("AEDeposit: DIAG - grid-related methods:");
+                    for (var m : terminal.getItem().getClass().getMethods()) {
+                        String mn = m.getName().toLowerCase(java.util.Locale.ROOT);
+                        if (mn.contains("grid") || mn.contains("key") || mn.contains("terminal") || mn.contains("wireless") || mn.contains("link")) {
+                            ModLogger.info("AEDeposit:  method: {} -> {}", m.getName(), m.getReturnType().getSimpleName());
+                        }
+                    }
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: DIAG failed: {}", e.getMessage());
+                }
+            }
+
+            // Approach 10: Method name scan — look for any grid-returning method on the item
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 9 - method name scan");
+                    ModLogger.info("AEDeposit: trying approach 10 - method name scan");
                     for (var m : terminal.getItem().getClass().getMethods()) {
                         if (m.getParameterCount() > 0) continue;
                         String name = m.getName();
@@ -331,13 +361,13 @@ public class AEDepositPacket {
                                 try {
                                     grid = result.getClass().getMethod("getGrid").invoke(result);
                                     if (grid != null) {
-                                        ModLogger.info("AEDeposit: approach 9 - got grid via {}.{}", terminal.getItem().getClass().getSimpleName(), name);
+                                        ModLogger.info("AEDeposit: approach 10 - got grid via {}.{}", terminal.getItem().getClass().getSimpleName(), name);
                                         break;
                                     }
                                 } catch (NoSuchMethodException e3) {
                                     if (m.getReturnType().getName().contains("IGrid")) {
                                         grid = result;
-                                        ModLogger.info("AEDeposit: approach 9 - got grid directly via {}", name);
+                                        ModLogger.info("AEDeposit: approach 10 - got grid directly via {}", name);
                                         break;
                                     }
                                 }
@@ -346,9 +376,9 @@ public class AEDepositPacket {
                             // skip
                         }
                     }
-                    ModLogger.info("AEDeposit: approach 9 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.info("AEDeposit: approach 10 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 9 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.info("AEDeposit: approach 10 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
