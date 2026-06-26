@@ -83,156 +83,37 @@ public final class InputEvents {
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
 
-        // AE2: PatternAccessTermScreen
-        try {
-            var patClass = Class.forName("appeng.client.gui.me.patternaccess.PatternAccessTermScreen");
-            if (patClass.isInstance(screen)) {
-                var searchField = patClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                }
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: PatternAccessTermScreen exception: {}", e.getMessage());
-        }
-
-        // EAEP: GuiWirelessExPAT
-        try {
-            var eaeClass = Class.forName("com.glodblock.github.extendedae.xmod.wt.GuiWirelessExPAT");
-            if (eaeClass.isInstance(screen) && trySetSearchField(screen, text)) {
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: EAEP exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
-        }
-
-        // ExtendedAE: GuiExPatternTerminal
-        try {
-            var exTermClass = Class.forName("com.glodblock.github.extendedae.client.gui.GuiExPatternTerminal");
-            if (exTermClass.isInstance(screen) && trySetSearchField(screen, text)) {
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: ExtendedAE exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
-        }
-
-        // AdvancedAE: QuantumCrafterTermScreen / QuantumCrafterWirelessTermScreen
-        try {
-            boolean isQuantum = Class.forName("net.pedroksl.advanced_ae.client.gui.QuantumCrafterTermScreen").isInstance(screen)
-                    || Class.forName("net.pedroksl.advanced_ae.client.gui.QuantumCrafterWirelessTermScreen").isInstance(screen);
-            if (isQuantum && trySetSearchField(screen, text)) {
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: AdvancedAE exception: {}", e.getMessage());
-        }
-
-        // RefinedStorage: AbstractGridScreen (GridScreen, PatternGridScreen, etc.)
-        try {
-            var rsGridClass = Class.forName("com.refinedmods.refinedstorage.common.grid.screen.AbstractGridScreen");
-            if (rsGridClass.isInstance(screen)) {
-                var searchField = rsGridClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                    fillSearchHandled = true;
-                    event.setCanceled(true);
-                    return;
-                }
-            }
-        } catch (Throwable e) {
-            // RS not installed or class mismatch
-        }
-
-        // RefinedStorage: AutocrafterManagerScreen
-        try {
-            var rsManagerClass = Class.forName("com.refinedmods.refinedstorage.common.autocrafting.autocraftermanager.AutocrafterManagerScreen");
-            if (rsManagerClass.isInstance(screen)) {
-                var searchField = rsManagerClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                    fillSearchHandled = true;
-                    event.setCanceled(true);
-                    return;
-                }
-            }
-        } catch (Throwable e) {
-            // RS not installed or class mismatch
-        }
-
-        // AE2 terminal search field
-        try {
-            var meStorageClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
-            if (meStorageClass.isInstance(screen)) {
-                var searchField = meStorageClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                }
-                var setSearch = meStorageClass.getDeclaredMethod("setSearchText", String.class);
-                setSearch.setAccessible(true);
-                setSearch.invoke(screen, text);
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: AE2 terminal search exception: {}", e.getMessage());
-        }
-
-        // Ars Nouveau: AbstractStorageTerminalScreen / CraftingTerminalScreen
-        try {
-            Class<?> arsClass = Class.forName("com.hollingsworth.arsnouveau.client.container.AbstractStorageTerminalScreen");
-            if (arsClass.isInstance(screen)) {
-                var field = arsClass.getDeclaredField("searchField");
-                field.setAccessible(true);
-                Object eb = field.get(screen);
-                if (eb instanceof net.minecraft.client.gui.components.EditBox editBox) {
-                    editBox.setValue(text);
-                    editBox.setCursorPosition(text.length());
-                    fillSearchHandled = true;
-                    event.setCanceled(true);
-                    return;
-                }
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: Ars Nouveau exception: {}", e.getMessage());
-        }
-
-        // BD search field
-        if (BDProxy.isBDNetGUI(screen)) {
-            if (BDProxy.setSearchText(screen, text)) {
-                fillSearchHandled = true;
-                event.setCanceled(true);
-            } else {
-                ModLogger.warn("FILL_SEARCH_KEY: BD setSearchText failed");
-            }
+        // 1. Focused EditBox (most precise, works universally)
+        if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox focusedEb) {
+            focusedEb.setValue(text);
+            focusedEb.setCursorPosition(text.length());
+            fillSearchHandled = true;
+            event.setCanceled(true);
             return;
         }
 
-        // EMI search fallback
-        try {
-            EmiApi.setSearchText(text);
+        // 2. BD-specific (non-standard search API)
+        if (BDProxy.isBDNetGUI(screen) && BDProxy.setSearchText(screen, text)) {
             fillSearchHandled = true;
             event.setCanceled(true);
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: EMI setSearchText failed: {}", e.getMessage());
+            return;
         }
+
+        // 3. Any EditBox child (catches most mod search fields)
+        for (var child : screen.children()) {
+            if (child instanceof net.minecraft.client.gui.components.EditBox eb) {
+                eb.setValue(text);
+                eb.setCursorPosition(text.length());
+                fillSearchHandled = true;
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        // 4. EMI search fallback
+        EmiApi.setSearchText(text);
+        fillSearchHandled = true;
+        event.setCanceled(true);
     }
 
     /** Check if screen is any supported pattern encoding terminal (AE2, ExtendedAE, or RS) */
@@ -339,25 +220,6 @@ public final class InputEvents {
         }
     }
 
-    /**
-     * Find a field named "searchField" in the screen's class hierarchy and set its value.
-     * Does NOT call fillSearchHandled/cancel — caller must handle those.
-     */
-    private static boolean trySetSearchField(Screen screen, String text) {
-        try {
-            var searchField = findFieldInHierarchy(screen, "searchField");
-            if (searchField != null) {
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                    return true;
-                }
-            }
-        } catch (Exception ignored) {}
-        return false;
-    }
-
     /** Draw deposit hint tooltip when cursor has an item over the EMI sidebar. */
     @SubscribeEvent
     public static void onRenderPost(ScreenEvent.Render.Post event) {
@@ -386,16 +248,4 @@ public final class InputEvents {
         pose.popPose();
     }
 
-    @javax.annotation.Nullable
-    private static java.lang.reflect.Field findFieldInHierarchy(Screen screen, String fieldName) {
-        java.lang.reflect.Field field = null;
-        Class<?> cls = screen.getClass();
-        while (cls != null && field == null) {
-            try {
-                field = cls.getDeclaredField(fieldName);
-            } catch (NoSuchFieldException ignored) {}
-            cls = cls.getSuperclass();
-        }
-        return field;
-    }
 }
