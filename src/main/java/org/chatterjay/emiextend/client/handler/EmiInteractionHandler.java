@@ -15,7 +15,6 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
-import org.chatterjay.emiextend.util.ModLogger;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
@@ -156,12 +155,14 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
-        // Deposit: cursor has item → deposit into AE
+        // Deposit: cursor has item → deposit into AE (only when EMI won't delete it)
         if (button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
             var mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
-                if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !mc.player.isCreative() && EmiConfig.cheatMode != CheatMode.TRUE) {
+                boolean emiWouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
+                        || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
+                if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !emiWouldDelete) {
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
                     if (space != null) {
                         boolean matchAll = matchesDepositBatchModifier();
@@ -176,6 +177,7 @@ public final class EmiInteractionHandler {
                         } else {
                             PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
                         }
+                        cs.getMenu().setCarried(ItemStack.EMPTY);
                         return true;
                     }
                 }

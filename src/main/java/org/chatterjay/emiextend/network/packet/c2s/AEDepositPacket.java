@@ -7,6 +7,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import java.util.Optional;
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.network.AE2GridQueryUtil;
@@ -56,18 +58,19 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
                 return;
             }
 
-            long notInserted = (long) inventory.getClass()
-                    .getMethod("insert", aeKeyClass, long.class, actionableClass, actionSourceClass)
-                    .invoke(inventory, aeKey, (long) stack.getCount(), modulate, actionSource);
+            var insertMethod = inventory.getClass().getMethod("insert", aeKeyClass, long.class, actionableClass, actionSourceClass);
+            long inserted = (long) insertMethod.invoke(inventory, aeKey, (long) stack.getCount(), modulate, actionSource);
+            if (inserted <= 0) return;
 
-            // Clear source slot on server to prevent duplication
+            // Cursor is always cleared after deposit. Inventory slots only in survival
+            // (creative inventory items are infinite and shouldn't be consumed).
             if (slotIndex == -1) {
                 player.containerMenu.setCarried(ItemStack.EMPTY);
-            } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
+                player.containerMenu.broadcastChanges();
+            } else if (!player.isCreative() && slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
                 player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
+                player.containerMenu.broadcastChanges();
             }
-
-            player.containerMenu.broadcastChanges();
 
         } catch (Exception e) {
             ModLogger.warn("AEDeposit: error: {}", e.getMessage());
@@ -124,7 +127,37 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
             if (wtClass.isInstance(player.getOffhandItem().getItem())) {
                 return player.getOffhandItem();
             }
-        } catch (Exception e) { /* ignore */ }
+            // Check curios slots
+            ItemStack curiosStack = findInCurios(player, wtClass);
+            if (!curiosStack.isEmpty()) {
+                return curiosStack;
+            }
+        } catch (Exception e) {
+            ModLogger.warn("AEDeposit: findWirelessTerminal error: {}", e.getMessage());
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static ItemStack findInCurios(Player player, Class<?> targetClass) {
+        try {
+            if (ModList.get() == null || !ModList.get().isLoaded("curios")) return ItemStack.EMPTY;
+            var curiosApi = Class.forName("top.theillusivec4.curios.api.CuriosApi");
+            var getCuriosInventory = curiosApi.getMethod("getCuriosInventory", net.minecraft.world.entity.LivingEntity.class);
+            Optional<?> opt = (Optional<?>) getCuriosInventory.invoke(null, player);
+            if (opt.isEmpty()) return ItemStack.EMPTY;
+            Object handler = opt.get();
+            // ICuriosItemHandler.findFirstCurio(Predicate<ItemStack>) → Optional<SlotResult>
+            java.util.function.Predicate<ItemStack> predicate = s -> !s.isEmpty() && targetClass.isInstance(s.getItem());
+            Optional<?> result = (Optional<?>) handler.getClass()
+                    .getMethod("findFirstCurio", java.util.function.Predicate.class)
+                    .invoke(handler, predicate);
+            if (result.isPresent()) {
+                Object slotResult = result.get();
+                return (ItemStack) slotResult.getClass().getMethod("stack").invoke(slotResult);
+            }
+        } catch (Exception e) {
+            ModLogger.warn("AEDeposit: findInCurios error: {}", e.getMessage());
+        }
         return ItemStack.EMPTY;
     }
 
