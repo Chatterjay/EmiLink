@@ -242,49 +242,113 @@ public class AEDepositPacket {
                 }
             }
 
-            // Approach 5: Security station via NBT
+            // Approach 5: try getGridKey via reflection (works for some AE2 items)
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 5 - NBT grid key");
+                    ModLogger.info("AEDeposit: trying approach 5 - getGridKey reflection");
                     Method getGridKey = terminal.getItem().getClass().getMethod("getGridKey", ItemStack.class);
                     Object gridKeyOpt = getGridKey.invoke(terminal.getItem(), terminal);
                     if (gridKeyOpt instanceof java.util.Optional<?> opt && opt.isPresent()) {
                         long gridKey = (Long) opt.get();
-                        ModLogger.info("AEDeposit: got grid key {}", gridKey);
-                        // Try to get grid via security station world data
-                        Class<?> ssClass = Class.forName("appeng.worlddata.SecurityStationData");
-                        var ssData = ssClass.getMethod("get", net.minecraft.server.MinecraftServer.class).invoke(null, player.getServer());
-                        if (ssData != null) {
-                            var byKey = ssData.getClass().getMethod("getByKey", long.class);
-                            Object station = byKey.invoke(ssData, gridKey);
-                            if (station != null) {
-                                for (var iface : getAllInterfaces(station.getClass())) {
-                                    if (iface.getName().contains("ActionHost") || iface.getName().contains("IActionHost")) {
-                                        for (var m : iface.getMethods()) {
-                                            if (m.getParameterCount() != 0) continue;
-                                            try {
-                                                Object node = m.invoke(station);
-                                                if (node != null) {
-                                                    try {
-                                                        grid = node.getClass().getMethod("getGrid").invoke(node);
-                                                        if (grid != null) {
-                                                            ModLogger.info("AEDeposit: approach 5 - got grid via security station");
-                                                            break;
-                                                        }
-                                                    } catch (NoSuchMethodException e) {}
-                                                }
-                                            } catch (Exception e2) {}
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                        grid = lookupGridByKey(player, gridKey);
+                        ModLogger.info("AEDeposit: approach 5 result = {}", grid == null ? "null" : "FOUND");
                     } else {
                         ModLogger.info("AEDeposit: approach 5 - grid key empty");
                     }
                 } catch (Exception e) {
                     ModLogger.info("AEDeposit: approach 5 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Approach 6: Read gridKey directly from NBT tag
+            if (grid == null) {
+                try {
+                    ModLogger.info("AEDeposit: trying approach 6 - NBT direct gridKey");
+                    var tag = terminal.getTag();
+                    if (tag != null && tag.contains("gridKey", net.minecraft.nbt.Tag.TAG_LONG)) {
+                        long gridKey = tag.getLong("gridKey");
+                        ModLogger.info("AEDeposit: approach 6 - found gridKey {} in NBT", gridKey);
+                        grid = lookupGridByKey(player, gridKey);
+                        ModLogger.info("AEDeposit: approach 6 result = {}", grid == null ? "null" : "FOUND");
+                    } else {
+                        ModLogger.info("AEDeposit: approach 6 - no gridKey in NBT, keys: {}", tag == null ? "null tag" : tag.getAllKeys());
+                    }
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: approach 6 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Approach 7: IAEWirelessTerminalItem interface
+            if (grid == null) {
+                try {
+                    ModLogger.info("AEDeposit: trying approach 7 - IAEWirelessTerminalItem");
+                    Class<?> iface = Class.forName("appeng.api.implementations.items.IAEWirelessTerminalItem");
+                    if (iface.isInstance(terminal.getItem())) {
+                        Method getGrid = iface.getMethod("getGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
+                        grid = getGrid.invoke(terminal.getItem(), terminal, player.level(), noop);
+                        ModLogger.info("AEDeposit: approach 7 result = {}", grid == null ? "null" : "FOUND");
+                    } else {
+                        ModLogger.info("AEDeposit: approach 7 - item does not implement IAEWirelessTerminalItem");
+                    }
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: approach 7 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Approach 8: AE2WTLib WUTHandler
+            if (grid == null) {
+                try {
+                    ModLogger.info("AEDeposit: trying approach 8 - AE2WTLib WUTHandler");
+                    Class<?> wutHandler = Class.forName("de.mari_023.ae2wtlib.wut.WUTHandler");
+                    try {
+                        Method getGrid = wutHandler.getMethod("getGrid", ItemStack.class, net.minecraft.world.level.Level.class);
+                        grid = getGrid.invoke(null, terminal, player.level());
+                    } catch (NoSuchMethodException e1) {
+                        try {
+                            Method getLinkedGrid = wutHandler.getMethod("getLinkedGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
+                            grid = getLinkedGrid.invoke(null, terminal, player.level(), noop);
+                        } catch (NoSuchMethodException e2) {
+                            ModLogger.info("AEDeposit: approach 8 - no suitable method found on WUTHandler");
+                        }
+                    }
+                    ModLogger.info("AEDeposit: approach 8 result = {}", grid == null ? "null" : "FOUND");
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: approach 8 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Approach 9: Method name scan — look for any grid-returning method on the item
+            if (grid == null) {
+                try {
+                    ModLogger.info("AEDeposit: trying approach 9 - method name scan");
+                    for (var m : terminal.getItem().getClass().getMethods()) {
+                        if (m.getParameterCount() > 0) continue;
+                        String name = m.getName();
+                        if (!name.equals("getGrid") && !name.contains("Grid") && !name.contains("grid")) continue;
+                        try {
+                            Object result = m.invoke(terminal.getItem());
+                            if (result != null) {
+                                try {
+                                    grid = result.getClass().getMethod("getGrid").invoke(result);
+                                    if (grid != null) {
+                                        ModLogger.info("AEDeposit: approach 9 - got grid via {}.{}", terminal.getItem().getClass().getSimpleName(), name);
+                                        break;
+                                    }
+                                } catch (NoSuchMethodException e3) {
+                                    if (m.getReturnType().getName().contains("IGrid")) {
+                                        grid = result;
+                                        ModLogger.info("AEDeposit: approach 9 - got grid directly via {}", name);
+                                        break;
+                                    }
+                                }
+                            }
+                        } catch (Exception e2) {
+                            // skip
+                        }
+                    }
+                    ModLogger.info("AEDeposit: approach 9 result = {}", grid == null ? "null" : "FOUND");
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: approach 9 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
@@ -387,6 +451,37 @@ public class AEDepositPacket {
         }
         ModLogger.info("AEDeposit: findWT - no terminal found");
         return ItemStack.EMPTY;
+    }
+
+    private static Object lookupGridByKey(Player player, long gridKey) throws Exception {
+        // Use SecurityStationData to find the security station for this grid key
+        Class<?> ssClass = Class.forName("appeng.worlddata.SecurityStationData");
+        Object ssData = ssClass.getMethod("get", net.minecraft.server.MinecraftServer.class).invoke(null, player.getServer());
+        if (ssData == null) return null;
+
+        var byKeyMethod = ssData.getClass().getMethod("getByKey", long.class);
+        Object stationOpt = byKeyMethod.invoke(ssData, gridKey);
+        if (!(stationOpt instanceof java.util.Optional<?> opt) || opt.isEmpty()) return null;
+
+        Object station = opt.get();
+        for (var iface : getAllInterfaces(station.getClass())) {
+            if (iface.getName().contains("ActionHost") || iface.getName().contains("IActionHost")) {
+                for (var m : iface.getMethods()) {
+                    if (m.getParameterCount() != 0) continue;
+                    try {
+                        Object node = m.invoke(station);
+                        if (node != null) {
+                            try {
+                                Object grid = node.getClass().getMethod("getGrid").invoke(node);
+                                if (grid != null) return grid;
+                            } catch (NoSuchMethodException ignored) {}
+                        }
+                    } catch (Exception ignored) {}
+                }
+                break;
+            }
+        }
+        return null;
     }
 
     private static Object resolveGrid(Class<?> menuClass, Object menu) throws Exception {
