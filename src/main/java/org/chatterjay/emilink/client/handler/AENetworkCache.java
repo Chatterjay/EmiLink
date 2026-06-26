@@ -1,83 +1,301 @@
 package org.chatterjay.emilink.client.handler;
 
+import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.render.EmiTooltipComponents;
+import dev.emi.emi.api.stack.EmiStack;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import org.chatterjay.emilink.Config;
-import org.chatterjay.emilink.client.DiskCacheIO;
+import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.network.NetworkHandler;
+import org.chatterjay.emilink.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emilink.network.packet.s2c.ServerHasModPacket;
 import org.chatterjay.emilink.util.ModLogger;
 
 import javax.annotation.Nullable;
-import java.io.*;
-import java.nio.file.Path;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 
+@Mod.EventBusSubscriber(modid = Emilink.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class AENetworkCache {
-    private static final ConcurrentHashMap<CacheKey, Entry> cache = new ConcurrentHashMap<>();
-    private static final String CACHE_FILE = "ae_network_cache.dat";
-    private static boolean loaded = false;
+
+    private static final Map<String, ServerState> serverStates = new HashMap<>();
+    private static String currentServerId = "local";
+    private static ServerState current = new ServerState();
+
+    private static final Set<ItemStack> pendingBatch = new HashSet<>();
+    private static long lastBatchFlushTime = 0;
+
+    private static boolean wasInTerminal = false;
+    private static boolean needsInitialScan = false;
+
+    private static Screen accessCheckScreen = null;
+    private static boolean accessCheckResult = false;
+
+    private static int hoverTickCounter = 0;
+    private static final int HOVER_SAMPLE_INTERVAL = 10;
 
     private AENetworkCache() {}
 
+    private record CachedInfo(long count, boolean craftable, long timestamp) {
+        boolean isExpired(boolean negative) {
+            long ttl = negative ? Config.NEGATIVE_CACHE_TTL_MS.get() : Config.CACHE_TTL_MS.get();
+            return System.currentTimeMillis() - timestamp > ttl;
+        }
+    }
+
+    private static class ServerState {
+        final Map<ItemStack, CachedInfo> cache = new HashMap<>();
+    }
+
+    // ---- Batch query -------------------------------------------------------
+
+    public static void submitForBatch(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return;
+        pendingBatch.add(stack.copyWithCount(1));
+    }
+
+    public static boolean consumeInitialScanFlag() {
+        if (needsInitialScan) {
+            needsInitialScan = false;
+            return true;
+        }
+        return false;
+    }
+
+    public static void flushBatchNow() {
+        if (!pendingBatch.isEmpty()) {
+            lastBatchFlushTime = System.currentTimeMillis();
+            flushBatch();
+        }
+    }
+
+    // ---- Events ------------------------------------------------------------
+
+    @SubscribeEvent
+    public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
+        tick();
+    }
+
+    @SubscribeEvent
+    public static void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        currentServerId = resolveServerId();
+        serverStates.remove(currentServerId);
+        current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
+        pendingBatch.clear();
+        lastBatchFlushTime = 0;
+        wasInTerminal = false;
+        needsInitialScan = false;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
+    }
+
+    @SubscribeEvent
+    public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        pendingBatch.clear();
+        accessCheckScreen = null;
+    }
+
+    // ---- Public API --------------------------------------------------------
+
     public static void clear() {
-        save();
-        cache.clear();
-        ModLogger.debug("AE network cache cleared");
+        current.cache.clear();
+        pendingBatch.clear();
+        lastBatchFlushTime = 0;
+        wasInTerminal = false;
+        needsInitialScan = false;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
+    }
+
+    public static void clearAll() {
+        serverStates.clear();
+        current = new ServerState();
+        currentServerId = "local";
+        pendingBatch.clear();
+        lastBatchFlushTime = 0;
+        wasInTerminal = false;
+        needsInitialScan = false;
+        accessCheckScreen = null;
+        hoverTickCounter = 0;
     }
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable) {
         if (stack == null || stack.isEmpty()) return;
-        CacheKey key = CacheKey.from(stack);
-        long ttl = (count == 0 && !craftable)
-                ? Config.NEGATIVE_CACHE_TTL_MS.get()
-                : Config.CACHE_TTL_MS.get();
-        long expiry = System.currentTimeMillis() + ttl;
-        cache.put(key, new Entry(count, craftable, expiry));
-        ModLogger.debug("Cached: {} count={} craftable={} ttl={}ms",
-                stack.getHoverName().getString(), count, craftable, ttl);
+        var key = stack.copyWithCount(1);
+        current.cache.put(key, new CachedInfo(count, craftable, System.currentTimeMillis()));
     }
 
     public static long getCount(ItemStack stack) {
-        ensureLoaded();
         if (stack == null || stack.isEmpty()) return -1;
-        Entry entry = getIfValid(stack);
-        return entry != null ? entry.count : -1;
+        var cached = findCached(stack);
+        return cached != null ? cached.count() : -1;
     }
 
     @Nullable
     public static Boolean getCraftable(ItemStack stack) {
-        ensureLoaded();
         if (stack == null || stack.isEmpty()) return null;
-        Entry entry = getIfValid(stack);
-        return entry != null ? entry.craftable : null;
+        var cached = findCached(stack);
+        return cached != null ? cached.craftable() : null;
     }
 
     public record CachedResult(long count, boolean craftable, boolean found) {}
 
     public static CachedResult getCachedResult(ItemStack stack) {
-        ensureLoaded();
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
-        Entry entry = getIfValid(stack);
-        if (entry != null) return new CachedResult(entry.count, entry.craftable, true);
+        var cached = findCached(stack);
+        if (cached != null) return new CachedResult(cached.count(), cached.craftable(), true);
         return new CachedResult(0, false, false);
     }
 
+    public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
+        if (stack == null || stack.isEmpty()) return;
+        var cached = findCached(stack);
+        if (cached == null) return;
+        if (cached.count() <= 0 && !cached.craftable()) return;
+
+        if (cached.count() > 0) {
+            list.add(EmiTooltipComponents.of(
+                    Component.translatable("ae_tooltip.count", cached.count())
+                            .withStyle(ChatFormatting.GRAY)));
+        }
+        if (cached.craftable()) {
+            list.add(EmiTooltipComponents.of(
+                    Component.translatable("ae_tooltip.craftable")
+                            .withStyle(ChatFormatting.GREEN)));
+        }
+    }
+
     public static boolean hasAEAccess() {
-        if (!ServerHasModPacket.serverHasMod) return false;
         var mc = Minecraft.getInstance();
+        if (mc.screen == accessCheckScreen) return accessCheckResult;
+        accessCheckScreen = mc.screen;
+        accessCheckResult = computeAEAccess(mc);
+        return accessCheckResult;
+    }
+
+    public static boolean hasAnyCached() {
+        return !current.cache.isEmpty();
+    }
+
+    // ---- Internal ----------------------------------------------------------
+
+    private static void tick() {
+        var mc = Minecraft.getInstance();
+        if (mc.player == null || mc.screen == null) return;
+
+        if (!canQueryNetwork(mc)) {
+            if (wasInTerminal) {
+                wasInTerminal = false;
+                needsInitialScan = false;
+            }
+            if (!pendingBatch.isEmpty()) {
+                pendingBatch.clear();
+            }
+            return;
+        }
+
+        if (!wasInTerminal) {
+            wasInTerminal = true;
+            needsInitialScan = true;
+            lastBatchFlushTime = 0;
+        }
+
+        if (!ServerHasModPacket.serverHasMod) {
+            current.cache.clear();
+            pendingBatch.clear();
+            return;
+        }
+
+        if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
+            var hovered = EmiApi.getHoveredStack(true);
+            if (hovered != null && !hovered.isEmpty()) {
+                var stack = hovered.getStack().getEmiStacks().stream()
+                        .map(EmiStack::getItemStack)
+                        .filter(s -> !s.isEmpty())
+                        .findFirst()
+                        .orElse(ItemStack.EMPTY);
+                if (!stack.isEmpty()) {
+                    pendingBatch.add(stack.copyWithCount(1));
+                }
+            }
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastBatchFlushTime >= Config.BATCH_FLUSH_MS.get() && !pendingBatch.isEmpty()) {
+            flushBatch();
+            lastBatchFlushTime = now;
+        }
+    }
+
+    private static void flushBatch() {
+        var toQuery = new ArrayList<ItemStack>();
+        for (var it : pendingBatch) {
+            var cached = findCached(it);
+            if (cached == null || cached.isExpired(cached.count() == 0 && !cached.craftable())) {
+                toQuery.add(it);
+            }
+        }
+        pendingBatch.clear();
+
+        if (toQuery.isEmpty()) return;
+
+        try {
+            NetworkHandler.sendToServer(new AEBatchQueryPacket(toQuery));
+            ModLogger.debug("Batch: flushed {} items", toQuery.size());
+        } catch (Exception e) {
+            ModLogger.warn("AEQuery: server missing EmiLink, disabling cache");
+            current.cache.clear();
+        }
+    }
+
+    private static boolean canQueryNetwork(Minecraft mc) {
+        if (!AE2Proxy.isLoaded()) return false;
+        if (mc.player == null) return false;
+        if (mc.screen == null) return false;
+        return AE2Proxy.isMEStorageScreen(mc.screen) || AE2Proxy.isCraftConfirmScreen(mc.screen);
+    }
+
+    private static String resolveServerId() {
+        ServerData serverData = Minecraft.getInstance().getCurrentServer();
+        if (serverData != null && serverData.ip != null && !serverData.ip.isEmpty()) {
+            return serverData.ip;
+        }
+        return "local";
+    }
+
+    @Nullable
+    private static CachedInfo findCached(ItemStack stack) {
+        var key = stack.copyWithCount(1);
+        var direct = current.cache.get(key);
+        if (direct != null) {
+            if (direct.isExpired(direct.count() == 0 && !direct.craftable())) {
+                current.cache.remove(key);
+                return null;
+            }
+            return direct;
+        }
+        return null;
+    }
+
+    private static boolean computeAEAccess(Minecraft mc) {
+        if (!AE2Proxy.isLoaded()) return false;
+        var player = mc.player;
+        if (player == null) return false;
+
         if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) return true;
         if (mc.screen != null && AE2Proxy.isCraftConfirmScreen(mc.screen)) return true;
 
-        var player = mc.player;
-        if (player == null) return false;
         for (var item : player.getInventory().items) {
             if (AE2Proxy.isWirelessTerminal(item)) return true;
         }
@@ -85,115 +303,7 @@ public final class AENetworkCache {
         return false;
     }
 
-    /** Saves the current cache to disk via DiskCacheIO. */
     public static void save() {
-        try {
-            CompoundTag root = new CompoundTag();
-            ListTag entriesList = new ListTag();
-            long now = System.currentTimeMillis();
-
-            for (var mapEntry : cache.entrySet()) {
-                CacheKey key = mapEntry.getKey();
-                Entry entry = mapEntry.getValue();
-                if (now > entry.expiry) continue; // skip expired
-
-                CompoundTag tag = new CompoundTag();
-                ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(key.item);
-                if (itemId.equals(BuiltInRegistries.ITEM.getDefaultKey())) continue;
-                tag.putString("item", itemId.toString());
-                tag.putInt("damage", key.damage);
-                if (key.tag != null && !key.tag.isEmpty()) {
-                    tag.put("tag", key.tag.copy());
-                }
-                tag.putLong("count", entry.count);
-                tag.putBoolean("craftable", entry.craftable);
-                tag.putLong("expiry", entry.expiry);
-                entriesList.add(tag);
-            }
-
-            root.put("entries", entriesList);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream(baos);
-            NbtIo.write(root, dos);
-            dos.flush();
-            byte[] data = baos.toByteArray();
-            DiskCacheIO.save(getCachePath(), data);
-            ModLogger.debug("AE network cache saved ({} entries)", entriesList.size());
-        } catch (Exception e) {
-            ModLogger.warn("AE network cache save failed: {}", e.getMessage());
-        }
+        // no-op: cache persistence removed
     }
-
-    /** Loads the cache from disk via DiskCacheIO. */
-    public static void load() {
-        try {
-            Path path = getCachePath();
-            byte[] data = DiskCacheIO.load(path);
-            if (data == null) return;
-
-            CompoundTag root = NbtIo.read(new DataInputStream(new ByteArrayInputStream(data)));
-            if (root == null) return;
-
-            ListTag entriesList = root.getList("entries", Tag.TAG_COMPOUND);
-            long now = System.currentTimeMillis();
-            int loadedCount = 0;
-
-            for (int i = 0; i < entriesList.size(); i++) {
-                CompoundTag tag = entriesList.getCompound(i);
-                String itemStr = tag.getString("item");
-                ResourceLocation itemId = ResourceLocation.tryParse(itemStr);
-                if (itemId == null) continue;
-                Item item = BuiltInRegistries.ITEM.get(itemId);
-                if (item == null || item == BuiltInRegistries.ITEM.get(BuiltInRegistries.ITEM.getDefaultKey())) continue;
-
-                int damage = tag.getInt("damage");
-                CompoundTag itemTag = tag.contains("tag", Tag.TAG_COMPOUND) ? tag.getCompound("tag") : null;
-                long count = tag.getLong("count");
-                boolean craftable = tag.getBoolean("craftable");
-                long expiry = tag.getLong("expiry");
-
-                if (now > expiry) continue; // already expired
-
-                CacheKey key = new CacheKey(item, damage, itemTag);
-                cache.put(key, new Entry(count, craftable, expiry));
-                loadedCount++;
-            }
-
-            ModLogger.debug("AE network cache loaded ({} entries)", loadedCount);
-        } catch (Exception e) {
-            ModLogger.warn("AE network cache load failed: {}", e.getMessage());
-        }
-    }
-
-    private static void ensureLoaded() {
-        if (!loaded) {
-            loaded = true;
-            load();
-        }
-    }
-
-    private static Path getCachePath() {
-        var mc = Minecraft.getInstance();
-        return mc.gameDirectory.toPath().resolve("emilink").resolve(CACHE_FILE);
-    }
-
-    @Nullable
-    private static Entry getIfValid(ItemStack stack) {
-        CacheKey key = CacheKey.from(stack);
-        Entry entry = cache.get(key);
-        if (entry == null) return null;
-        if (System.currentTimeMillis() > entry.expiry) {
-            cache.remove(key, entry);
-            return null;
-        }
-        return entry;
-    }
-
-    private record CacheKey(Item item, int damage, @Nullable CompoundTag tag) {
-        static CacheKey from(ItemStack stack) {
-            return new CacheKey(stack.getItem(), stack.getDamageValue(), stack.getTag());
-        }
-    }
-
-    private record Entry(long count, boolean craftable, long expiry) {}
 }

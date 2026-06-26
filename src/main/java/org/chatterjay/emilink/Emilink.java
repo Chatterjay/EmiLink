@@ -11,6 +11,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.network.NetworkHandler;
+import org.chatterjay.emilink.util.IEProxy;
 import org.slf4j.Logger;
 
 @Mod(Emilink.MODID)
@@ -31,6 +32,7 @@ public class Emilink {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         Config.validate();
+        IEProxy.registerIgnoredScreens();
         LOGGER.info("EmiLink common setup completed");
     }
 }

@@ -100,6 +100,10 @@ repositories {
         name = "BlameJared"
         url = "https://maven.blamejared.com/"
     }
+    maven {
+        name = "KotlinForForge"
+        url = "https://thedarkcolour.github.io/KotlinForForge/"
+    }
 }
 
 dependencies {
@@ -140,6 +144,9 @@ dependencies {
 
     // JEI — 可选（dev 环境可用）
     implementation fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+
+    // Kotlin for Forge — IPN 的前置
+    implementation fg.deobf("thedarkcolour:kotlinforforge:4.3.0")
 
     // IPN (Inventory Profiles Next) — 测试 IPN 锁定槽位同步功能需要
     // libipn 和 IPN 在 Modrinth 上没有 forge 1.20.1 版本，改用 CurseMaven

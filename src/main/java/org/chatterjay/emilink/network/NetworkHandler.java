@@ -14,6 +14,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.network.packet.c2s.AEBatchQueryPacket;
+import org.chatterjay.emilink.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emilink.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emilink.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
@@ -56,6 +57,8 @@ public class NetworkHandler {
                 TransferMatchingPacket::encode, TransferMatchingPacket::decode, TransferMatchingPacket::handle);
         CHANNEL.registerMessage(packetId++, AELockedSlotsPacket.class,
                 AELockedSlotsPacket::encode, AELockedSlotsPacket::decode, AELockedSlotsPacket::handle);
+        CHANNEL.registerMessage(packetId++, AEDepositPacket.class,
+                AEDepositPacket::encode, AEDepositPacket::decode, AEDepositPacket::handle);
     }
 
     public static void sendToPlayer(ServerPlayer player, Object packet) {

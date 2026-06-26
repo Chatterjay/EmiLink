@@ -10,12 +10,15 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
+import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.InputEvents;
 import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.integration.BDProxy;
 import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
+import org.chatterjay.emilink.network.NetworkHandler;
+import org.chatterjay.emilink.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emilink.util.ModLogger;
 
 public final class EmiInteractionHandler {
@@ -24,13 +27,6 @@ public final class EmiInteractionHandler {
 
     public static boolean onKeyPressed(int keyCode, int scanCode, int modifiers, int mouseX, int mouseY) {
         ModLogger.info("EmiInteractionHandler: onKeyPressed keyCode={} scanCode={}", keyCode, scanCode);
-
-        // Quick pattern encode (B key)
-        if (ModKeybindings.QUICK_PATTERN_KEY.matches(keyCode, scanCode)) {
-            if (InputEvents.handleQuickCraft()) {
-                return true;
-            }
-        }
 
         // Quick fill slot (N key)
         if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
@@ -168,16 +164,38 @@ public final class EmiInteractionHandler {
                 .orElse(null);
         if (itemStack == null) return false;
 
+        // Deposit: click EMI sidebar to deposit into AE (single + batch all matching from inventory)
+        if (button == 0 && !isExtractModifierHeld()) {
+            var mc = Minecraft.getInstance();
+            if (mc.player != null && Config.ENABLE_AE_DEPOSIT.get() && !mc.player.isCreative()) {
+                // Batch deposit: deposit all matching items of this type from inventory
+                ItemStack prototype = itemStack.copyWithCount(1);
+                NetworkHandler.sendToServer(new AEDepositPacket(prototype, -2));
+                ModLogger.info("EmiInteractionHandler: batch deposit {} from EMI click", prototype.getHoverName().getString());
+                return true;
+            }
+            return false;
+        }
+
         if (button == 2) {
             return handleMiddleClick(itemStack);
         }
 
-        if (button == 0 && Screen.hasShiftDown()) {
+        if (button == 0 && isExtractModifierHeld()) {
             if (handleShiftClickBDEmi(itemStack)) return true;
             return handleShiftClickAE2(itemStack);
         }
 
         return false;
+    }
+
+    private static boolean isExtractModifierHeld() {
+        return switch (Config.getExtractModifier()) {
+            case SHIFT -> Screen.hasShiftDown();
+            case CONTROL -> Screen.hasControlDown();
+            case ALT -> Screen.hasAltDown();
+            case OFF -> false;
+        };
     }
 
     private static boolean handleMiddleClick(ItemStack itemStack) {

@@ -13,6 +13,7 @@ public final class ProviderSearchHelper {
     private static Method setLastProcessingName;
     private static Method presetCraftingProviderSearchKey;
     private static Method mapRecipeTypeToSearchKey;
+    private static Method resolveKeyToAlias;
 
     /** Tracks the last non-"jemi" category from RecipeScreen's getFocusedCategory() */
     private static String lastRecipeCategory;
@@ -29,6 +30,10 @@ public final class ProviderSearchHelper {
             // presetCraftingProviderSearchKey is only available in EAEP 1.5.4+
             try {
                 presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
+            } catch (NoSuchMethodException ignored) {
+            }
+            try {
+                resolveKeyToAlias = clazz.getMethod("resolveKeyToAlias", String.class);
             } catch (NoSuchMethodException ignored) {
             }
             available = true;
@@ -56,6 +61,22 @@ public final class ProviderSearchHelper {
             try { presetCraftingProviderSearchKey.invoke(null); } catch (Throwable t) {
             }
         }
+    }
+
+    /**
+     * Resolve a search key to a human-friendly alias using EAEP if available.
+     */
+    public static String resolveKeyToAlias(String rawKey) {
+        init();
+        if (available && resolveKeyToAlias != null && rawKey != null) {
+            try {
+                return (String) resolveKeyToAlias.invoke(null, rawKey);
+            } catch (Throwable e) {
+                ModLogger.warn("ProviderSearchHelper: resolveKeyToAlias failed: {}", e.getMessage());
+            }
+        }
+        // Fallback: return raw key as-is
+        return rawKey;
     }
 
     public static String mapRecipeTypeToSearchKey(Recipe<?> recipe) {

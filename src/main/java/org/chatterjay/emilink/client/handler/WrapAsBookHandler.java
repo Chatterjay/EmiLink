@@ -14,6 +14,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.util.ModLogger;
 
 import java.util.List;
@@ -64,19 +65,21 @@ public final class WrapAsBookHandler {
                     InventoryAction.SET_FILTER, outSlots[0].index, book));
         }
 
-        var inSlots = menu.getProcessingInputSlots();
-        int target = -1;
-        for (int i = 0; i < inSlots.length; i++) {
-            if (inSlots[i].getItem().isEmpty()) {
-                target = i;
-                break;
+        if (Config.WB_FILL_INPUT_GRID.get()) {
+            var inSlots = menu.getProcessingInputSlots();
+            int target = -1;
+            for (int i = 0; i < inSlots.length; i++) {
+                if (inSlots[i].getItem().isEmpty()) {
+                    target = i;
+                    break;
+                }
             }
-        }
-        if (target < 0 && inSlots.length > 0) target = 0;
+            if (target < 0 && inSlots.length > 0) target = 0;
 
-        if (target >= 0) {
-            NetworkHandler.instance().sendToServer(new InventoryActionPacket(
-                    InventoryAction.SET_FILTER, inSlots[target].index, original));
+            if (target >= 0) {
+                NetworkHandler.instance().sendToServer(new InventoryActionPacket(
+                        InventoryAction.SET_FILTER, inSlots[target].index, original));
+            }
         }
     }
 

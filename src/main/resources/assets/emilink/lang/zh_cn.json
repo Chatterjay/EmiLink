@@ -3,9 +3,18 @@
   "key.emilink.fill_search": "填充搜索",
   "key.emilink.quick_pattern": "快速配方 (B)",
   "key.emilink.quick_fill_slot": "快速填充槽位",
-  "key.emilink.toggle_wrap_book": "切换包裹成书",
 
   "emilink.tooltip.wrap_as_book.on": "§e包裹成书：开",
   "emilink.tooltip.wrap_as_book.off": "§7包裹成书：关",
-  "emilink.suffix.pattern": " 样板"
+  "emilink.suffix.pattern": " 样板",
+
+  "ae_tooltip.count": "AE: %s",
+  "ae_tooltip.craftable": "可合成",
+
+  "message.emilink.deposit.no_ae_access": "§c未找到 AE 网络连接",
+  "message.emilink.deposit.failed": "§c存入 %s 到 AE 失败",
+  "message.emilink.deposit.success": "§a已将 %s x%d 存入 AE",
+  "message.emilink.deposit.batch_success": "§a已批量存入 %s (x%d) 到 AE",
+  "message.emilink.deposit.batch_none": "§7未找到 %s 可供存入",
+  "message.emilink.deposit.error": "§c存入 AE 时出错"
 }

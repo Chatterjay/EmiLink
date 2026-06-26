@@ -17,14 +17,6 @@ public final class ModKeybindings {
             "key.categories.emilink"
     );
 
-    public static final KeyMapping QUICK_PATTERN_KEY = new KeyMapping(
-            "key.emilink.quick_pattern",
-            KeyConflictContext.GUI,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_B,
-            "key.categories.emilink"
-    );
-
     public static final KeyMapping QUICK_FILL_SLOT_KEY = new KeyMapping(
             "key.emilink.quick_fill_slot",
             KeyConflictContext.GUI,
@@ -33,18 +25,8 @@ public final class ModKeybindings {
             "key.categories.emilink"
     );
 
-    public static final KeyMapping TOGGLE_WRAP_BOOK_KEY = new KeyMapping(
-            "key.emilink.toggle_wrap_book",
-            KeyConflictContext.GUI,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_UNKNOWN,
-            "key.categories.emilink"
-    );
-
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(FILL_SEARCH_KEY);
-        event.register(QUICK_PATTERN_KEY);
         event.register(QUICK_FILL_SLOT_KEY);
-        event.register(TOGGLE_WRAP_BOOK_KEY);
     }
 }
