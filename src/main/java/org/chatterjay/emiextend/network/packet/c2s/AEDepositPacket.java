@@ -62,12 +62,13 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
             long inserted = (long) insertMethod.invoke(inventory, aeKey, (long) stack.getCount(), modulate, actionSource);
             if (inserted <= 0) return;
 
-            // Cursor is always cleared after deposit. Inventory slots only in survival
-            // (creative inventory items are infinite and shouldn't be consumed).
+            // Cursor is always cleared on deposit. Inventory slots are always cleared too —
+            // the client only sends deposit packets when EMI won't delete items itself
+            // (i.e. CheatMode is NEVER), so we must consume the item here in all game modes.
             if (slotIndex == -1) {
                 player.containerMenu.setCarried(ItemStack.EMPTY);
                 player.containerMenu.broadcastChanges();
-            } else if (!player.isCreative() && slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
+            } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
                 player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
                 player.containerMenu.broadcastChanges();
             }

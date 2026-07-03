@@ -7,6 +7,7 @@
 - 修复书签优先填充样板时数量始终为 1 的问题：改用 EMI 配方输入数量（`ingredient.getAmount()`）而非客户端已过时的插槽状态
 - 修复服务端饰品栏无线终端检测失败：改用 `ICuriosItemHandler.findFirstCurio()` 适配 Curios 9.x API
 - 修复创造模式存入 AE 后光标物品不清理：客户端发包后即刻清空，服务端光标始终清理
+- 修复创造模式下 EMI Never 模式批量存入 AE 后背包物品未清理的问题：移除服务端 `!player.isCreative()` 条件，客户端已确保仅当 EMI 不处理删除时才发包
 - 修复生存+EMI 作弊模式下 EMI 原有删除行为被覆盖
 - 修复 CheatMode.CREATIVE 枚举比较，所有作弊模式交互按预期工作
 
