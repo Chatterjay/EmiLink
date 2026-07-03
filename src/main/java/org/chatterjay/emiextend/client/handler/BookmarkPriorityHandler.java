@@ -114,7 +114,7 @@ public final class BookmarkPriorityHandler {
                             if (match) {
                                 ModLogger.debug("BookmarkPriority: slot[{}] replaced with bookmarked {} (slot index {})",
                                         i, favId, slots[i].index);
-                                sendSetFilter(slots[i].index, favItem);
+                                sendSetFilter(slots[i], favItem, ingredient.getAmount());
                                 replaced = true;
                                 break;
                             }
@@ -146,7 +146,7 @@ public final class BookmarkPriorityHandler {
                     if (!itemStack.isEmpty()) {
                         ModLogger.debug("BookmarkPriority: slot[{}] replaced with non-synthetic {} (slot index {})",
                                 i, id, slots[i].index);
-                        sendSetFilter(slots[i].index, itemStack);
+                        sendSetFilter(slots[i], itemStack, ingredient.getAmount());
                         break;
                     }
                 }
@@ -154,11 +154,17 @@ public final class BookmarkPriorityHandler {
         }
     }
 
-    private static void sendSetFilter(int slotIndex, ItemStack stack) {
+    private static void sendSetFilter(FakeSlot slot, ItemStack stack, long amount) {
+        // Use the EMI recipe ingredient amount so the pattern gets the
+        // correct count per cycle (client slot count is stale at this point).
+        var copy = stack.copy();
+        if (amount > 1) {
+            copy.setCount((int) Math.min(amount, 64));
+        }
         PacketDistributor.sendToServer(
                 new InventoryActionPacket(
                         InventoryAction.SET_FILTER,
-                        slotIndex,
-                        stack.copy()));
+                        slot.index,
+                        copy));
     }
 }
