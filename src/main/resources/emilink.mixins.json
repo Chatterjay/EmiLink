@@ -16,6 +16,8 @@
     "EmiScreenSpaceMixin",
     "MEStorageScreenAccessor",
     "RecipeScreenMixin",
+    "EmiStackListMixin",
+    "EmiScreenSpaceStacksMixin",
   ],
   "mixins": [
     "AEBaseMenuMixin",
