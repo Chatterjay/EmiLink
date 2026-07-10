@@ -51,6 +51,9 @@
   "emilink.config.features.extractModifier": "网络提取点击修饰键",
   "emilink.config.features.extractModifier.tooltip": "在 EMI 物品上 Click 时从网络中提取物品的修饰键：SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, OFF=关闭",
 
+  "emilink.config.features.enableQuickCraftTab": "Tab 快速合成",
+  "emilink.config.features.enableQuickCraftTab.tooltip": "在 EMI 展开配方界面按 Tab 键，直接通过 AE/BD 网络快速合成",
+
   "emilink.config.network.enableDebugPacketLimit": "调试包限流",
   "emilink.config.network.enableDebugPacketLimit.tooltip": "将调试相关数据包限制为每 tick 1 个，防止网络拥塞"
 }

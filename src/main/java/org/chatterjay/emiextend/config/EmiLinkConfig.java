@@ -36,6 +36,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ModConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
     public static final ModConfigSpec.BooleanValue ENABLE_DRAG_FILL;
+    public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -133,6 +134,10 @@ public final class EmiLinkConfig {
         ENABLE_DRAG_FILL = BUILDER
                 .translation("emilink.config.features.enableDragFill")
                 .define("enableDragFill", true);
+
+        ENABLE_QUICK_CRAFT_TAB = BUILDER
+                .translation("emilink.config.features.enableQuickCraftTab")
+                .define("enableQuickCraftTab", true);
 
         BUILDER.pop();
         BUILDER.push("network");

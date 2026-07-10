@@ -51,6 +51,9 @@
   "emilink.config.features.extractModifier": "Click Extract Modifier",
   "emilink.config.features.extractModifier.tooltip": "Modifier for Click-to-extract: SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, OFF=disabled",
 
+  "emilink.config.features.enableQuickCraftTab": "Tab Quick Craft",
+  "emilink.config.features.enableQuickCraftTab.tooltip": "Press Tab on an expanded EMI recipe to craft it directly through the AE/BD network",
+
   "emilink.config.network.enableDebugPacketLimit": "Debug Packet Limit",
   "emilink.config.network.enableDebugPacketLimit.tooltip": "Limit debug-related packets to 1 per tick to prevent congestion"
 }
