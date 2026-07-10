@@ -78,7 +78,7 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
         }
     }
 
-    private static Object resolveInventoryFromMenu(Player player) {
+    static Object resolveInventoryFromMenu(Player player) {
         try {
             var menu = player.containerMenu;
             Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
@@ -96,7 +96,7 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
         }
     }
 
-    private static Object resolveInventoryFromWirelessTerminal(Player player, Class<?> aeItemKeyClass) {
+    static Object resolveInventoryFromWirelessTerminal(Player player, Class<?> aeItemKeyClass) {
         try {
             ItemStack terminal = findWirelessTerminal(player);
             if (terminal == null || terminal.isEmpty()) return null;

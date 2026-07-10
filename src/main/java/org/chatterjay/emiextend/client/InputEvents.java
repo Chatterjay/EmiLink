@@ -30,6 +30,8 @@ import appeng.menu.slot.FakeSlot;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.lwjgl.glfw.GLFW;
@@ -42,6 +44,10 @@ public final class InputEvents {
 
     /** Active multi-tick crafting job (one batch per game tick to avoid freezing). */
     private static CraftingJob currentJob = null;
+
+    /** After ALL DONE: delay then collect the final goal output from the terminal output slot. */
+    private static MaterialNode pendingGoalNode = null;
+    private static int pendingCollectTicks = 0;
 
     private static class CraftingJob {
         final AbstractContainerScreen<?> screen;
@@ -311,6 +317,19 @@ public final class InputEvents {
             ModLogger.info("QuickCraft: already crafting, ignoring");
             return;
         }
+
+        // Row clear: before starting, send existing items in inventory rows 9-17 (first main-inv row) to AE.
+        if (mc.player != null) {
+            var inv = mc.player.getInventory();
+            for (int i = 9; i <= 17 && i < inv.items.size(); i++) {
+                var stack = inv.getItem(i);
+                if (!stack.isEmpty()) {
+                    PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                    inv.setItem(i, ItemStack.EMPTY);
+                }
+            }
+        }
+
         currentJob = new CraftingJob(handled, goalNode, nodes, neededAmounts);
         event.setCanceled(true);
         ModLogger.info("QuickCraft: job started with {} nodes", nodes.size());
@@ -372,10 +391,120 @@ public final class InputEvents {
         if (total > 0) ModLogger.info("QuickCraft: deposited {} intermediate items to AE at end", total);
     }
 
+    /** Tick the delayed collect counter and attempt collection when ready. */
+    private static void tickPendingCollect() {
+        if (pendingGoalNode == null || pendingCollectTicks <= 0) return;
+        pendingCollectTicks--;
+        if (pendingCollectTicks > 0) return;
+
+        var mc = Minecraft.getInstance();
+        if (mc.player == null || mc.screen == null) {
+            pendingGoalNode = null;
+            return;
+        }
+        if (!tryCollectTerminalOutput(mc)) {
+            ModLogger.info("QuickCraft: terminal output not ready, giving up");
+        }
+        pendingGoalNode = null;
+    }
+
+    /** After ALL DONE: pick up the last goal output from the CraftingTermSlot and place in backpack. */
+    private static boolean tryCollectTerminalOutput(Minecraft mc) {
+        if (!(mc.screen instanceof AbstractContainerScreen<?> cs)) return false;
+        var menu = cs.getMenu();
+        if (pendingGoalNode == null || pendingGoalNode.recipe == null) return false;
+
+        var outputs = pendingGoalNode.recipe.getOutputs();
+
+        // 1. Check cursor first — the last batch may have left the item there
+        var carried = menu.getCarried();
+        if (!carried.isEmpty() && matchesOutput(carried, outputs)) {
+            ModLogger.info("QuickCraft: found goal {} on cursor, placing in inventory", carried);
+            return placeInBackpackOrDeposit(mc, mc.player, carried);
+        }
+
+        // 2. Check CraftingTermSlot as backup
+        Slot outputSlot = null;
+        for (var slot : menu.slots) {
+            if (slot instanceof appeng.menu.slot.CraftingTermSlot) {
+                outputSlot = slot;
+                break;
+            }
+        }
+        if (outputSlot == null || outputSlot.getItem().isEmpty()) {
+            ModLogger.info("QuickCraft: no output in CraftingTermSlot");
+            return false;
+        }
+
+        if (!matchesOutput(outputSlot.getItem(), outputs)) {
+            ModLogger.info("QuickCraft: output {} doesn't match goal", outputSlot.getItem());
+            return false;
+        }
+
+        ModLogger.info("QuickCraft: collecting terminal output {} for goal", outputSlot.getItem());
+
+        // PICKUP from output slot → item goes to cursor
+        menu.clicked(outputSlot.index, 0, ClickType.PICKUP, mc.player);
+        carried = menu.getCarried();
+        if (carried.isEmpty()) {
+            ModLogger.info("QuickCraft: PICKUP from output slot produced nothing");
+            return false;
+        }
+
+        return placeInBackpackOrDeposit(mc, mc.player, carried);
+    }
+
+    /** Place carried item in the first empty backpack slot, or deposit to AE if full. */
+    private static boolean placeInBackpackOrDeposit(Minecraft mc, Player player, ItemStack stack) {
+        var menu = player.containerMenu;
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.items.size(); i++) {
+            if (inv.getItem(i).isEmpty()) {
+                for (var slot : menu.slots) {
+                    if (slot.container == inv && slot.getSlotIndex() == i) {
+                        menu.clicked(slot.index, 0, ClickType.PICKUP, mc.player);
+                        ModLogger.info("QuickCraft: placed goal {} in inventory slot {}", stack, i);
+                        // If cursor still has items, deposit to AE
+                        if (!menu.getCarried().isEmpty()) {
+                            PacketDistributor.sendToServer(new AEDepositPacket(menu.getCarried().copy(), -1));
+                            menu.setCarried(ItemStack.EMPTY);
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // No empty slot, send to AE
+        if (!menu.getCarried().isEmpty()) {
+            PacketDistributor.sendToServer(new AEDepositPacket(menu.getCarried().copy(), -1));
+            menu.setCarried(ItemStack.EMPTY);
+            ModLogger.info("QuickCraft: no empty slot, deposited goal to AE");
+        }
+        return true;
+    }
+
+    /** After each batch: if backpack has fewer than 3 empty slots, sweep intermediates to AE. */
+    private static void checkAndSweepIntermediates(Player player) {
+        if (currentJob == null) return;
+        int emptySlots = 0;
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.items.size(); i++) {
+            if (inv.getItem(i).isEmpty()) emptySlots++;
+        }
+        if (emptySlots < 3) {
+            ModLogger.info("QuickCraft: low empty slots ({}), sweeping intermediates", emptySlots);
+            depositAllIntermediates(player, currentJob);
+        }
+    }
+
     /** Process one batch per game tick to avoid freezing. */
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
-        if (currentJob == null) return;
+        if (currentJob == null) {
+            tickPendingCollect();
+            return;
+        }
 
         var mc = Minecraft.getInstance();
         if (mc.player == null) {
@@ -414,7 +543,14 @@ public final class InputEvents {
                         node.recipe.getId(), needed, node.divisor, currentJob.remainingBatches);
             }
 
-            // All nodes use INVENTORY — the AE2 terminal handles placement.
+            boolean isGoal = node == currentJob.goalNode;
+            boolean isLastBatch = currentJob.remainingBatches == 1;
+
+            // Clear intermediates BEFORE crafting so CRAFT_SHIFT's simulateAdd on the server
+            // sees free slots instead of silently skipping the craft (packets arrive in order).
+            checkAndSweepIntermediates(mc.player);
+
+            // All nodes use INVENTORY — the AE2 terminal handles placement into player inventory.
             boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
                     EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
             if (!ok) {
@@ -429,7 +565,7 @@ public final class InputEvents {
             boolean done = currentJob.remainingBatches <= 0;
 
             if (done) {
-                if (node == currentJob.goalNode) {
+                if (isGoal) {
                     ModLogger.info("QuickCraft: DONE {} (final goal)", node.recipe.getId());
                 } else {
                     ModLogger.info("QuickCraft: DONE {} (will deposit at end)", node.recipe.getId());
@@ -445,6 +581,22 @@ public final class InputEvents {
 
         ModLogger.info("QuickCraft: ALL DONE, sweeping intermediates");
         depositAllIntermediates(mc.player, currentJob);
+
+        // Diagnostic: log cursor state
+        var diagCarried = mc.player.containerMenu.getCarried();
+        ModLogger.info("QuickCraft: ALL DONE cursor={}", diagCarried);
+        if (!diagCarried.isEmpty() && currentJob.goalNode != null && currentJob.goalNode.recipe != null) {
+            var goalOutputs = currentJob.goalNode.recipe.getOutputs();
+            boolean goalMatch = matchesOutput(diagCarried, goalOutputs);
+            ModLogger.info("QuickCraft: cursor matches goal={}", goalMatch);
+            if (goalMatch) {
+                placeInBackpackOrDeposit(mc, mc.player, diagCarried);
+            }
+        }
+
+        // Schedule delayed collect for the last batch's output (AE needs a few ticks)
+        pendingGoalNode = currentJob.goalNode;
+        pendingCollectTicks = 5;
         currentJob = null;
     }
 
