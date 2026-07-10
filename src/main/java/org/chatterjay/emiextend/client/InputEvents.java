@@ -44,6 +44,8 @@ public final class InputEvents {
 
     /** Active multi-tick crafting job (one batch per game tick to avoid freezing). */
     private static CraftingJob currentJob = null;
+    /** How many goal batches the previous job successfully crafted (for reducing the next job's target). */
+    private static long lastGoalBatchesCrafted = 0;
 
     /** After ALL DONE: delay then collect the final goal output from the terminal output slot. */
     private static MaterialNode pendingGoalNode = null;
@@ -56,6 +58,7 @@ public final class InputEvents {
         final java.util.Map<MaterialNode, Long> neededAmounts;
         int nodeIndex;
         long remainingBatches;
+        long goalBatchesCrafted;
 
         CraftingJob(AbstractContainerScreen<?> screen, MaterialNode goalNode,
                     java.util.List<MaterialNode> nodes, java.util.Map<MaterialNode, Long> neededAmounts) {
@@ -65,6 +68,7 @@ public final class InputEvents {
             this.neededAmounts = neededAmounts;
             this.nodeIndex = 0;
             this.remainingBatches = 0;
+            this.goalBatchesCrafted = 0;
         }
     }
 
@@ -307,9 +311,17 @@ public final class InputEvents {
         MaterialNode goalNode = nodes.get(nodes.size() - 1);
 
         // Compute needed amounts top-down from recipe input/output ratios.
-        // Use tree.batches as the initial multiplier (set by EMI's +/- buttons in BoM UI).
         long initialBatches = Math.max(1, BoM.tree.batches);
         ModLogger.info("QuickCraft: tree.batches={}, using initialBatches={}", BoM.tree.batches, initialBatches);
+
+        // Reduce target by what the previous job already crafted
+        if (lastGoalBatchesCrafted > 0) {
+            initialBatches = Math.max(1, initialBatches - lastGoalBatchesCrafted);
+            ModLogger.info("QuickCraft: last job crafted {} goal batches, adjusted from {} to {}",
+                    lastGoalBatchesCrafted, BoM.tree.batches, initialBatches);
+        }
+
+        lastGoalBatchesCrafted = 0; // Reset for the new job
         var neededAmounts = new java.util.LinkedHashMap<MaterialNode, Long>();
         computeCraftAmounts(goalNode, initialBatches, neededAmounts);
 
@@ -332,7 +344,7 @@ public final class InputEvents {
 
         currentJob = new CraftingJob(handled, goalNode, nodes, neededAmounts);
         event.setCanceled(true);
-        ModLogger.info("QuickCraft: job started with {} nodes", nodes.size());
+        ModLogger.info("QuickCraft: job started with {} nodes, {} target batches", nodes.size(), initialBatches);
     }
 
 /** Collect all MaterialNodes that have a non-null recipe, in bottom-up (leaves-first) order. */
@@ -498,7 +510,7 @@ public final class InputEvents {
         }
     }
 
-    /** Process one batch per game tick to avoid freezing. */
+    /** Process one batch per game tick, linear through nodes. */
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
         if (currentJob == null) {
@@ -543,14 +555,10 @@ public final class InputEvents {
                         node.recipe.getId(), needed, node.divisor, currentJob.remainingBatches);
             }
 
-            boolean isGoal = node == currentJob.goalNode;
-            boolean isLastBatch = currentJob.remainingBatches == 1;
-
             // Clear intermediates BEFORE crafting so CRAFT_SHIFT's simulateAdd on the server
             // sees free slots instead of silently skipping the craft (packets arrive in order).
             checkAndSweepIntermediates(mc.player);
 
-            // All nodes use INVENTORY — the AE2 terminal handles placement into player inventory.
             boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
                     EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
             if (!ok) {
@@ -561,12 +569,20 @@ public final class InputEvents {
                 continue;
             }
 
+            // Count every successful goal batch
+            if (node == currentJob.goalNode) {
+                currentJob.goalBatchesCrafted++;
+            }
+
             currentJob.remainingBatches--;
             boolean done = currentJob.remainingBatches <= 0;
 
             if (done) {
+                boolean isGoal = node == currentJob.goalNode;
                 if (isGoal) {
-                    ModLogger.info("QuickCraft: DONE {} (final goal)", node.recipe.getId());
+                    currentJob.goalBatchesCrafted++;
+                    ModLogger.info("QuickCraft: DONE {} (final goal, total crafted={})",
+                            node.recipe.getId(), currentJob.goalBatchesCrafted);
                 } else {
                     ModLogger.info("QuickCraft: DONE {} (will deposit at end)", node.recipe.getId());
                 }
@@ -583,20 +599,22 @@ public final class InputEvents {
         depositAllIntermediates(mc.player, currentJob);
 
         // Diagnostic: log cursor state
-        var diagCarried = mc.player.containerMenu.getCarried();
-        ModLogger.info("QuickCraft: ALL DONE cursor={}", diagCarried);
-        if (!diagCarried.isEmpty() && currentJob.goalNode != null && currentJob.goalNode.recipe != null) {
+        var carried = mc.player.containerMenu.getCarried();
+        ModLogger.info("QuickCraft: ALL DONE cursor={}", carried);
+        if (!carried.isEmpty() && currentJob.goalNode != null && currentJob.goalNode.recipe != null) {
             var goalOutputs = currentJob.goalNode.recipe.getOutputs();
-            boolean goalMatch = matchesOutput(diagCarried, goalOutputs);
+            boolean goalMatch = matchesOutput(carried, goalOutputs);
             ModLogger.info("QuickCraft: cursor matches goal={}", goalMatch);
             if (goalMatch) {
-                placeInBackpackOrDeposit(mc, mc.player, diagCarried);
+                placeInBackpackOrDeposit(mc, mc.player, carried);
             }
         }
 
         // Schedule delayed collect for the last batch's output (AE needs a few ticks)
         pendingGoalNode = currentJob.goalNode;
         pendingCollectTicks = 5;
+        lastGoalBatchesCrafted = currentJob.goalBatchesCrafted;
+        ModLogger.info("QuickCraft: job ended, lastGoalBatchesCrafted={}", lastGoalBatchesCrafted);
         currentJob = null;
     }
 
