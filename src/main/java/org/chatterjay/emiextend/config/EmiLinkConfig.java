@@ -37,6 +37,8 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
     public static final ModConfigSpec.BooleanValue ENABLE_DRAG_FILL;
     public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
+    public static final ModConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
+    public static final ModConfigSpec.ConfigValue<String> DISCARD_MATCHING_KEY_COMBO;
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -138,6 +140,17 @@ public final class EmiLinkConfig {
         ENABLE_QUICK_CRAFT_TAB = BUILDER
                 .translation("emilink.config.features.enableQuickCraftTab")
                 .define("enableQuickCraftTab", true);
+
+        ENABLE_DISCARD_MATCHING_KEY = BUILDER
+                .comment("Enable the configured key combo that discards all stacks matching the hovered slot item")
+                .translation("emilink.config.features.enableDiscardMatchingKey")
+                .define("enableDiscardMatchingKey", true);
+
+        DISCARD_MATCHING_KEY_COMBO = BUILDER
+                .comment("Key combo for discarding matching hovered-slot stacks. " +
+                         "Use + separated tokens, e.g. CONTROL+SHIFT+Q, ALT+DELETE, SHIFT+F.")
+                .translation("emilink.config.features.discardMatchingKeyCombo")
+                .define("discardMatchingKeyCombo", "CONTROL+SHIFT+Q");
 
         BUILDER.pop();
         BUILDER.push("network");

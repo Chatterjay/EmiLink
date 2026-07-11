@@ -53,6 +53,10 @@
 
   "emilink.config.features.enableQuickCraftTab": "Tab 快速合成",
   "emilink.config.features.enableQuickCraftTab.tooltip": "在 EMI 展开配方界面按 Tab 键，直接通过 AE/BD 网络快速合成",
+  "emilink.config.features.enableDiscardMatchingKey": "按键丢弃同类物品",
+  "emilink.config.features.enableDiscardMatchingKey.tooltip": "启用配置组合键：鼠标悬停在槽位物品上按下组合键，丢弃同一区域中所有同类堆叠，并尊重 IPN 锁定槽位",
+  "emilink.config.features.discardMatchingKeyCombo": "丢弃同类物品组合键",
+  "emilink.config.features.discardMatchingKeyCombo.tooltip": "默认 CONTROL+SHIFT+Q。使用 + 分隔，例如 CONTROL+SHIFT+Q、ALT+DELETE、SHIFT+F",
 
   "emilink.config.network.enableDebugPacketLimit": "调试包限流",
   "emilink.config.network.enableDebugPacketLimit.tooltip": "将调试相关数据包限制为每 tick 1 个，防止网络拥塞"

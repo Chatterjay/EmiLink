@@ -53,6 +53,10 @@
 
   "emilink.config.features.enableQuickCraftTab": "Tab Quick Craft",
   "emilink.config.features.enableQuickCraftTab.tooltip": "Press Tab on an expanded EMI recipe to craft it directly through the AE/BD network",
+  "emilink.config.features.enableDiscardMatchingKey": "Keybind Discard Matching Items",
+  "emilink.config.features.enableDiscardMatchingKey.tooltip": "Enable the configured key combo: hover a slotted item, then press the combo to discard matching stacks in the same area while respecting IPN locked slots",
+  "emilink.config.features.discardMatchingKeyCombo": "Discard Matching Key Combo",
+  "emilink.config.features.discardMatchingKeyCombo.tooltip": "Default: CONTROL+SHIFT+Q. Use + separated tokens, e.g. CONTROL+SHIFT+Q, ALT+DELETE, SHIFT+F",
 
   "emilink.config.network.enableDebugPacketLimit": "Debug Packet Limit",
   "emilink.config.network.enableDebugPacketLimit.tooltip": "Limit debug-related packets to 1 per tick to prevent congestion"

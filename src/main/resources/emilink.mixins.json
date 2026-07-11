@@ -6,6 +6,8 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AbstractRecipeHandlerMixin",
+    "AbstractContainerScreenAccessor",
+    "AbstractContainerScreenMixin",
     "AEConfigMixin",
     "CraftConfirmScreenMixin",
     "CraftingCPUScreenMixin",

@@ -19,6 +19,7 @@ import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.mixin.AbstractContainerScreenAccessor;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
@@ -183,6 +184,18 @@ public class BDShortcutHandler {
 
 
 
+    /** Keyboard entry point: drop all stacks matching the hovered slot item. */
+    public static boolean tryBatchDropMatchingFromCurrentScreen() {
+        var mc = Minecraft.getInstance();
+        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
+        if (mc.screen.getFocused() instanceof EditBox) return false;
+
+        Slot slot = ((AbstractContainerScreenAccessor) containerScreen).emilink$getHoveredSlot();
+        if (slot == null || !slot.hasItem()) return false;
+
+        return batchDropByType(containerScreen, slot);
+    }
+
 
     private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,
@@ -226,9 +239,44 @@ public class BDShortcutHandler {
         return IPNProxy.getLockedSlotsInRange(start, end);
     }
 
-    private static void batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried) {
+    private static boolean batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried) {
+        return batchDropByType(screen, carried, pickupFromContainer);
+    }
+
+    /** InventoryEssentials-style hovered-slot bulk drop: same item, same inventory area. */
+    private static boolean batchDropByType(AbstractContainerScreen<?> screen, Slot hoverSlot) {
         var mc = Minecraft.getInstance();
-        if (mc.gameMode == null || mc.player == null) return;
+        if (mc.gameMode == null || mc.player == null) return false;
+        if (!hoverSlot.hasItem()) return false;
+
+        var menu = screen.getMenu();
+        var targetStack = hoverSlot.getItem().copy();
+        var locked = IPNProxy.getLockedSlots();
+        int containerId = menu.containerId;
+
+        List<Integer> slots = new ArrayList<>();
+        for (Slot slot : menu.slots) {
+            if (!slot.hasItem()) continue;
+            if (!canPlayerAccessSlot(slot)) continue;
+            if (!isSameInventory(slot, hoverSlot)) continue;
+            if (!ItemStack.isSameItemSameComponents(slot.getItem(), targetStack)) continue;
+            if (slot.container instanceof Inventory) {
+                int idx = slot.getContainerSlot();
+                if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
+            }
+            slots.add(slot.index);
+        }
+        if (slots.isEmpty()) return false;
+
+        for (int slotIndex : slots) {
+            click(menu, containerId, slotIndex, 1, net.minecraft.world.inventory.ClickType.THROW);
+        }
+        return true;
+    }
+
+    private static boolean batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried, Boolean sourceFromContainer) {
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return false;
         var menu = screen.getMenu();
         var locked = IPNProxy.getLockedSlots();
         int containerId = menu.containerId;
@@ -240,9 +288,9 @@ public class BDShortcutHandler {
             if (!slot.hasItem()) continue;
             if (!ItemStack.isSameItemSameComponents(slot.getItem(), carried)) continue;
             // Respect pickup source: container pickup → skip player slots; player pickup → skip container slots
-            if (pickupFromContainer != null) {
-                if (pickupFromContainer && slot.container instanceof Inventory) continue;
-                if (!pickupFromContainer && !(slot.container instanceof Inventory)) continue;
+            if (sourceFromContainer != null) {
+                if (sourceFromContainer && slot.container instanceof Inventory) continue;
+                if (!sourceFromContainer && !(slot.container instanceof Inventory)) continue;
             }
             if (slot.container instanceof Inventory) {
                 int idx = slot.getSlotIndex();
@@ -250,13 +298,14 @@ public class BDShortcutHandler {
             }
             slots.add(i);
         }
-        if (slots.isEmpty()) return;
+        if (slots.isEmpty()) return false;
 
         // Clear cursor first (IE pattern), then throw each matching stack
         click(menu, containerId, -999, 0, net.minecraft.world.inventory.ClickType.PICKUP);
         for (int slotIndex : slots) {
             click(menu, containerId, slotIndex, 1, net.minecraft.world.inventory.ClickType.THROW);
         }
+        return true;
     }
 
     /** IE-style slotClick wrapper: validates slot index and delegates to handleInventoryMouseClick. */

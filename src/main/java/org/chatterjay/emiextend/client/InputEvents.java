@@ -134,9 +134,99 @@ public final class InputEvents {
             return;
         }
 
+        if (EmiLinkConfig.ENABLE_DISCARD_MATCHING_KEY.get()
+                && matchesDiscardMatchingKeyCombo(keyCode)) {
+            tryHandleDiscardMatchingKey(keyCode);
+            event.setCanceled(true);
+            return;
+        }
+
         if (keyCode == GLFW.GLFW_KEY_P && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()) {
             onQuickCraftTabKey(event);
         }
+    }
+
+    private record KeyCombo(int keyCode, boolean control, boolean shift, boolean alt) {}
+
+    public static boolean tryHandleDiscardMatchingKey(int keyCode) {
+        if (!EmiLinkConfig.ENABLE_DISCARD_MATCHING_KEY.get()) return false;
+        if (!matchesDiscardMatchingKeyCombo(keyCode)) return false;
+
+        BDShortcutHandler.tryBatchDropMatchingFromCurrentScreen();
+        return true;
+    }
+
+    private static boolean matchesDiscardMatchingKeyCombo(int keyCode) {
+        var combo = parseKeyCombo(EmiLinkConfig.DISCARD_MATCHING_KEY_COMBO.get());
+        if (combo == null) {
+            combo = parseKeyCombo("CONTROL+SHIFT+Q");
+        }
+        return combo != null
+                && keyCode == combo.keyCode()
+                && Screen.hasControlDown() == combo.control()
+                && Screen.hasShiftDown() == combo.shift()
+                && Screen.hasAltDown() == combo.alt();
+    }
+
+    @javax.annotation.Nullable
+    private static KeyCombo parseKeyCombo(String value) {
+        if (value == null || value.isBlank()) return null;
+
+        boolean control = false;
+        boolean shift = false;
+        boolean alt = false;
+        int keyCode = -1;
+
+        for (String rawToken : value.toUpperCase(java.util.Locale.ROOT).split("\\+")) {
+            String token = rawToken.trim().replace("-", "_");
+            if (token.isEmpty()) continue;
+
+            switch (token) {
+                case "CTRL", "CONTROL" -> control = true;
+                case "SHIFT" -> shift = true;
+                case "ALT" -> alt = true;
+                default -> {
+                    int parsedKey = parseKeyToken(token);
+                    if (parsedKey < 0 || keyCode >= 0) return null;
+                    keyCode = parsedKey;
+                }
+            }
+        }
+
+        if (keyCode < 0) return null;
+        return new KeyCombo(keyCode, control, shift, alt);
+    }
+
+    private static int parseKeyToken(String token) {
+        if (token.length() == 1) {
+            char c = token.charAt(0);
+            if (c >= 'A' && c <= 'Z') return GLFW.GLFW_KEY_A + (c - 'A');
+            if (c >= '0' && c <= '9') return GLFW.GLFW_KEY_0 + (c - '0');
+        }
+        if (token.startsWith("F")) {
+            try {
+                int fn = Integer.parseInt(token.substring(1));
+                if (fn >= 1 && fn <= 25) return GLFW.GLFW_KEY_F1 + (fn - 1);
+            } catch (NumberFormatException ignored) {}
+        }
+        return switch (token) {
+            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
+            case "TAB" -> GLFW.GLFW_KEY_TAB;
+            case "ENTER", "RETURN" -> GLFW.GLFW_KEY_ENTER;
+            case "ESC", "ESCAPE" -> GLFW.GLFW_KEY_ESCAPE;
+            case "BACKSPACE" -> GLFW.GLFW_KEY_BACKSPACE;
+            case "DELETE", "DEL" -> GLFW.GLFW_KEY_DELETE;
+            case "INSERT", "INS" -> GLFW.GLFW_KEY_INSERT;
+            case "HOME" -> GLFW.GLFW_KEY_HOME;
+            case "END" -> GLFW.GLFW_KEY_END;
+            case "PAGE_UP", "PAGEUP" -> GLFW.GLFW_KEY_PAGE_UP;
+            case "PAGE_DOWN", "PAGEDOWN" -> GLFW.GLFW_KEY_PAGE_DOWN;
+            case "LEFT" -> GLFW.GLFW_KEY_LEFT;
+            case "RIGHT" -> GLFW.GLFW_KEY_RIGHT;
+            case "UP" -> GLFW.GLFW_KEY_UP;
+            case "DOWN" -> GLFW.GLFW_KEY_DOWN;
+            default -> -1;
+        };
     }
 
     private static void onFillSearchKey(ScreenEvent.KeyPressed.Pre event) {
