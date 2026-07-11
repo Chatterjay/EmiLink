@@ -30,6 +30,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public class BDShortcutHandler {
@@ -328,7 +329,9 @@ public class BDShortcutHandler {
         var menu = screen.getMenu();
         int containerId = menu.containerId;
         var locked = IPNProxy.getLockedSlots();
+        boolean containerToPlayerWithLocks = !(clickedSlot.container instanceof Inventory) && !locked.isEmpty();
 
+        List<Integer> sourceSlots = new ArrayList<>();
         for (Slot slot : menu.slots) {
             if (!slot.hasItem()) continue;
             if (!canPlayerAccessSlot(slot)) continue;
@@ -339,9 +342,74 @@ public class BDShortcutHandler {
                     int idx = slot.getContainerSlot();
                     if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
                 }
+                sourceSlots.add(slot.index);
+            }
+        }
+
+        for (int slotIndex : sourceSlots) {
+            Slot slot = menu.getSlot(slotIndex);
+            if (!slot.hasItem()) continue;
+
+            if (containerToPlayerWithLocks) {
+                safeTransferContainerSlotToUnlockedPlayerSlots(menu, containerId, slot, locked);
+            } else {
                 click(menu, containerId, slot.index, 0, net.minecraft.world.inventory.ClickType.QUICK_MOVE);
             }
         }
+    }
+
+    /**
+     * Transfer a container stack into player inventory without ever targeting IPN-locked slots.
+     * Vanilla QUICK_MOVE cannot express forbidden target slots, so locked target slots may otherwise
+     * consume transfer capacity and leave exactly that many source stacks behind.
+     */
+    private static void safeTransferContainerSlotToUnlockedPlayerSlots(AbstractContainerMenu menu, int containerId,
+                                                                       Slot sourceSlot, Set<Integer> locked) {
+        if (sourceSlot.container instanceof Inventory || !sourceSlot.hasItem()) return;
+        if (!menu.getCarried().isEmpty()) return;
+
+        click(menu, containerId, sourceSlot.index, 0, net.minecraft.world.inventory.ClickType.PICKUP);
+        ItemStack carried = menu.getCarried();
+        if (carried.isEmpty()) return;
+
+        // Fill existing unlocked stacks first.
+        for (Slot targetSlot : menu.slots) {
+            carried = menu.getCarried();
+            if (carried.isEmpty()) break;
+            if (!isUnlockedPlayerInventorySlot(targetSlot, locked)) continue;
+            if (!targetSlot.hasItem()) continue;
+            ItemStack targetStack = targetSlot.getItem();
+            if (!ItemStack.isSameItemSameComponents(targetStack, carried)) continue;
+            if (targetStack.getCount() >= getSlotStackLimit(targetSlot, targetStack)) continue;
+            click(menu, containerId, targetSlot.index, 0, net.minecraft.world.inventory.ClickType.PICKUP);
+        }
+
+        // Then place into unlocked empty slots.
+        for (Slot targetSlot : menu.slots) {
+            carried = menu.getCarried();
+            if (carried.isEmpty()) break;
+            if (!isUnlockedPlayerInventorySlot(targetSlot, locked)) continue;
+            if (targetSlot.hasItem()) continue;
+            if (!targetSlot.mayPlace(carried)) continue;
+            click(menu, containerId, targetSlot.index, 0, net.minecraft.world.inventory.ClickType.PICKUP);
+        }
+
+        carried = menu.getCarried();
+        if (!carried.isEmpty()) {
+            // Could not fully transfer; put the remainder back where it came from.
+            click(menu, containerId, sourceSlot.index, 0, net.minecraft.world.inventory.ClickType.PICKUP);
+        }
+    }
+
+    private static boolean isUnlockedPlayerInventorySlot(Slot slot, Set<Integer> locked) {
+        if (!(slot.container instanceof Inventory)) return false;
+        if (!canPlayerAccessSlot(slot)) return false;
+        int idx = slot.getContainerSlot();
+        return idx >= 0 && idx < 36 && !locked.contains(idx);
+    }
+
+    private static int getSlotStackLimit(Slot slot, ItemStack stack) {
+        return Math.min(slot.getMaxStackSize(), slot.getMaxStackSize(stack));
     }
 
     /** Check if a slot is a valid player-interaction target (skip armor/offhand). */
