@@ -38,6 +38,9 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+        org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
+                "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+
         // Drag-fill: when dragging an EMI item, fill text fields with item name
         if (draggedStack != null && !draggedStack.isEmpty()
                 && org.chatterjay.emiextend.config.EmiLinkConfig.ENABLE_DRAG_FILL.get()) {

@@ -1,17 +1,25 @@
 package org.chatterjay.emiextend.client.handler;
 
+import appeng.menu.me.items.CraftingTermMenu;
+import appeng.integration.modules.itemlists.CraftingHelper;
 import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.recipe.EmiRecipe;
+import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
+import dev.emi.emi.registry.EmiRecipeFiller;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
@@ -155,6 +163,10 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
+        if (button == 0 && Screen.hasControlDown() && tryCtrlLeftQuickCraft(mouseX, mouseY)) {
+            return true;
+        }
+
         // Deposit: cursor has item → deposit into AE (only when EMI won't delete it)
         if (button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
             var mc = Minecraft.getInstance();
@@ -196,6 +208,95 @@ public final class EmiInteractionHandler {
         }
 
         return false;
+    }
+
+    private static boolean tryCtrlLeftQuickCraft(double mouseX, double mouseY) {
+        var handled = EmiApi.getHandledScreen();
+        if (handled == null) {
+            var mc = Minecraft.getInstance();
+            if (mc.screen instanceof AbstractContainerScreen<?> containerScreen) {
+                handled = containerScreen;
+            }
+        }
+        if (handled == null || !(handled.getMenu() instanceof CraftingTermMenu)) {
+            return false;
+        }
+
+        var hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
+        if (hovered == null || hovered.isEmpty()) {
+            return false;
+        }
+
+        EmiRecipe recipe = getRecipeForHovered(hovered);
+        if (recipe == null) {
+            return false;
+        }
+
+        boolean filled = EmiRecipeFiller.performFill(
+                recipe,
+                handled,
+                EmiCraftContext.Type.CRAFTABLE,
+                EmiCraftContext.Destination.INVENTORY,
+                1);
+        org.chatterjay.emiextend.util.ModLogger.info(
+                "AE_EMI_CTRL_CRAFT direct-fill recipe={} result={} handled={} menu={}",
+                recipe.getId(),
+                filled,
+                handled.getClass().getName(),
+                handled.getMenu().getClass().getName());
+        if (filled) {
+            return true;
+        }
+
+        return tryAeCraftingTransferFallback(recipe, (CraftingTermMenu) handled.getMenu());
+    }
+
+    private static EmiRecipe getRecipeForHovered(EmiStackInteraction hovered) {
+        EmiRecipe recipe = hovered.getRecipeContext();
+        if (recipe == null) {
+            recipe = EmiApi.getRecipeContext(hovered.getStack());
+        }
+        if (recipe != null) {
+            return recipe;
+        }
+
+        var ingredient = hovered.getStack();
+        if (ingredient == null || ingredient.isEmpty()) {
+            return null;
+        }
+        var stacks = ingredient.getEmiStacks();
+        if (stacks.isEmpty()) {
+            return null;
+        }
+        var recipes = EmiApi.getRecipeManager().getRecipesByOutput(stacks.getFirst());
+        return recipes == null || recipes.isEmpty() ? null : recipes.getFirst();
+    }
+
+    private static boolean tryAeCraftingTransferFallback(EmiRecipe emiRecipe, CraftingTermMenu menu) {
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) {
+            return false;
+        }
+
+        RecipeHolder<?> holder = emiRecipe.getBackingRecipe();
+        if (holder == null && emiRecipe.getId() != null) {
+            holder = mc.level.getRecipeManager().byKey(emiRecipe.getId()).orElse(null);
+        }
+        if (holder == null || !(holder.value() instanceof CraftingRecipe)) {
+            org.chatterjay.emiextend.util.ModLogger.info(
+                    "AE_EMI_CTRL_CRAFT direct-fill-fallback skip recipe={} reason=not_crafting_recipe holder={}",
+                    emiRecipe.getId(),
+                    holder == null ? "null" : holder.value().getClass().getName());
+            return false;
+        }
+
+        CraftingHelper.performTransfer(menu, holder.id(), holder.value(), true);
+        org.chatterjay.emiextend.util.ModLogger.info(
+                "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} holder={} menu={}",
+                emiRecipe.getId(),
+                holder.id(),
+                menu.getClass().getName());
+        return true;
     }
 
     public static boolean matchesExtractModifier() {

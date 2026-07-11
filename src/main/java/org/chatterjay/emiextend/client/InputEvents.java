@@ -8,8 +8,10 @@ import dev.emi.emi.bom.MaterialNode;
 import dev.emi.emi.registry.EmiRecipeFiller;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -144,6 +146,102 @@ public final class InputEvents {
         if (keyCode == GLFW.GLFW_KEY_P && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()) {
             onQuickCraftTabKey(event);
         }
+    }
+
+    @SubscribeEvent
+    public static void onMouseButtonPressedPre(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !Screen.hasControlDown()) return;
+
+        var mouse = getCurrentGuiMousePosition();
+        logAeCtrlLeftClick("screen-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton());
+    }
+
+    public static void logAeCtrlLeftClick(String phase, Screen screen, double mouseX, double mouseY, int button) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT || !Screen.hasControlDown()) return;
+
+        try {
+            var mc = Minecraft.getInstance();
+            var handled = EmiApi.getHandledScreen();
+            var hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
+            var recipe = hovered == null ? null : hovered.getRecipeContext();
+            var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
+
+            String slotInfo = "none";
+            String carriedInfo = "none";
+            String menuInfo = "none";
+            if (screen instanceof AbstractContainerScreen<?> cs) {
+                var slot = cs.getSlotUnderMouse();
+                if (slot != null) {
+                    slotInfo = "index=" + slot.index
+                            + ",containerSlot=" + slot.getContainerSlot()
+                            + ",container=" + safeClassName(slot.container)
+                            + ",hasItem=" + slot.hasItem()
+                            + ",item=" + formatItemStack(slot.getItem());
+                }
+                carriedInfo = formatItemStack(cs.getMenu().getCarried());
+                menuInfo = safeClassName(cs.getMenu()) + "#" + cs.getMenu().containerId;
+            }
+
+            GuiEventListener focused = screen == null ? null : screen.getFocused();
+            ModLogger.info(
+                    "AE_EMI_CTRL_CRAFT mouse-click phase={} button={} ctrl={} shift={} alt={} xy=({}, {}) screen={} handled={} focus={} menu={} slot={} carried={} emiHovered={} emiRecipe={} emiSpace={}",
+                    phase,
+                    button,
+                    Screen.hasControlDown(),
+                    Screen.hasShiftDown(),
+                    Screen.hasAltDown(),
+                    (int) mouseX,
+                    (int) mouseY,
+                    safeClassName(screen),
+                    safeClassName(handled),
+                    safeClassName(focused),
+                    menuInfo,
+                    slotInfo,
+                    carriedInfo,
+                    formatHoveredStack(hovered),
+                    recipe == null ? "none" : recipe.getId(),
+                    safeClassName(space));
+        } catch (Throwable t) {
+            ModLogger.warn("AE_EMI_CTRL_CRAFT mouse-click-log-error phase={} error={}: {}",
+                    phase, t.getClass().getName(), t.getMessage());
+        }
+    }
+
+    private record GuiMousePosition(double x, double y) {}
+
+    private static GuiMousePosition getCurrentGuiMousePosition() {
+        var mc = Minecraft.getInstance();
+        var window = mc.getWindow();
+        double x = mc.mouseHandler.xpos() * window.getGuiScaledWidth() / window.getScreenWidth();
+        double y = mc.mouseHandler.ypos() * window.getGuiScaledHeight() / window.getScreenHeight();
+        return new GuiMousePosition(x, y);
+    }
+
+    private static String formatHoveredStack(dev.emi.emi.api.stack.EmiStackInteraction hovered) {
+        if (hovered == null || hovered.isEmpty()) return "none";
+        var ingredient = hovered.getStack();
+        if (ingredient == null || ingredient.isEmpty()) return "empty";
+        var stacks = ingredient.getEmiStacks();
+        if (stacks.isEmpty()) return "empty-stacks";
+        var first = stacks.getFirst();
+        var itemStack = first.getItemStack();
+        return "id=" + first.getId()
+                + ",name=" + first.getName().getString()
+                + ",item=" + formatItemStack(itemStack);
+    }
+
+    private static String formatItemStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return "empty";
+        return stack.getCount()
+                + "x"
+                + BuiltInRegistries.ITEM.getKey(stack.getItem())
+                + "("
+                + stack.getDisplayName().getString()
+                + ")";
+    }
+
+    private static String safeClassName(Object value) {
+        return value == null ? "none" : value.getClass().getName();
     }
 
     private record KeyCombo(int keyCode, boolean control, boolean shift, boolean alt) {}

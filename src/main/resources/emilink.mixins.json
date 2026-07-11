@@ -23,9 +23,11 @@
   ],
   "mixins": [
     "AEBaseMenuMixin",
+    "CraftingTermMenuMixin",
     "CraftingTermSlotInvoker",
     "CraftingTermSlotMixin",
-    "EncodingHelperMixin"
+    "EncodingHelperMixin",
+    "FillCraftingGridFromRecipePacketMixin"
   ],
   "injectors": {
     "defaultRequire": 1
