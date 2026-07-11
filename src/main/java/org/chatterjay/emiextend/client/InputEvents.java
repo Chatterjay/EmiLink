@@ -10,7 +10,6 @@ import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -30,8 +29,6 @@ import appeng.menu.slot.FakeSlot;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.inventory.Slot;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.lwjgl.glfw.GLFW;
@@ -44,12 +41,19 @@ public final class InputEvents {
 
     /** Active multi-tick crafting job (one batch per game tick to avoid freezing). */
     private static CraftingJob currentJob = null;
-    /** How many goal batches the previous job successfully crafted (for reducing the next job's target). */
-    private static long lastGoalBatchesCrafted = 0;
 
-    /** After ALL DONE: delay then collect the final goal output from the terminal output slot. */
-    private static MaterialNode pendingGoalNode = null;
-    private static int pendingCollectTicks = 0;
+    /** Tracks successfully crafted batches per recipe ID across job restarts. */
+    private static final java.util.Map<String, Long> completedBatches = new java.util.HashMap<>();
+    private static String lastGoalRecipeId = null;
+    private static long lastBoMBatches = -1;
+
+    /** Preflight: batch-query AE cache for all node outputs before starting the job. */
+    private static java.util.List<MaterialNode> preflightNodes;
+    private static MaterialNode preflightGoalNode;
+    private static java.util.Map<MaterialNode, Long> preflightNeededAmounts;
+    private static AbstractContainerScreen<?> preflightScreen;
+    private static long preflightStartTime;
+    private static final long PREFLIGHT_TIMEOUT_MS = 3000;
 
     private static class CraftingJob {
         final AbstractContainerScreen<?> screen;
@@ -58,7 +62,9 @@ public final class InputEvents {
         final java.util.Map<MaterialNode, Long> neededAmounts;
         int nodeIndex;
         long remainingBatches;
-        long goalBatchesCrafted;
+        long nodeSucceeded;
+        long nodeFailed;
+        int consecutiveFails;
 
         CraftingJob(AbstractContainerScreen<?> screen, MaterialNode goalNode,
                     java.util.List<MaterialNode> nodes, java.util.Map<MaterialNode, Long> neededAmounts) {
@@ -68,7 +74,9 @@ public final class InputEvents {
             this.neededAmounts = neededAmounts;
             this.nodeIndex = 0;
             this.remainingBatches = 0;
-            this.goalBatchesCrafted = 0;
+            this.nodeSucceeded = 0;
+            this.nodeFailed = 0;
+            this.consecutiveFails = 0;
         }
     }
 
@@ -286,14 +294,14 @@ public final class InputEvents {
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
             event.setCanceled(true);
-            ModLogger.debug("QuickCraft: no handled screen");
+            ModLogger.info("QuickCraft: no handled screen (P ignored)");
             return;
         }
         ModLogger.info("QuickCraft: handled={}", handled.getClass().getName());
 
         if (BoM.tree == null || BoM.tree.goal == null) {
             event.setCanceled(true);
-            ModLogger.debug("QuickCraft: no BoM tree");
+            ModLogger.info("QuickCraft: no BoM tree (P ignored)");
             return;
         }
 
@@ -314,20 +322,78 @@ public final class InputEvents {
         long initialBatches = Math.max(1, BoM.tree.batches);
         ModLogger.info("QuickCraft: tree.batches={}, using initialBatches={}", BoM.tree.batches, initialBatches);
 
-        // Reduce target by what the previous job already crafted
-        if (lastGoalBatchesCrafted > 0) {
-            initialBatches = Math.max(1, initialBatches - lastGoalBatchesCrafted);
-            ModLogger.info("QuickCraft: last job crafted {} goal batches, adjusted from {} to {}",
-                    lastGoalBatchesCrafted, BoM.tree.batches, initialBatches);
-        }
-
-        lastGoalBatchesCrafted = 0; // Reset for the new job
         var neededAmounts = new java.util.LinkedHashMap<MaterialNode, Long>();
         computeCraftAmounts(goalNode, initialBatches, neededAmounts);
 
-        if (currentJob != null) {
-            ModLogger.info("QuickCraft: already crafting, ignoring");
+        // Detect BoM tree goal change or batch count change → reset completedBatches
+        String goalId = goalNode.recipe != null && goalNode.recipe.getId() != null
+                ? goalNode.recipe.getId().toString() : null;
+        boolean goalChanged = goalId != null && !goalId.equals(lastGoalRecipeId);
+        boolean batchesChanged = BoM.tree.batches != lastBoMBatches;
+        if (goalChanged || batchesChanged) {
+            ModLogger.info("QuickCraft: resetting completedBatches (goalChanged={}, batchesChanged={}, oldBatches={}, newBatches={})",
+                    goalChanged, batchesChanged, lastBoMBatches, BoM.tree.batches);
+            completedBatches.clear();
+            lastGoalRecipeId = goalId;
+            lastBoMBatches = BoM.tree.batches;
+        }
+
+        // Sweep intermediate items to AE before computing need adjustments.
+        // Otherwise items stuck in inventory from an interrupted job would be
+        // counted as "available" and cause intermediates to be skipped while
+        // AE still needs them for subsequent crafting.
+        if (mc.player != null) {
+            var inv = mc.player.getInventory();
+            var allOutputs = new java.util.ArrayList<dev.emi.emi.api.stack.EmiStack>();
+            for (var node : nodes) {
+                if (node == goalNode || node.recipe == null) continue;
+                allOutputs.addAll(node.recipe.getOutputs());
+            }
+            if (!allOutputs.isEmpty()) {
+                int total = 0;
+                for (int i = 0; i < inv.items.size(); i++) {
+                    var stack = inv.getItem(i);
+                    if (stack.isEmpty()) continue;
+                    if (matchesOutput(stack, allOutputs)) {
+                        PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                        inv.setItem(i, ItemStack.EMPTY);
+                        total += stack.getCount();
+                    }
+                }
+                if (total > 0) ModLogger.info("QuickCraft: swept {} intermediate items to AE at start", total);
+            }
+        }
+
+        if (currentJob != null || preflightNodes != null) {
+            ModLogger.info("QuickCraft: already {} (P ignored)",
+                    currentJob != null ? "crafting" : "in preflight");
             return;
+        }
+
+        // Preflight: log inventory and AE network cache for all needed items
+        if (mc.player != null) {
+            logInventorySnapshot(mc.player, "preflight");
+        }
+        var preflightItems = new java.util.LinkedHashSet<ItemStack>();
+        for (var node : nodes) {
+            if (node.recipe == null) continue;
+            for (var input : node.recipe.getInputs()) {
+                if (input == null || input.isEmpty()) continue;
+                for (var es : input.getEmiStacks()) {
+                    var s = es.getItemStack();
+                    if (!s.isEmpty()) preflightItems.add(s.copyWithCount(1));
+                }
+            }
+        }
+        if (!preflightItems.isEmpty()) {
+            var sb = new StringBuilder("QuickCraft: PREFLIGHT AE cache for inputs:");
+            for (var stack : preflightItems) {
+                var cached = org.chatterjay.emiextend.client.AENetworkCache.getCachedResult(stack);
+                sb.append(" [").append(stack.getDisplayName().getString()).append(" stored=");
+                sb.append(cached.count()).append(" craftable=").append(cached.craftable());
+                sb.append(" cached=").append(cached.found()).append("]");
+            }
+            ModLogger.info(sb.toString());
         }
 
         // Row clear: before starting, send existing items in inventory rows 9-17 (first main-inv row) to AE.
@@ -342,9 +408,31 @@ public final class InputEvents {
             }
         }
 
-        currentJob = new CraftingJob(handled, goalNode, nodes, neededAmounts);
+        // Preflight: submit batch queries for all node outputs so AE cache
+        // has data before we start processing any node.
+        int queried = 0;
+        for (var node : nodes) {
+            if (node.recipe == null) continue;
+            for (var output : node.recipe.getOutputs()) {
+                var stack = output.getItemStack();
+                if (stack.isEmpty()) continue;
+                AENetworkCache.submitForBatch(stack.copyWithCount(1));
+                queried++;
+            }
+        }
+        if (queried > 0) {
+            AENetworkCache.flushBatchNow();
+            ModLogger.info("QuickCraft: preflight query sent for {} outputs", queried);
+        }
+
+        preflightNodes = nodes;
+        preflightGoalNode = goalNode;
+        preflightNeededAmounts = neededAmounts;
+        preflightScreen = handled;
+        preflightStartTime = System.currentTimeMillis();
         event.setCanceled(true);
-        ModLogger.info("QuickCraft: job started with {} nodes, {} target batches", nodes.size(), initialBatches);
+        ModLogger.info("QuickCraft: preflight started ({} nodes, {} target batches), waiting for AE cache...",
+                nodes.size(), initialBatches);
     }
 
 /** Collect all MaterialNodes that have a non-null recipe, in bottom-up (leaves-first) order. */
@@ -403,98 +491,6 @@ public final class InputEvents {
         if (total > 0) ModLogger.info("QuickCraft: deposited {} intermediate items to AE at end", total);
     }
 
-    /** Tick the delayed collect counter and attempt collection when ready. */
-    private static void tickPendingCollect() {
-        if (pendingGoalNode == null || pendingCollectTicks <= 0) return;
-        pendingCollectTicks--;
-        if (pendingCollectTicks > 0) return;
-
-        var mc = Minecraft.getInstance();
-        if (mc.player == null || mc.screen == null) {
-            pendingGoalNode = null;
-            return;
-        }
-        if (!tryCollectTerminalOutput(mc)) {
-            ModLogger.info("QuickCraft: terminal output not ready, giving up");
-        }
-        pendingGoalNode = null;
-    }
-
-    /** After ALL DONE: pick up the last goal output from the CraftingTermSlot and place in backpack. */
-    private static boolean tryCollectTerminalOutput(Minecraft mc) {
-        if (!(mc.screen instanceof AbstractContainerScreen<?> cs)) return false;
-        var menu = cs.getMenu();
-        if (pendingGoalNode == null || pendingGoalNode.recipe == null) return false;
-
-        var outputs = pendingGoalNode.recipe.getOutputs();
-
-        // 1. Check cursor first — the last batch may have left the item there
-        var carried = menu.getCarried();
-        if (!carried.isEmpty() && matchesOutput(carried, outputs)) {
-            ModLogger.info("QuickCraft: found goal {} on cursor, placing in inventory", carried);
-            return placeInBackpackOrDeposit(mc, mc.player, carried);
-        }
-
-        // 2. Check CraftingTermSlot as backup
-        Slot outputSlot = null;
-        for (var slot : menu.slots) {
-            if (slot instanceof appeng.menu.slot.CraftingTermSlot) {
-                outputSlot = slot;
-                break;
-            }
-        }
-        if (outputSlot == null || outputSlot.getItem().isEmpty()) {
-            ModLogger.info("QuickCraft: no output in CraftingTermSlot");
-            return false;
-        }
-
-        if (!matchesOutput(outputSlot.getItem(), outputs)) {
-            ModLogger.info("QuickCraft: output {} doesn't match goal", outputSlot.getItem());
-            return false;
-        }
-
-        ModLogger.info("QuickCraft: collecting terminal output {} for goal", outputSlot.getItem());
-
-        // PICKUP from output slot → item goes to cursor
-        menu.clicked(outputSlot.index, 0, ClickType.PICKUP, mc.player);
-        carried = menu.getCarried();
-        if (carried.isEmpty()) {
-            ModLogger.info("QuickCraft: PICKUP from output slot produced nothing");
-            return false;
-        }
-
-        return placeInBackpackOrDeposit(mc, mc.player, carried);
-    }
-
-    /** Place carried item in the first empty backpack slot, or deposit to AE if full. */
-    private static boolean placeInBackpackOrDeposit(Minecraft mc, Player player, ItemStack stack) {
-        var menu = player.containerMenu;
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.items.size(); i++) {
-            if (inv.getItem(i).isEmpty()) {
-                for (var slot : menu.slots) {
-                    if (slot.container == inv && slot.getSlotIndex() == i) {
-                        menu.clicked(slot.index, 0, ClickType.PICKUP, mc.player);
-                        ModLogger.info("QuickCraft: placed goal {} in inventory slot {}", stack, i);
-                        // If cursor still has items, deposit to AE
-                        if (!menu.getCarried().isEmpty()) {
-                            PacketDistributor.sendToServer(new AEDepositPacket(menu.getCarried().copy(), -1));
-                            menu.setCarried(ItemStack.EMPTY);
-                        }
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // No empty slot, send to AE
-        if (!menu.getCarried().isEmpty()) {
-            PacketDistributor.sendToServer(new AEDepositPacket(menu.getCarried().copy(), -1));
-            menu.setCarried(ItemStack.EMPTY);
-            ModLogger.info("QuickCraft: no empty slot, deposited goal to AE");
-        }
-        return true;
-    }
 
     /** After each batch: if backpack has fewer than 3 empty slots, sweep intermediates to AE. */
     private static void checkAndSweepIntermediates(Player player) {
@@ -513,10 +509,32 @@ public final class InputEvents {
     /** Process one batch per game tick, linear through nodes. */
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
-        if (currentJob == null) {
-            tickPendingCollect();
-            return;
+        // Handle preflight: wait for AE cache queries to return before creating job
+        if (preflightNodes != null) {
+            long elapsed = System.currentTimeMillis() - preflightStartTime;
+            boolean allCached = allNodeOutputsCached(preflightNodes);
+            boolean timedOut = elapsed > PREFLIGHT_TIMEOUT_MS;
+
+            if (!allCached && !timedOut) {
+                return; // Still waiting for cache
+            }
+
+            int cachedCount = countCachedOutputs(preflightNodes);
+            int totalOutputs = countTotalOutputs(preflightNodes);
+            ModLogger.info("QuickCraft: preflight complete (cached={}/{}, elapsed={}ms{})",
+                    cachedCount, totalOutputs, elapsed, timedOut ? ", TIMEOUT" : "");
+
+            currentJob = new CraftingJob(preflightScreen, preflightGoalNode,
+                    preflightNodes, preflightNeededAmounts);
+            preflightNodes = null;
+            preflightGoalNode = null;
+            preflightNeededAmounts = null;
+            preflightScreen = null;
+            ModLogger.info("QuickCraft: job started with {} nodes", currentJob.nodes.size());
+            // Fall through to process first batch in this tick
         }
+
+        if (currentJob == null) return;
 
         var mc = Minecraft.getInstance();
         if (mc.player == null) {
@@ -549,74 +567,177 @@ public final class InputEvents {
             // Initialize/replenish remaining batches for this node
             if (currentJob.remainingBatches <= 0) {
                 long needed = currentJob.neededAmounts.getOrDefault(node, (long) node.divisor);
-                currentJob.remainingBatches = (needed + node.divisor - 1) / node.divisor;
+                long alreadyDone = completedBatches.getOrDefault(node.recipe.getId().toString(), 0L);
+                long alreadyDoneItems = alreadyDone * node.divisor;
+
+                // Also check AE network cache for pre-existing items (covers
+                // intermediates deposited to AE in previous jobs, and items
+                // that were in AE before the BoM tree was opened).
+                long aeCount = 0;
+                for (var output : node.recipe.getOutputs()) {
+                    var stack = output.getItemStack();
+                    if (stack.isEmpty()) continue;
+                    var cached = AENetworkCache.getCachedResult(stack);
+                    if (cached.found() && cached.count() > 0) {
+                        aeCount = Math.max(aeCount, cached.count());
+                    }
+                }
+
+                long alreadyAvailable = Math.max(alreadyDoneItems, aeCount);
+                long adjustedNeed = needed - alreadyAvailable;
+                if (adjustedNeed <= 0) {
+                    ModLogger.info("QuickCraft: SKIP {} (need={}, completedBatches={}, aeCache={})",
+                            node.recipe.getId(), needed, alreadyDone, aeCount);
+                    currentJob.nodeIndex++;
+                    continue;
+                }
+                currentJob.remainingBatches = (adjustedNeed + node.divisor - 1) / node.divisor;
                 if (currentJob.remainingBatches > 100000) currentJob.remainingBatches = 100000;
-                ModLogger.info("QuickCraft: START {} need={} div={} totalBatches={}",
-                        node.recipe.getId(), needed, node.divisor, currentJob.remainingBatches);
+                currentJob.nodeSucceeded = 0;
+                currentJob.nodeFailed = 0;
+                currentJob.consecutiveFails = 0;
+                ModLogger.info("QuickCraft: START {} need={} alreadyDoneBatches={} aeCache={} adjusted={} batches={}",
+                        node.recipe.getId(), needed, alreadyDone, aeCount, adjustedNeed, currentJob.remainingBatches);
+                logInventorySnapshot(mc.player, "node-start");
+                logAENetworkForNode(node);
             }
 
-            // Clear intermediates BEFORE crafting so CRAFT_SHIFT's simulateAdd on the server
-            // sees free slots instead of silently skipping the craft (packets arrive in order).
-            checkAndSweepIntermediates(mc.player);
-
-            boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
-                    EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
-            if (!ok) {
-                ModLogger.info("QuickCraft: FAIL {} at batch {} (skip)",
-                        node.recipe.getId(), currentJob.remainingBatches);
+            if (currentJob.remainingBatches <= 0) {
+                ModLogger.info("QuickCraft: SKIP {} (need=0)", node.recipe.getId());
                 currentJob.nodeIndex++;
-                currentJob.remainingBatches = 0;
                 continue;
             }
 
-            // Count every successful goal batch
-            if (node == currentJob.goalNode) {
-                currentJob.goalBatchesCrafted++;
+            checkAndSweepIntermediates(mc.player);
+
+            // All nodes use INVENTORY — goes through CraftingTermSlotMixin
+            // which reliably puts items into PlayerInternalInventory.
+            boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
+                    EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
+
+            if (ok) {
+                currentJob.remainingBatches--;
+                currentJob.nodeSucceeded++;
+                currentJob.consecutiveFails = 0;
+            } else {
+                currentJob.nodeFailed++;
+                currentJob.consecutiveFails++;
             }
 
-            currentJob.remainingBatches--;
-            boolean done = currentJob.remainingBatches <= 0;
+            ModLogger.info("QuickCraft: PERFORM {} -> {} (ok={}, fail={}, left={}/{})",
+                    node.recipe.getId(), ok,
+                    currentJob.nodeSucceeded, currentJob.nodeFailed,
+                    currentJob.remainingBatches,
+                    currentJob.nodeSucceeded + currentJob.nodeFailed + currentJob.remainingBatches);
 
-            if (done) {
-                boolean isGoal = node == currentJob.goalNode;
-                if (isGoal) {
-                    currentJob.goalBatchesCrafted++;
-                    ModLogger.info("QuickCraft: DONE {} (final goal, total crafted={})",
-                            node.recipe.getId(), currentJob.goalBatchesCrafted);
-                } else {
-                    ModLogger.info("QuickCraft: DONE {} (will deposit at end)", node.recipe.getId());
-                }
+            // After 3 consecutive failures, assume materials exhausted; skip node
+            if (currentJob.consecutiveFails >= 3) {
+                ModLogger.info("QuickCraft: FAIL_LIMIT {} after {} ok + {} fail, skipping {} remaining batches",
+                        node.recipe.getId(), currentJob.nodeSucceeded, currentJob.nodeFailed, currentJob.remainingBatches);
+                currentJob.remainingBatches = 0;
+            }
+
+            if (currentJob.remainingBatches <= 0) {
+                logNodeSummary(mc.player, node);
+                completedBatches.merge(node.recipe.getId().toString(), currentJob.nodeSucceeded, Long::sum);
+                ModLogger.info("QuickCraft: saved {} batches for {} (total={})",
+                        currentJob.nodeSucceeded, node.recipe.getId(),
+                        completedBatches.get(node.recipe.getId().toString()));
                 currentJob.nodeIndex++;
             }
-
-            ModLogger.info("QuickCraft: BATCH {} {} ({} remaining)",
-                    node.recipe.getId(), ok ? "OK" : "FAIL", currentJob.remainingBatches);
 
             return; // One batch per tick
         }
 
-        ModLogger.info("QuickCraft: ALL DONE, sweeping intermediates");
+        // ALL DONE — sweep intermediates to AE (goal is excluded from sweep)
+        ModLogger.info("QuickCraft: ALL DONE ({} nodes), sweeping intermediates",
+                currentJob.nodes.size());
+        logInventorySnapshot(mc.player, "all-done");
         depositAllIntermediates(mc.player, currentJob);
+        logInventorySnapshot(mc.player, "after-sweep");
+        completedBatches.clear();
+        lastGoalRecipeId = null;
+        lastBoMBatches = -1;
+        currentJob = null;
+    }
 
-        // Diagnostic: log cursor state
-        var carried = mc.player.containerMenu.getCarried();
-        ModLogger.info("QuickCraft: ALL DONE cursor={}", carried);
-        if (!carried.isEmpty() && currentJob.goalNode != null && currentJob.goalNode.recipe != null) {
-            var goalOutputs = currentJob.goalNode.recipe.getOutputs();
-            boolean goalMatch = matchesOutput(carried, goalOutputs);
-            ModLogger.info("QuickCraft: cursor matches goal={}", goalMatch);
-            if (goalMatch) {
-                placeInBackpackOrDeposit(mc, mc.player, carried);
+    /** Log a compact snapshot of the player's inventory (item names + counts). */
+    private static void logInventorySnapshot(Player player, String tag) {
+        var sb = new StringBuilder();
+        var inv = player.getInventory();
+        int total = 0;
+        for (int i = 0; i < inv.items.size(); i++) {
+            var stack = inv.getItem(i);
+            if (stack.isEmpty()) continue;
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append(stack.getDisplayName().getString()).append(" x").append(stack.getCount());
+            total += stack.getCount();
+        }
+        var carried = player.containerMenu.getCarried();
+        if (!carried.isEmpty()) {
+            sb.append("  [cursor: ").append(carried.getDisplayName().getString()).append(" x").append(carried.getCount()).append("]");
+            total += carried.getCount();
+        }
+        ModLogger.info("QuickCraft: INV[{}] {} items, {} slots used: {}", tag, total, inv.items.size() - countEmptySlots(player), sb.toString());
+    }
+
+    private static int countEmptySlots(Player player) {
+        int empty = 0;
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.items.size(); i++) {
+            if (inv.getItem(i).isEmpty()) empty++;
+        }
+        return empty;
+    }
+
+    /** Log what the AE network cache says about this node's inputs and outputs. */
+    private static void logAENetworkForNode(MaterialNode node) {
+        if (node.recipe == null) return;
+        var recipe = node.recipe;
+
+        // Log cached counts for recipe outputs
+        for (var output : recipe.getOutputs()) {
+            var stack = output.getItemStack();
+            if (stack.isEmpty()) continue;
+            var cached = org.chatterjay.emiextend.client.AENetworkCache.getCachedResult(stack);
+            if (cached.found()) {
+                ModLogger.info("QuickCraft: AE output {} stored={} craftable={}",
+                        stack.getDisplayName().getString(), cached.count(), cached.craftable());
             }
         }
 
-        // Schedule delayed collect for the last batch's output (AE needs a few ticks)
-        pendingGoalNode = currentJob.goalNode;
-        pendingCollectTicks = 5;
-        lastGoalBatchesCrafted = currentJob.goalBatchesCrafted;
-        ModLogger.info("QuickCraft: job ended, lastGoalBatchesCrafted={}", lastGoalBatchesCrafted);
-        currentJob = null;
+        // Log cached counts for recipe inputs
+        for (var input : recipe.getInputs()) {
+            if (input == null || input.isEmpty()) continue;
+            for (var es : input.getEmiStacks()) {
+                var stack = es.getItemStack();
+                if (stack.isEmpty()) continue;
+                var cached = org.chatterjay.emiextend.client.AENetworkCache.getCachedResult(stack);
+                if (cached.found()) {
+                    ModLogger.info("QuickCraft: AE input {} stored={} craftable={}",
+                            stack.getDisplayName().getString(), cached.count(), cached.craftable());
+                }
+                break; // One representative per input slot
+            }
+        }
     }
+
+    /** Log summary after a node completes: crafted/failed batches, output in AE cache. */
+    private static void logNodeSummary(Player player, MaterialNode node) {
+        if (node.recipe == null) return;
+        ModLogger.info("QuickCraft: DONE_NODE {} ok={} fail={}",
+                node.recipe.getId(), currentJob.nodeSucceeded, currentJob.nodeFailed);
+
+        // AE cache check for node output
+        for (var output : node.recipe.getOutputs()) {
+            var stack = output.getItemStack();
+            if (stack.isEmpty()) continue;
+            var cached = org.chatterjay.emiextend.client.AENetworkCache.getCachedResult(stack);
+            ModLogger.info("QuickCraft:   AE after: {} stored={} craftable={} (cached={})",
+                    stack.getDisplayName().getString(), cached.count(), cached.craftable(), cached.found());
+        }
+    }
+
 
     /** Draw deposit hint tooltip when cursor has an item over the EMI sidebar. */
     @SubscribeEvent
@@ -692,6 +813,44 @@ public final class InputEvents {
             }
         }
         return false;
+    }
+
+    /** Check if AE cache has data for every output of every node. */
+    private static boolean allNodeOutputsCached(java.util.List<MaterialNode> nodes) {
+        for (var node : nodes) {
+            if (node.recipe == null) continue;
+            for (var output : node.recipe.getOutputs()) {
+                var stack = output.getItemStack();
+                if (stack.isEmpty()) continue;
+                if (!AENetworkCache.getCachedResult(stack).found()) return false;
+            }
+        }
+        return true;
+    }
+
+    private static int countCachedOutputs(java.util.List<MaterialNode> nodes) {
+        int count = 0;
+        for (var node : nodes) {
+            if (node.recipe == null) continue;
+            for (var output : node.recipe.getOutputs()) {
+                var stack = output.getItemStack();
+                if (stack.isEmpty()) continue;
+                if (AENetworkCache.getCachedResult(stack).found()) count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countTotalOutputs(java.util.List<MaterialNode> nodes) {
+        int count = 0;
+        for (var node : nodes) {
+            if (node.recipe == null) continue;
+            for (var output : node.recipe.getOutputs()) {
+                var stack = output.getItemStack();
+                if (!stack.isEmpty()) count++;
+            }
+        }
+        return count;
     }
 
     @javax.annotation.Nullable
