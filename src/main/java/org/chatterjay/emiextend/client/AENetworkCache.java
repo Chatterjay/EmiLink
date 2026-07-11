@@ -350,6 +350,16 @@ public final class AENetworkCache {
         cacheDirty = true;
     }
 
+    /** Remove cache entries so the next getCachedResult returns not-found. */
+    public static void invalidateEntries(java.util.Collection<ItemStack> stacks) {
+        for (var stack : stacks) {
+            if (stack == null || stack.isEmpty()) continue;
+            current.cache.entrySet().removeIf(entry ->
+                    ItemStack.isSameItemSameComponents(entry.getKey(), stack));
+        }
+        cacheDirty = true;
+    }
+
     public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
         if (stack == null || stack.isEmpty()) return;
         var cached = findCached(stack);
@@ -381,6 +391,20 @@ public final class AENetworkCache {
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
         var cached = findCached(stack);
         if (cached != null) {
+            return new CachedResult(cached.count(), cached.craftable(), true);
+        }
+        return new CachedResult(0, false, false);
+    }
+
+    /**
+     * Returns cached AE network info only if it was received at or after the
+     * given timestamp. This is used by quick-craft preflight so stale hover/disk
+     * cache entries cannot satisfy a forced refresh.
+     */
+    public static CachedResult getCachedResultSince(ItemStack stack, long minTimestamp) {
+        if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
+        var cached = findCached(stack);
+        if (cached != null && cached.timestamp() >= minTimestamp) {
             return new CachedResult(cached.count(), cached.craftable(), true);
         }
         return new CachedResult(0, false, false);
