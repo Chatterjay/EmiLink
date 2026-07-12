@@ -4,11 +4,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.recipe.EmiPlayerInventory;
+import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.serializer.EmiIngredientSerializer;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import org.chatterjay.emiextend.client.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.BomTreePageHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,6 +28,42 @@ public abstract class EmiFavoritesMixin {
 
     @Shadow
     public static List<EmiFavorite> favorites;
+
+    @Inject(method = "addFavorite(Ldev/emi/emi/api/stack/EmiIngredient;)V", at = @At("HEAD"), cancellable = true)
+    private static void emilink$addBookmarkToActivePage(EmiIngredient stack, CallbackInfo ci) {
+        int pageSize = BookmarkPageHelper.getLastPageSize();
+        if (pageSize > 0 && stack instanceof EmiFavorite favorite
+                && !(favorite instanceof EmiFavorite.Craftable)
+                && !(favorite instanceof EmiFavorite.Synthetic)
+                && BookmarkPageHelper.removeFavoriteAsGap(favorite, pageSize)) {
+            ci.cancel();
+        } else if (pageSize > 0 && BookmarkPageHelper.addOrMoveFavoriteToPage(stack, null, BomTreePageHelper.getActiveFavoritePage(), pageSize)) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "addFavorite(Ldev/emi/emi/api/stack/EmiIngredient;Ldev/emi/emi/api/recipe/EmiRecipe;)V", at = @At("HEAD"), cancellable = true)
+    private static void emilink$addBookmarkWithRecipeToActivePage(EmiIngredient stack, EmiRecipe context, CallbackInfo ci) {
+        int pageSize = BookmarkPageHelper.getLastPageSize();
+        if (pageSize > 0 && stack instanceof EmiFavorite favorite
+                && !(favorite instanceof EmiFavorite.Craftable)
+                && !(favorite instanceof EmiFavorite.Synthetic)
+                && BookmarkPageHelper.removeFavoriteAsGap(favorite, pageSize)) {
+            ci.cancel();
+        } else if (pageSize > 0 && BookmarkPageHelper.addOrMoveFavoriteToPage(stack, context, BomTreePageHelper.getActiveFavoritePage(), pageSize)) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "updateSynthetic", at = @At("HEAD"))
+    private static void emilink$useActiveBookmarkPageTree(EmiPlayerInventory inv, CallbackInfo ci) {
+        BomTreePageHelper.applyActiveToBoM();
+    }
+
+    @Inject(method = "updateSynthetic", at = @At("RETURN"))
+    private static void emilink$storeActiveBookmarkPageTreeMode(EmiPlayerInventory inv, CallbackInfo ci) {
+        BomTreePageHelper.syncActiveModeFromBoM();
+    }
 
     @Inject(method = "removeFavorite", at = @At("HEAD"), cancellable = true)
     private static void emilink$removeBookmarkAsGap(EmiIngredient stack, CallbackInfoReturnable<Boolean> cir) {

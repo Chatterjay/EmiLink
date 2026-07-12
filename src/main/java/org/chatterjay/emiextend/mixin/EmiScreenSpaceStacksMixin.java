@@ -4,6 +4,8 @@ import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.config.SidebarType;
 import dev.emi.emi.runtime.EmiFavorites;
+import org.chatterjay.emiextend.client.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.BomTreePageHelper;
 import org.chatterjay.emiextend.client.MobSeparator;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -34,24 +36,41 @@ public abstract class EmiScreenSpaceStacksMixin {
             } else if (type == SidebarType.FAVORITES && tw > 0) {
                 var syn = EmiFavorites.syntheticFavorites;
                 if (syn != null && !syn.isEmpty()) {
-                    var orig = cir.getReturnValue();
-                    if (orig != null && orig.size() > syn.size()) {
-                        // Build: [normal favorites] + [padding] + [synthetic favorites]
-                        int normalCount = orig.size() - syn.size();
-                        List<EmiIngredient> result = new ArrayList<>(normalCount + tw + syn.size());
-                        // Normal favorites come first
-                        for (int i = 0; i < normalCount; i++) {
-                            result.add(orig.get(i));
+                    List<? extends EmiIngredient> favorites = EmiFavorites.favorites;
+                    if (favorites != null) {
+                        int pageSize = BookmarkPageHelper.getLastPageSize();
+                        if (pageSize <= 0) {
+                            var orig = cir.getReturnValue();
+                            pageSize = Math.max(0, orig == null ? 0 : orig.size() - syn.size());
                         }
-                        // Pad to fill the current row
-                        int remainder = normalCount % tw;
-                        if (remainder > 0) {
-                            for (int i = 0; i < tw - remainder; i++) {
+                        int page = BomTreePageHelper.getActiveFavoritePage();
+                        int pageStart = Math.max(0, page * pageSize);
+                        int pageEnd = pageSize <= 0 ? favorites.size() : Math.min(pageStart + pageSize, favorites.size());
+                        int pageItems = 0;
+                        for (int i = pageStart; i < pageEnd; i++) {
+                            EmiIngredient ingredient = favorites.get(i);
+                            if (!(ingredient instanceof dev.emi.emi.runtime.EmiFavorite fav)
+                                    || !BookmarkPageHelper.isEmptyPlaceholder(fav)) {
+                                pageItems++;
+                            }
+                        }
+
+                        int insertAt = pageStart + pageItems;
+                        List<EmiIngredient> result = new ArrayList<>(Math.max(favorites.size(), insertAt) + tw + syn.size());
+                        for (int i = 0; i < Math.max(favorites.size(), insertAt); i++) {
+                            if (i < favorites.size()) {
+                                result.add(favorites.get(i));
+                            } else {
                                 result.add(EmiStack.EMPTY);
                             }
                         }
-                        // Synthetic favorites start on a new row
-                        result.addAll(syn);
+
+                        int remainder = pageItems % tw;
+                        int padding = remainder > 0 ? tw - remainder : 0;
+                        for (int i = 0; i < padding; i++) {
+                            result.add(insertAt++, EmiStack.EMPTY);
+                        }
+                        result.addAll(insertAt, syn);
                         cir.setReturnValue(result);
                     }
                 }

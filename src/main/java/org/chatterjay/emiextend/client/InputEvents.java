@@ -527,6 +527,7 @@ public final class InputEvents {
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
     private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event) {
         long runId = ++quickCraftRunSeq;
+        BomTreePageHelper.applyActiveToBoM();
         var mc = Minecraft.getInstance();
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {

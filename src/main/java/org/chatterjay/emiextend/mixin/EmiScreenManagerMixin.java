@@ -138,15 +138,11 @@ public class EmiScreenManagerMixin {
         var space = panel.getHoveredSpace(mx, my);
         if (space == null || space.getType() != SidebarType.FAVORITES || space.pageSize <= 0) return false;
 
-        int localIndex = space.getClosestEdge(mx, my);
         BookmarkPageHelper.compactAllPages(space.pageSize);
-        localIndex = BookmarkPageHelper.compactLocalInsertIndex(panel.page, space.pageSize, localIndex);
 
         int pageStart = panel.page * space.pageSize;
-        int offset = pageStart + localIndex;
         BookmarkPageHelper.ensureSize(pageStart);
-        EmiFavorites.addFavoriteAt(draggedStack, offset);
-        BookmarkPageHelper.compactAllPages(space.pageSize);
+        BookmarkPageHelper.addOrMoveFavoriteToPage(draggedStack, null, panel.page, space.pageSize);
         space.batcher.repopulate();
         return true;
     }

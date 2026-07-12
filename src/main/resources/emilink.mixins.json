@@ -15,6 +15,7 @@
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
     "EmiPlayerInventoryMixin",
+    "BoMMixin",
     "BoMScreenMixin",
     "CraftConfirmMenuMixin",
     "EmiFavoritesMixin",

@@ -1,12 +1,16 @@
 package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.config.SidebarType;
+import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import org.chatterjay.emiextend.client.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.BomTreePageHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
 
@@ -16,7 +20,17 @@ public abstract class EmiSidebarPanelMixin {
     public ScreenSpace space;
 
     @Shadow
+    public int page;
+
+    @Shadow
     public abstract SidebarType getType();
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void emilink$activateBookmarkPageTree(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        if (getType() == SidebarType.FAVORITES && space != null && space.pageSize > 0) {
+            BomTreePageHelper.activateFavoritePage(page, space.pageSize);
+        }
+    }
 
     @Redirect(method = "render",
             at = @At(value = "INVOKE", target = "Ljava/util/List;size()I"),
@@ -50,6 +64,7 @@ public abstract class EmiSidebarPanelMixin {
         int size = stacks.size();
         if (getType() == SidebarType.FAVORITES && space != null && space.pageSize > 0) {
             BookmarkPageHelper.rememberPageSize(space.pageSize);
+            BomTreePageHelper.activateFavoritePage(page, space.pageSize);
             return Math.max(size, space.pageSize * BookmarkPageHelper.MIN_FAVORITE_PAGES);
         }
         return size;
