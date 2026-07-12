@@ -23,6 +23,7 @@ import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
+import org.chatterjay.emiextend.network.packet.c2s.BDDepositSlotPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
@@ -122,6 +123,11 @@ public class EmiAE2 {
                 BDActionPacket.TYPE,
                 BDActionPacket.STREAM_CODEC,
                 BDActionPacket::handle
+        );
+        registrar.playToServer(
+                BDDepositSlotPacket.TYPE,
+                BDDepositSlotPacket.STREAM_CODEC,
+                BDDepositSlotPacket::handle
         );
         registrar.playToServer(
                 TransferMatchingPacket.TYPE,

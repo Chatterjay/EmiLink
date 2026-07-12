@@ -19,7 +19,10 @@ public class MixinConditionalPlugin implements IMixinConfigPlugin {
         // Skip mixins targeting optional mod classes when the mod is not loaded.
         // Check classpath resource instead of Class.forName to avoid loading the class,
         // which would prevent Mixin from transforming it (MixinTargetAlreadyLoadedException)
-        if (targetClassName.startsWith("appeng.") || targetClassName.startsWith("net.blay09.mods.inventoryessentials.") || targetClassName.startsWith("com.hollingsworth.arsnouveau.")) {
+        if (targetClassName.startsWith("appeng.")
+                || targetClassName.startsWith("net.blay09.mods.inventoryessentials.")
+                || targetClassName.startsWith("com.hollingsworth.arsnouveau.")
+                || targetClassName.startsWith("com.wintercogs.beyonddimensions.")) {
             String resource = targetClassName.replace('.', '/') + ".class";
             return getClass().getClassLoader().getResource(resource) != null;
         }

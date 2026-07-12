@@ -14,6 +14,8 @@
     "EmiEncodePatternHandlerMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
+    "EmiPlayerInventoryMixin",
+    "BoMScreenMixin",
     "CraftConfirmMenuMixin",
     "EmiScreenSpaceMixin",
     "MEStorageScreenAccessor",
@@ -26,6 +28,7 @@
     "CraftingTermMenuMixin",
     "CraftingTermSlotInvoker",
     "CraftingTermSlotMixin",
+    "DimensionsCraftMenuMixin",
     "EncodingHelperMixin",
     "FillCraftingGridFromRecipePacketMixin"
   ],
