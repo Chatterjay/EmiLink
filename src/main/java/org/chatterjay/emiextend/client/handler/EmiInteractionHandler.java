@@ -25,7 +25,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.chatterjay.emiextend.client.BomTreePageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
@@ -257,7 +257,7 @@ public final class EmiInteractionHandler {
                 EmiCraftContext.Type.CRAFTABLE,
                 EmiCraftContext.Destination.INVENTORY,
                 1);
-        org.chatterjay.emiextend.util.ModLogger.info(
+        org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT direct-fill recipe={} result={} handled={} menu={}",
                 recipe.getId(),
                 filled,
@@ -277,7 +277,7 @@ public final class EmiInteractionHandler {
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || cached.count() <= 0) return false;
         PacketDistributor.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1));
-        org.chatterjay.emiextend.util.ModLogger.info(
+        org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover extract item={} stored={} craftable={}",
                 stack.getHoverName().getString(), cached.count(), cached.craftable());
         return true;
@@ -290,7 +290,7 @@ public final class EmiInteractionHandler {
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || !cached.craftable()) return false;
         PacketDistributor.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1));
-        org.chatterjay.emiextend.util.ModLogger.info(
+        org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover autocraft item={} amount=1",
                 stack.getHoverName().getString());
         return true;
@@ -363,7 +363,7 @@ public final class EmiInteractionHandler {
             holder = mc.level.getRecipeManager().byKey(emiRecipe.getId()).orElse(null);
         }
         if (holder == null || !(holder.value() instanceof CraftingRecipe)) {
-            org.chatterjay.emiextend.util.ModLogger.info(
+            org.chatterjay.emiextend.util.ModLogger.debug(
                     "AE_EMI_CTRL_CRAFT direct-fill-fallback skip recipe={} reason=not_crafting_recipe holder={}",
                     emiRecipe.getId(),
                     holder == null ? "null" : holder.value().getClass().getName());
@@ -371,7 +371,7 @@ public final class EmiInteractionHandler {
         }
 
         CraftingHelper.performTransfer(menu, holder.id(), holder.value(), true);
-        org.chatterjay.emiextend.util.ModLogger.info(
+        org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} holder={} menu={}",
                 emiRecipe.getId(),
                 holder.id(),

@@ -49,7 +49,7 @@ public class AbstractRecipeHandlerMixin {
         boolean shift = Screen.hasShiftDown();
         boolean alt = Screen.hasAltDown();
 
-        ModLogger.info("AE_EMI_CTRL_CRAFT enter recipe={} category={} result={} type={} dest={} amount={} returned={} ctrl={} quickCraftAeAutocraft={} shift={} alt={} screen={} handler={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT enter recipe={} category={} result={} type={} dest={} amount={} returned={} ctrl={} quickCraftAeAutocraft={} shift={} alt={} screen={} handler={}",
                 recipe.getId(),
                 recipe.getCategory() == null ? "null" : recipe.getCategory().getId(),
                 describeOutputs(recipe),
@@ -65,34 +65,34 @@ public class AbstractRecipeHandlerMixin {
                 context.getScreenHandler() == null ? "null" : context.getScreenHandler().getClass().getName());
 
         if (!cir.getReturnValueZ()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT stop reason=emi_handler_returned_false recipe={} inputs={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT stop reason=emi_handler_returned_false recipe={} inputs={}",
                     recipe.getId(), describeInputsWithCache(recipe));
             return;
         }
 
         EmiCraftContext.Destination dest = context.getDestination();
         if (dest == EmiCraftContext.Destination.NONE) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT stop reason=destination_none recipe={}", recipe.getId());
+            ModLogger.debug("AE_EMI_CTRL_CRAFT stop reason=destination_none recipe={}", recipe.getId());
             return;
         }
 
         T menu = context.getScreenHandler();
         if (!(menu instanceof CraftingTermMenu ctm)) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT stop reason=not_crafting_terminal recipe={} menu={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT stop reason=not_crafting_terminal recipe={} menu={}",
                     recipe.getId(), menu == null ? "null" : menu.getClass().getName());
             return;
         }
 
         var outputSlots = ctm.getSlots(SlotSemantics.CRAFTING_RESULT);
         if (outputSlots.isEmpty()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT stop reason=no_output_slot recipe={}", recipe.getId());
+            ModLogger.debug("AE_EMI_CTRL_CRAFT stop reason=no_output_slot recipe={}", recipe.getId());
             return;
         }
         int slotIndex = outputSlots.get(0).index;
 
         CraftableMissingCheck missingCheck = checkCraftableMissingInputs(recipe, ctm);
         if (missingCheck.anyMissing() || missingCheck.anyCraftable()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT missing-check recipe={} ingredients={} missing={} craftable={} anyMissing={} anyCraftable={} inputs={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT missing-check recipe={} ingredients={} missing={} craftable={} anyMissing={} anyCraftable={} inputs={}",
                     recipe.getId(),
                     missingCheck.ingredients(),
                     missingCheck.missingSlots(),
@@ -106,7 +106,7 @@ public class AbstractRecipeHandlerMixin {
 
         CraftableShortageCheck shortageCheck = checkCraftableShortageInputs(recipe);
         if (shortageCheck.anyShortage() || shortageCheck.anyCraftableShortage()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT shortage-check recipe={} anyShortage={} anyCraftableShortage={} detail={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT shortage-check recipe={} anyShortage={} anyCraftableShortage={} detail={}",
                     recipe.getId(),
                     shortageCheck.anyShortage(),
                     shortageCheck.anyCraftableShortage(),
@@ -118,7 +118,7 @@ public class AbstractRecipeHandlerMixin {
         if (dest == EmiCraftContext.Destination.INVENTORY
                 && allowAeAutocraft
                 && missingCheck.anyCraftable()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_missing_autocraft recipe={} craftableSlots={} missingSlots={} trigger={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_missing_autocraft recipe={} craftableSlots={} missingSlots={} trigger={}",
                     recipe.getId(), missingCheck.craftableSlots(), missingCheck.missingSlots(),
                     quickCraftAeAutocraft ? "QUICK" : "CTRL");
             sendMissingAutocraftTransferOrFallback(recipe, context, ctm, slotIndex);
@@ -131,7 +131,7 @@ public class AbstractRecipeHandlerMixin {
         if (dest == EmiCraftContext.Destination.INVENTORY
                 && allowAeAutocraft
                 && shortageCheck.anyCraftableShortage()) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_shortage_autocraft recipe={} shortage={} trigger={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_shortage_autocraft recipe={} shortage={} trigger={}",
                     recipe.getId(), shortageCheck.detail(), quickCraftAeAutocraft ? "QUICK" : "CTRL");
             sendMissingAutocraftTransferOrFallback(recipe, context, ctm, slotIndex);
             if (quickCraftAeAutocraft) {
@@ -145,7 +145,7 @@ public class AbstractRecipeHandlerMixin {
             BulkAutocraftRequest bulkRequest = computeFirstMissingAutocraftRequest(recipe,
                     EmiCraftHelper.getAeAutocraftRequestedAmount(), ctm);
             if (bulkRequest.amount() > 0 && !bulkRequest.stack().isEmpty()) {
-                ModLogger.info("AE_EMI_CTRL_CRAFT decision=direct_bulk_autocraft recipe={} item={} amount={} batches={}",
+                ModLogger.debug("AE_EMI_CTRL_CRAFT decision=direct_bulk_autocraft recipe={} item={} amount={} batches={}",
                         recipe.getId(),
                         bulkRequest.stack().getDisplayName().getString(),
                         bulkRequest.amount(),
@@ -165,7 +165,7 @@ public class AbstractRecipeHandlerMixin {
                         context.getScreen(), ctm, recipe.getId());
                 return;
             }
-            ModLogger.info("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
                     action, slotIndex, recipe.getId());
             PacketDistributor.sendToServer(new InventoryActionPacket(action, slotIndex, 0));
         } else if (dest == EmiCraftContext.Destination.INVENTORY) {
@@ -174,11 +174,11 @@ public class AbstractRecipeHandlerMixin {
                         ctm.containerId, context.getScreen(), ctm, recipe.getId());
                 return;
             }
-            ModLogger.info("AE_EMI_CTRL_CRAFT send action={} slot={} id=SINGLE_CRAFT_SIGNAL recipe={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=SINGLE_CRAFT_SIGNAL recipe={}",
                     InventoryAction.CRAFT_SHIFT, slotIndex, recipe.getId());
             PacketDistributor.sendToServer(new InventoryActionPacket(InventoryAction.CRAFT_SHIFT, slotIndex, SINGLE_CRAFT_SIGNAL));
         } else {
-            ModLogger.info("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
                     InventoryAction.CRAFT_ITEM, slotIndex, recipe.getId());
             PacketDistributor.sendToServer(new InventoryActionPacket(InventoryAction.CRAFT_ITEM, slotIndex, 0));
         }
@@ -207,17 +207,17 @@ public class AbstractRecipeHandlerMixin {
                         EmiCraftHelper.getAeAutocraftRequestedAmount(), ctm);
                 if (overrideAmount.amount() > 0) {
                     PacketDistributor.sendToServer(new AEAutocraftAmountOverridePacket(overrideAmount.amount()));
-                    ModLogger.info("AE_EMI_CTRL_CRAFT missing-autocraft amount-override send recipe={} amount={} batches={}",
+                    ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft amount-override send recipe={} amount={} batches={}",
                             recipe.getId(), overrideAmount.amount(), EmiCraftHelper.getAeAutocraftRequestedAmount());
                 }
             }
             CraftingHelper.performTransfer(ctm, holder.id(), craftingRecipe, true);
-            ModLogger.info("AE_EMI_CTRL_CRAFT missing-autocraft-transfer sent recipe={} holder={} craftMissing=true",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer sent recipe={} holder={} craftMissing=true",
                     recipe.getId(), holder.id());
             return;
         }
 
-        ModLogger.info("AE_EMI_CTRL_CRAFT missing-autocraft-transfer fallback-delayed-click recipe={} holder={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer fallback-delayed-click recipe={} holder={}",
                 recipe.getId(), holder == null ? "null" : holder.value().getClass().getName());
         if (context.getAmount() > 1) {
             AEQuickCraftDelayHandler.schedule(InventoryAction.CRAFT_ALL, slotIndex, 0,
@@ -278,7 +278,7 @@ public class AbstractRecipeHandlerMixin {
             long playerAvailable = countPlayerInventoryForAutocraft(menu, need.stack());
             long available = cachedStored + playerAvailable;
             long missing = Math.max(0, need.needed() - available);
-            ModLogger.info("AE_EMI_CTRL_CRAFT bulk-autocraft-candidate item={} needed={} aeStored={} playerAvailable={} available={} missing={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT bulk-autocraft-candidate item={} needed={} aeStored={} playerAvailable={} available={} missing={}",
                     need.stack().getDisplayName().getString(), need.needed(), cachedStored,
                     playerAvailable, available, missing);
             if (missing > 0) {

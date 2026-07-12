@@ -1,7 +1,7 @@
 package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.registry.EmiStackList;
-import org.chatterjay.emiextend.client.MobSeparator;
+import org.chatterjay.emiextend.client.bookmark.MobSeparator;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

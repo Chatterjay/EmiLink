@@ -2,9 +2,9 @@ package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.config.SidebarType;
-import org.chatterjay.emiextend.client.BookmarkPageHelper;
-import org.chatterjay.emiextend.client.BomTreePageHelper;
-import org.chatterjay.emiextend.client.MobSeparator;
+import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
+import org.chatterjay.emiextend.client.bookmark.MobSeparator;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;

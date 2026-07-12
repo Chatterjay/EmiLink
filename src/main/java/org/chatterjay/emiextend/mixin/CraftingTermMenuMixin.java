@@ -16,7 +16,7 @@ import java.util.StringJoiner;
 public class CraftingTermMenuMixin {
     @Inject(method = "startAutoCrafting", at = @At("HEAD"), remap = false)
     private void emilink$logStartAutoCrafting(List<ICraftingGridMenu.AutoCraftEntry> toCraft, CallbackInfo ci) {
-        ModLogger.info("AE_EMI_CTRL_CRAFT start-autocrafting entries={} detail={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT start-autocrafting entries={} detail={}",
                 toCraft == null ? 0 : toCraft.size(),
                 emilink$describeAutoCraftEntries(toCraft));
     }

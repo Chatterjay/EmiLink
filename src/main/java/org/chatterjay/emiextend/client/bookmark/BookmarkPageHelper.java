@@ -1,4 +1,4 @@
-package org.chatterjay.emiextend.client;
+package org.chatterjay.emiextend.client.bookmark;
 
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.stack.EmiIngredient;
@@ -136,7 +136,7 @@ public final class BookmarkPageHelper {
             if (pollutedSparsePages) {
                 EmiFavorites.favorites.clear();
                 EmiFavorites.favorites.addAll(real);
-                ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder pollution total={} real={} empty={} pageSize={} pages={} configuredPages={} lastRealPage={}",
+                ModLogger.debug("BOOKMARK_PAGE recovered sparse placeholder pollution total={} real={} empty={} pageSize={} pages={} configuredPages={} lastRealPage={}",
                         total, realCount, emptyCount, pageSize, pages, configuredPages, lastRealPage);
                 return true;
             }
@@ -145,7 +145,7 @@ public final class BookmarkPageHelper {
         if (pageSize <= 0 && total > 1024 && realCount > 0 && emptyCount > realCount * 8) {
             EmiFavorites.favorites.clear();
             EmiFavorites.favorites.addAll(real);
-            ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder pollution before page size total={} real={} empty={}",
+            ModLogger.debug("BOOKMARK_PAGE recovered sparse placeholder pollution before page size total={} real={} empty={}",
                     total, realCount, emptyCount);
             return true;
         }
@@ -165,7 +165,7 @@ public final class BookmarkPageHelper {
 
         EmiFavorites.favorites.clear();
         EmiFavorites.favorites.addAll(real);
-        ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder explosion total={} real={} empty={} pageSize={}",
+        ModLogger.debug("BOOKMARK_PAGE recovered sparse placeholder explosion total={} real={} empty={} pageSize={}",
                 total, realCount, emptyCount, pageSize);
         return true;
     }

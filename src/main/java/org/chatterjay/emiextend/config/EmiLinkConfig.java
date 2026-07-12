@@ -231,6 +231,6 @@ public final class EmiLinkConfig {
     public static void onReload() {
         validated = false;
         validate();
-        ModLogger.info("Configuration reloaded");
+        ModLogger.debug("Configuration reloaded");
     }
 }

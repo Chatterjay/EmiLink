@@ -17,7 +17,7 @@ public final class AeAutocraftAmountOverride {
             return;
         }
         NEXT_AMOUNTS.put(player.getUUID(), amount);
-        ModLogger.info("AE_EMI_CTRL_CRAFT amount-override set player={} amount={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT amount-override set player={} amount={}",
                 player.getGameProfile().getName(), amount);
     }
 
@@ -29,7 +29,7 @@ public final class AeAutocraftAmountOverride {
         if (amount == null || amount <= 0) {
             return fallback;
         }
-        ModLogger.info("AE_EMI_CTRL_CRAFT amount-override consume player={} original={} override={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT amount-override consume player={} original={} override={}",
                 player.getGameProfile().getName(), fallback, amount);
         return amount;
     }

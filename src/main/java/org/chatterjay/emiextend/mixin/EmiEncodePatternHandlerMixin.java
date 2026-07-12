@@ -44,7 +44,7 @@ public class EmiEncodePatternHandlerMixin {
                 // derived key (e.g. "reaction chamber"), enabling name matching.
                 String resolved = ProviderSearchHelper.resolveKeyToAlias(rawKey);
                 ProviderSearchHelper.setLastProcessingName(resolved);
-                ModLogger.info("HEAD: set processing name '{}' (raw '{}') for recipe {}",
+                ModLogger.debug("HEAD: set processing name '{}' (raw '{}') for recipe {}",
                         resolved, rawKey, holder.id());
             }
         } catch (Throwable t) {
@@ -61,7 +61,7 @@ public class EmiEncodePatternHandlerMixin {
             // Still set the recipe tree search key and apply bookmark priority.
             if (holder == null || holder.value() == null) {
                 if (emiRecipe != null) {
-                    ModLogger.info("Pattern written (custom): category={} id={}",
+                    ModLogger.debug("Pattern written (custom): category={} id={}",
                             emiRecipe.getCategory().getId(), emiRecipe.getId());
                     ProviderSearchHelper.setFromEmiRecipe(emiRecipe);
                     if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
@@ -73,7 +73,7 @@ public class EmiEncodePatternHandlerMixin {
             }
 
             Recipe<?> recipe = holder.value();
-            ModLogger.info("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
+            ModLogger.debug("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
 
             if (recipe.getType() == RecipeType.CRAFTING) {
                 ProviderSearchHelper.presetCraftingProviderSearchKey();

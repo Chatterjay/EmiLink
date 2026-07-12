@@ -34,7 +34,7 @@ public record AEAutocraftRequestPacket(ItemStack template, int amount) implement
             return;
         }
         if (!(player.containerMenu instanceof ICraftingGridMenu menu)) {
-            ModLogger.info("AE_EMI_CTRL_CRAFT direct-autocraft skip reason=not_crafting_terminal menu={}",
+            ModLogger.debug("AE_EMI_CTRL_CRAFT direct-autocraft skip reason=not_crafting_terminal menu={}",
                     player.containerMenu == null ? "null" : player.containerMenu.getClass().getName());
             return;
         }
@@ -46,7 +46,7 @@ public record AEAutocraftRequestPacket(ItemStack template, int amount) implement
 
         AeAutocraftAmountOverride.set(player, amount);
         menu.startAutoCrafting(List.of(new ICraftingGridMenu.AutoCraftEntry(key, List.of(0))));
-        ModLogger.info("AE_EMI_CTRL_CRAFT direct-autocraft open item={} amount={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT direct-autocraft open item={} amount={}",
                 template.getHoverName().getString(), amount);
     }
 

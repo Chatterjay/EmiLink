@@ -8,7 +8,7 @@ import dev.emi.emi.api.recipe.EmiPlayerInventory;
 import dev.emi.emi.screen.BoMScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.chatterjay.emiextend.client.BDEmiInventoryAdapter;
-import org.chatterjay.emiextend.client.BomTreePageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
@@ -60,7 +60,7 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        ModLogger.info("BOM_TREE_SCREEN key-return keyCode={} scanCode={} modifiers={} consumed={} beforeSync={} bomRecipe={} craftingMode={} batches={}",
+        ModLogger.debug("BOM_TREE_SCREEN key-return keyCode={} scanCode={} modifiers={} consumed={} beforeSync={} bomRecipe={} craftingMode={} batches={}",
                 keyCode,
                 scanCode,
                 modifiers,
@@ -73,7 +73,7 @@ public abstract class BoMScreenMixin {
                 BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
-        ModLogger.info("BOM_TREE_SCREEN key-return afterSync={}", BomTreePageHelper.describeActiveState());
+        ModLogger.debug("BOM_TREE_SCREEN key-return afterSync={}", BomTreePageHelper.describeActiveState());
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"))
@@ -83,7 +83,7 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterClick(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        ModLogger.info("BOM_TREE_SCREEN click-sync before button={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
+        ModLogger.debug("BOM_TREE_SCREEN click-sync before button={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
                 button,
                 cir.getReturnValueZ(),
                 BomTreePageHelper.describeActiveState(),
@@ -94,7 +94,7 @@ public abstract class BoMScreenMixin {
                 BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
-        ModLogger.info("BOM_TREE_SCREEN click-sync after={}", BomTreePageHelper.describeActiveState());
+        ModLogger.debug("BOM_TREE_SCREEN click-sync after={}", BomTreePageHelper.describeActiveState());
         logBoMScreenClick("return", mouseX, mouseY, button, cir.getReturnValueZ());
         if (cir.getReturnValueZ()) {
             BomTreePageHelper.logCurrentState("bom-screen-click");
@@ -103,7 +103,7 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "mouseScrolled", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterScroll(double mouseX, double mouseY, double horizontal, double amount, CallbackInfoReturnable<Boolean> cir) {
-        ModLogger.info("BOM_TREE_SCREEN scroll-sync before amount={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
+        ModLogger.debug("BOM_TREE_SCREEN scroll-sync before amount={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
                 amount,
                 cir.getReturnValueZ(),
                 BomTreePageHelper.describeActiveState(),
@@ -114,7 +114,7 @@ public abstract class BoMScreenMixin {
                 BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
-        ModLogger.info("BOM_TREE_SCREEN scroll-sync after={}", BomTreePageHelper.describeActiveState());
+        ModLogger.debug("BOM_TREE_SCREEN scroll-sync after={}", BomTreePageHelper.describeActiveState());
     }
 
     private void logBoMScreenClick(String phase, double mouseX, double mouseY, int button, Boolean consumed) {
@@ -125,7 +125,7 @@ public abstract class BoMScreenMixin {
             Object hover = getBoMScreenHover(mouseX, mouseY);
             boolean modeHit = mode != null && mode.contains(localX, localY);
             boolean batchesHit = batches != null && BoM.tree != null && batches.contains(localX, localY);
-            ModLogger.info("BOM_TREE_SCREEN click-{} button={} consumed={} screenXY=({}, {}) localXY=({}, {}) scale={} modeHit={} batchesHit={} hover={} bomRecipe={} craftingMode={}",
+            ModLogger.debug("BOM_TREE_SCREEN click-{} button={} consumed={} screenXY=({}, {}) localXY=({}, {}) scale={} modeHit={} batchesHit={} hover={} bomRecipe={} craftingMode={}",
                     phase,
                     button,
                     consumed == null ? "n/a" : consumed,

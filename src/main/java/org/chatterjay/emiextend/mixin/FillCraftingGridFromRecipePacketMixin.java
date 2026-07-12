@@ -17,7 +17,7 @@ public class FillCraftingGridFromRecipePacketMixin {
     @Inject(method = "handleOnServer", at = @At("HEAD"), remap = false)
     private void emilink$logFillCraftingGridStart(ServerPlayer player, CallbackInfo ci) {
         var packet = (FillCraftingGridFromRecipePacket) (Object) this;
-        ModLogger.info("AE_EMI_CTRL_CRAFT server-fill-start player={} recipeId={} craftMissing={} templates={} menu={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT server-fill-start player={} recipeId={} craftMissing={} templates={} menu={}",
                 player == null ? "null" : player.getGameProfile().getName(),
                 packet.recipeId(),
                 packet.craftMissing(),
@@ -28,7 +28,7 @@ public class FillCraftingGridFromRecipePacketMixin {
     @Inject(method = "handleOnServer", at = @At("RETURN"), remap = false)
     private void emilink$logFillCraftingGridEnd(ServerPlayer player, CallbackInfo ci) {
         var packet = (FillCraftingGridFromRecipePacket) (Object) this;
-        ModLogger.info("AE_EMI_CTRL_CRAFT server-fill-end player={} recipeId={} craftMissing={} menu={}",
+        ModLogger.debug("AE_EMI_CTRL_CRAFT server-fill-end player={} recipeId={} craftMissing={} menu={}",
                 player == null ? "null" : player.getGameProfile().getName(),
                 packet.recipeId(),
                 packet.craftMissing(),

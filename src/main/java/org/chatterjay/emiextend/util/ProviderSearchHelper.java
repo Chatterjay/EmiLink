@@ -87,7 +87,7 @@ public final class ProviderSearchHelper {
         String searchKey = categoryId.getPath();
         if (searchKey != null && !searchKey.isBlank()) {
             setLastProcessingName(searchKey);
-            ModLogger.info("ProviderSearch: set search key '{}' from EMI recipe category '{}' (recipe {})",
+            ModLogger.debug("ProviderSearch: set search key '{}' from EMI recipe category '{}' (recipe {})",
                     searchKey, categoryId, emiRecipe.getId());
         }
     }
@@ -109,7 +109,7 @@ public final class ProviderSearchHelper {
             Map<String, String> aliases = (Map<String, String>) aliasesField.get(null);
             String alias = aliases.get(key.toLowerCase());
             if (alias != null && !alias.isBlank()) {
-                ModLogger.info("ProviderSearchHelper: resolved alias '{}' -> '{}'", key, alias);
+                ModLogger.debug("ProviderSearchHelper: resolved alias '{}' -> '{}'", key, alias);
                 return alias;
             }
         } catch (Throwable ignored) {

@@ -6,7 +6,7 @@ import dev.emi.emi.screen.BoMScreen;
 import dev.emi.emi.widget.RecipeButtonWidget;
 import dev.emi.emi.widget.RecipeTreeButtonWidget;
 import net.minecraft.client.Minecraft;
-import org.chatterjay.emiextend.client.BomTreePageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -34,7 +34,7 @@ public class RecipeTreeButtonWidgetMixin {
                 && BoM.tree.goal.recipe == recipe;
         emilink$previousCraftingMode = BoM.craftingMode;
         emilink$previousBatches = BoM.tree == null ? 1 : Math.max(1, BoM.tree.batches);
-        ModLogger.info("BOM_TREE_BUTTON click-head button={} xy=({}, {}) beforeRecipe={} beforeCraftingMode={} beforeBatches={} activePage={}",
+        ModLogger.debug("BOM_TREE_BUTTON click-head button={} xy=({}, {}) beforeRecipe={} beforeCraftingMode={} beforeBatches={} activePage={}",
                 button,
                 mouseX,
                 mouseY,
@@ -58,7 +58,7 @@ public class RecipeTreeButtonWidgetMixin {
             if (Minecraft.getInstance().screen instanceof BoMScreen bomScreen) {
                 bomScreen.recalculateTree();
             }
-            ModLogger.info("BOM_TREE_BUTTON preserved current tree state recipe={} previousCraftingMode={} forcedCraftingMode=true batches={}",
+            ModLogger.debug("BOM_TREE_BUTTON preserved current tree state recipe={} previousCraftingMode={} forcedCraftingMode=true batches={}",
                     recipe == null || recipe.getId() == null ? "null" : recipe.getId(),
                     emilink$previousCraftingMode,
                     emilink$previousBatches);
@@ -66,14 +66,14 @@ public class RecipeTreeButtonWidgetMixin {
             if (Minecraft.getInstance().screen instanceof BoMScreen bomScreen) {
                 bomScreen.recalculateTree();
             }
-            ModLogger.info("BOM_TREE_BUTTON opened normal tree recipe={} previousCraftingMode={} batches={}",
+            ModLogger.debug("BOM_TREE_BUTTON opened normal tree recipe={} previousCraftingMode={} batches={}",
                     BoM.tree.goal == null || BoM.tree.goal.recipe == null || BoM.tree.goal.recipe.getId() == null
                             ? "null"
                             : BoM.tree.goal.recipe.getId(),
                     emilink$previousCraftingMode,
                     BoM.tree.batches);
         }
-        ModLogger.info("BOM_TREE_BUTTON click-return result={} button={} afterRecipe={} afterCraftingMode={} afterBatches={} activePage={}",
+        ModLogger.debug("BOM_TREE_BUTTON click-return result={} button={} afterRecipe={} afterCraftingMode={} afterBatches={} activePage={}",
                 cir.getReturnValueZ(),
                 button,
                 BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null

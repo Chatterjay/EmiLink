@@ -63,7 +63,7 @@ public record AEExtractPacket(ItemStack template, int count) implements CustomPa
                 player.drop(result, false);
             }
             player.containerMenu.broadcastChanges();
-            ModLogger.info("AEExtract: 从AE提取 {} x{} 到背包", template.getHoverName().getString(), extracted);
+            ModLogger.debug("AEExtract: 从AE提取 {} x{} 到背包", template.getHoverName().getString(), extracted);
         } catch (Exception e) {
             ModLogger.warn("AEExtract: error: {}", e.getMessage());
         }

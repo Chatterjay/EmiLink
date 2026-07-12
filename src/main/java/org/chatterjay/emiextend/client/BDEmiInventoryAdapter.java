@@ -1,3 +1,4 @@
+
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.recipe.EmiPlayerInventory;
@@ -56,7 +57,7 @@ public final class BDEmiInventoryAdapter {
             if (slotStacks == 0 && storageStacks == 0) {
                 return null;
             }
-            ModLogger.info("BD EMI inventory injected: screen={}, menuSlots={}, storageEntries={}, totalStacks={}",
+            ModLogger.debug("BD EMI inventory injected: screen={}, menuSlots={}, storageEntries={}, totalStacks={}",
                     oldScreen.getClass().getName(), slotStacks, storageStacks, stacks.size());
             return new EmiPlayerInventory(stacks);
         } catch (Throwable t) {

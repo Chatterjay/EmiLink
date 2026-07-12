@@ -443,7 +443,7 @@ public class BDProxy {
                 abstractMenu.slotsChanged(craftSlots);
                 abstractMenu.broadcastChanges();
             }
-            ModLogger.info("BD_QUICKCRAFT transferRecipe network-only filledSlots={} extracted={}", filled, extractedTotal);
+            ModLogger.debug("BD_QUICKCRAFT transferRecipe network-only filledSlots={} extracted={}", filled, extractedTotal);
             return true;
         } catch (Exception e) {
             ModLogger.warn("BD_QUICKCRAFT transferRecipe network-only failed: {}", e.getMessage());

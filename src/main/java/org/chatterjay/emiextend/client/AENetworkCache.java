@@ -1,3 +1,4 @@
+
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
@@ -133,7 +134,7 @@ public final class AENetworkCache {
         byte[] data = new byte[buf.readableBytes()];
         buf.readBytes(data);
         DiskCacheIO.save(cachePath(), data);
-        ModLogger.info("Cache saved ({} servers)", serverStates.size());
+        ModLogger.debug("Cache saved ({} servers)", serverStates.size());
         cacheDirty = false;
     }
 
@@ -170,7 +171,7 @@ public final class AENetworkCache {
             // Point current if we just loaded our server
             var loaded = serverStates.get(currentServerId);
             if (loaded != null) current = loaded;
-            ModLogger.info("Cache loaded ({} servers, {} entries)", serverCount, totalEntries);
+            ModLogger.debug("Cache loaded ({} servers, {} entries)", serverCount, totalEntries);
         } catch (Exception e) {
             ModLogger.warn("Cache load parse failed: {}", e.getMessage());
         }

@@ -1,4 +1,4 @@
-package org.chatterjay.emiextend.client;
+package org.chatterjay.emiextend.client.bookmark;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -101,7 +101,7 @@ public final class BomTreePageHelper {
             applyActiveToBoM();
             refreshActiveSynthetic();
         }
-        ModLogger.info("BOM_TREE_PAGE activate page={} pageSize={} entries={} activeIndex={} preserveVisibleTree={} current={}",
+        ModLogger.debug("BOM_TREE_PAGE activate page={} pageSize={} entries={} activeIndex={} preserveVisibleTree={} current={}",
                 activeFavoritePage, pageSize, entriesFor(activeFavoritePage).size(),
                 activeIndex(activeFavoritePage), preserveVisibleTree, describeCurrentBoM());
     }
@@ -300,7 +300,7 @@ public final class BomTreePageHelper {
         }
         savePersisted();
         refreshActiveSynthetic();
-        ModLogger.info("BOM_TREE_PAGE removed final tree page={} recipe={}",
+        ModLogger.debug("BOM_TREE_PAGE removed final tree page={} recipe={}",
                 ownerPage,
                 synthetic.getRecipe() == null || synthetic.getRecipe().getId() == null ? "null" : synthetic.getRecipe().getId());
         return true;
@@ -329,7 +329,7 @@ public final class BomTreePageHelper {
             applyActiveToBoM();
             savePersisted();
             refreshActiveSynthetic();
-            ModLogger.info("BOM_TREE_PAGE removed completed tree recipe={}", recipeId);
+            ModLogger.debug("BOM_TREE_PAGE removed completed tree recipe={}", recipeId);
         }
         return removed;
     }
@@ -346,7 +346,7 @@ public final class BomTreePageHelper {
             applyActiveToBoM();
             savePersisted();
             refreshActiveSynthetic();
-            ModLogger.info("BOM_TREE_PAGE removed active tree recipe={} reason={}", recipeId, reason);
+            ModLogger.debug("BOM_TREE_PAGE removed active tree recipe={} reason={}", recipeId, reason);
         }
         return removed;
     }
@@ -357,7 +357,7 @@ public final class BomTreePageHelper {
         } else {
             addTreeToPage(activeFavoritePage, BoM.tree, BoM.craftingMode);
         }
-        ModLogger.info("BOM_TREE_PAGE storeNew page={} entries={} activeIndex={} current={}",
+        ModLogger.debug("BOM_TREE_PAGE storeNew page={} entries={} activeIndex={} current={}",
                 activeFavoritePage, entriesFor(activeFavoritePage).size(),
                 activeIndex(activeFavoritePage), describeCurrentBoM());
         refreshActiveSynthetic();
@@ -368,7 +368,7 @@ public final class BomTreePageHelper {
     }
 
     public static void logCurrentState(String reason) {
-        ModLogger.info("BOM_TREE_PAGE state reason={} page={} entries={} activeIndex={} groups={} synthetic={} current={}",
+        ModLogger.debug("BOM_TREE_PAGE state reason={} page={} entries={} activeIndex={} groups={} synthetic={} current={}",
                 reason,
                 activeFavoritePage,
                 entriesFor(activeFavoritePage).size(),
@@ -668,7 +668,7 @@ public final class BomTreePageHelper {
                     EmiFavorite.Synthetic anchor = createFinalAnchorSynthetic(entry);
                     if (anchor != null) {
                         EmiFavorites.syntheticFavorites.add(anchor);
-                        ModLogger.info("BOM_TREE_PAGE synthetic anchor recipe={} reason=updateSynthetic-empty treeBatches={} entryCraftingMode={}",
+                        ModLogger.debug("BOM_TREE_PAGE synthetic anchor recipe={} reason=updateSynthetic-empty treeBatches={} entryCraftingMode={}",
                                 treeRecipeId(entry.tree), entry.tree.batches, entry.craftingMode);
                     }
                 }
@@ -833,7 +833,7 @@ public final class BomTreePageHelper {
                 int active = pageObject.has("active") ? pageObject.get("active").getAsInt() : entries.size() - 1;
                 ACTIVE_INDEXES.put(page, Math.max(0, Math.min(active, entries.size() - 1)));
             }
-            ModLogger.info("BOM_TREE_STATE loaded pages={} file={}", PAGE_TREES.size(), file);
+            ModLogger.debug("BOM_TREE_STATE loaded pages={} file={}", PAGE_TREES.size(), file);
         } catch (Exception e) {
             ModLogger.warn("BOM_TREE_STATE load failed file={} error={}", file, e.toString());
         }

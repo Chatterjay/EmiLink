@@ -1,4 +1,4 @@
-package org.chatterjay.emiextend.client;
+package org.chatterjay.emiextend.client.bookmark;
 
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
@@ -27,12 +27,12 @@ public class MobSeparator {
     public static void init() {
         MOB_ITEMS.clear();
         var allTabs = CreativeModeTabs.allTabs();
-        ModLogger.info("MobSeparator: scanning {} creative tabs", allTabs.size());
+        ModLogger.debug("MobSeparator: scanning {} creative tabs", allTabs.size());
         for (CreativeModeTab tab : allTabs) {
             ResourceLocation key = BuiltInRegistries.CREATIVE_MODE_TAB.getKey(tab);
             String name = tab.getDisplayName().getString();
             if (key != null) {
-                ModLogger.info("MobSeparator:   tab '{}' key '{}'", name, key);
+                ModLogger.debug("MobSeparator:   tab '{}' key '{}'", name, key);
                 String path = key.getPath();
                 if (path.contains("spawn_egg") || path.contains("mob") || path.contains("creature")) {
                     int count = 0;
@@ -40,10 +40,10 @@ public class MobSeparator {
                         MOB_ITEMS.add(EmiStack.of(stack));
                         count++;
                     }
-                    ModLogger.info("MobSeparator: captured {} items from tab '{}' (key: {})", count, name, key);
+                    ModLogger.debug("MobSeparator: captured {} items from tab '{}' (key: {})", count, name, key);
                 }
             } else {
-                ModLogger.info("MobSeparator:   tab '{}' (no registry key)", name);
+                ModLogger.debug("MobSeparator:   tab '{}' (no registry key)", name);
             }
         }
         initialized = true;

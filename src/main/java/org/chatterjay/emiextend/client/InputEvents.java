@@ -1,3 +1,4 @@
+
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
@@ -20,6 +21,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.EmiAE2;
+import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
@@ -154,7 +156,7 @@ public final class InputEvents {
         boolean quickCraftKey = EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
                 && matchesConfiguredQuickCraftKey(keyCode);
 
-        if (keyCode == GLFW.GLFW_KEY_A || quickCraftKey) {
+        if (ModLogger.isDebugEnabled() && (keyCode == GLFW.GLFW_KEY_A || quickCraftKey)) {
             logBomKeyPress("pre", keyCode, scanCode, quickCraftKey);
         }
 
@@ -182,7 +184,7 @@ public final class InputEvents {
 
         if (keyCode == GLFW.GLFW_KEY_A) {
             boolean canceled = tryCancelHoveredFinalBomTree();
-            ModLogger.info("BOM_KEY A result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
+            ModLogger.debug("BOM_KEY A result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
             if (canceled) {
                 event.setCanceled(true);
             }
@@ -191,7 +193,7 @@ public final class InputEvents {
 
         if (quickCraftKey) {
             EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-            ModLogger.info("BOM_KEY quick-craft matched bind={} finalSynthetic={} synthetic={} {}",
+            ModLogger.debug("BOM_KEY quick-craft matched bind={} finalSynthetic={} synthetic={} {}",
                     quickCraftBindText(),
                     synthetic != null,
                     synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
@@ -199,7 +201,7 @@ public final class InputEvents {
             event.setCanceled(true);
             if (synthetic == null) {
                 var mouse = getCurrentGuiMousePosition();
-                ModLogger.info("BOM_KEY quick-craft ignored: hovered target is not a final synthetic preciseFavorite={}",
+                ModLogger.debug("BOM_KEY quick-craft ignored: hovered target is not a final synthetic preciseFavorite={}",
                         describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
                 return;
             }
@@ -215,23 +217,25 @@ public final class InputEvents {
             return false;
         }
 
-        logBomKeyPress("emi-head", keyCode, scanCode, quickCraftKey);
+        if (ModLogger.isDebugEnabled()) {
+            logBomKeyPress("emi-head", keyCode, scanCode, quickCraftKey);
+        }
 
         if (keyCode == GLFW.GLFW_KEY_A) {
             boolean canceled = tryCancelHoveredFinalBomTree();
-            ModLogger.info("BOM_KEY A emi result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
+            ModLogger.debug("BOM_KEY A emi result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
             return canceled;
         }
 
         EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-        ModLogger.info("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} synthetic={} {}",
+        ModLogger.debug("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} synthetic={} {}",
                 quickCraftBindText(),
                 synthetic != null,
                 synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
                 BomTreePageHelper.describeActiveState());
         if (synthetic == null) {
             var mouse = getCurrentGuiMousePosition();
-            ModLogger.info("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic preciseFavorite={}",
+            ModLogger.debug("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic preciseFavorite={}",
                     describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
             return false;
         }
@@ -241,85 +245,11 @@ public final class InputEvents {
 
     @SubscribeEvent
     public static void onMouseButtonPressedPre(ScreenEvent.MouseButtonPressed.Pre event) {
-        var mouse = getCurrentGuiMousePosition();
-        logBomMouseDown("screen-event-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton(), null);
-
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !Screen.hasControlDown()) return;
 
-        logAeCtrlLeftClick("screen-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton());
-    }
-
-    public static void logBomMouseDown(String phase, Screen screen, double mouseX, double mouseY,
-                                       int button, Boolean consumed) {
-        if (screen == null || !BomTreePageHelper.isRecipeTreeUiOpen()) {
-            return;
-        }
-        try {
-            int mx = (int) mouseX;
-            int my = (int) mouseY;
-            var hovered = EmiScreenManager.getHoveredStack(mx, my, false);
-            var recipe = hovered == null ? null : hovered.getRecipeContext();
-            var panel = EmiScreenManager.getHoveredPanel(mx, my);
-            var space = EmiScreenManager.getHoveredSpace(mx, my);
-            String panelInfo = "none";
-            if (panel != null) {
-                try {
-                    panelInfo = "type=" + panel.getType() + ",page=" + panel.page;
-                } catch (Throwable t) {
-                    panelInfo = safeClassName(panel);
-                }
-            }
-            String spaceInfo = "none";
-            if (space != null) {
-                try {
-                    spaceInfo = "type=" + space.getType() + ",pageSize=" + space.pageSize
-                            + ",origin=(" + space.tx + "," + space.ty + ")"
-                            + ",widths=" + java.util.Arrays.toString(space.widths);
-                } catch (Throwable t) {
-                    spaceInfo = safeClassName(space);
-                }
-            }
-
-            String slotInfo = "none";
-            String menuInfo = "none";
-            if (screen instanceof AbstractContainerScreen<?> cs) {
-                var slot = cs.getSlotUnderMouse();
-                if (slot != null) {
-                    slotInfo = "index=" + slot.index
-                            + ",containerSlot=" + slot.getContainerSlot()
-                            + ",container=" + safeClassName(slot.container)
-                            + ",hasItem=" + slot.hasItem()
-                            + ",item=" + formatItemStack(slot.getItem());
-                }
-                menuInfo = safeClassName(cs.getMenu()) + "#" + cs.getMenu().containerId;
-            }
-
-            String bomRecipe = BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null
-                    ? "null"
-                    : String.valueOf(BoM.tree.goal.recipe.getId());
-            ModLogger.info(
-                    "BOM_MOUSE_DOWN phase={} button={} consumed={} ctrl={} shift={} alt={} xy=({}, {}) screen={} menu={} slot={} hovered={} hoveredRecipe={} panel={} space={} bomRecipe={} bomCraftingMode={} activePage={}",
-                    phase,
-                    button,
-                    consumed == null ? "n/a" : consumed,
-                    Screen.hasControlDown(),
-                    Screen.hasShiftDown(),
-                    Screen.hasAltDown(),
-                    mx,
-                    my,
-                    safeClassName(screen),
-                    menuInfo,
-                    slotInfo,
-                    formatHoveredStack(hovered),
-                    recipe == null || recipe.getId() == null ? "none" : recipe.getId(),
-                    panelInfo,
-                    spaceInfo,
-                    bomRecipe,
-                    BoM.craftingMode,
-                    BomTreePageHelper.getActiveFavoritePage());
-        } catch (Throwable t) {
-            ModLogger.warn("BOM_MOUSE_DOWN log-error phase={} error={}: {}",
-                    phase, t.getClass().getName(), t.getMessage());
+        if (ModLogger.isDebugEnabled()) {
+            var mouse = getCurrentGuiMousePosition();
+            logAeCtrlLeftClick("screen-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton());
         }
     }
 
@@ -350,7 +280,7 @@ public final class InputEvents {
             }
 
             GuiEventListener focused = screen == null ? null : screen.getFocused();
-            ModLogger.info(
+            ModLogger.debug(
                     "AE_EMI_CTRL_CRAFT mouse-click phase={} button={} ctrl={} shift={} alt={} xy=({}, {}) screen={} handled={} focus={} menu={} slot={} carried={} emiHovered={} emiRecipe={} emiSpace={}",
                     phase,
                     button,
@@ -381,7 +311,7 @@ public final class InputEvents {
             var hoveredScreen = EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
             var hoveredApi = EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
             var hoveredLast = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
-            ModLogger.info(
+            ModLogger.debug(
                     "BOM_KEY {} keyCode={} scanCode={} keyName={} bind={} quickCraftKey={} ctrl={} shift={} alt={} xy=({}, {}) lastXY=({}, {}) screen={} handled={} focus={} hoveredScreen={} hoveredApi={} hoveredLast={} bomScreenHover={} {}",
                     phase,
                     keyCode,
@@ -654,7 +584,7 @@ public final class InputEvents {
             }
             var mouse = getCurrentGuiMousePosition();
             var hovered = EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
-            ModLogger.info("BOM_TREE_PAGE A cancel miss hovered={} textFocused={} bomHover={} preciseFavorite={} {}",
+            ModLogger.debug("BOM_TREE_PAGE A cancel miss hovered={} textFocused={} bomHover={} preciseFavorite={} {}",
                     formatHoveredStack(hovered),
                     isTextInputFocused(),
                     describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()),
@@ -663,12 +593,12 @@ public final class InputEvents {
             return false;
         }
         boolean removed = BomTreePageHelper.removeFinalSyntheticTree(synthetic);
-        ModLogger.info("BOM_TREE_PAGE A cancel synthetic={} removed={}",
+        ModLogger.debug("BOM_TREE_PAGE A cancel synthetic={} removed={}",
                 BomTreePageHelper.describeSyntheticDebug(synthetic), removed);
         if (removed) {
             abortCurrentJob("BoM tree canceled by A");
             clearPreflightState();
-            ModLogger.info("BOM_TREE_PAGE canceled hovered final tree with A");
+            ModLogger.debug("BOM_TREE_PAGE canceled hovered final tree with A");
         }
         return removed;
     }
@@ -687,7 +617,7 @@ public final class InputEvents {
             }
         } catch (Throwable ignored) {}
         if (!isGoalNodeObject(node)) {
-            ModLogger.info("BOM_TREE_PAGE A bom-screen goal miss hover={} {}",
+            ModLogger.debug("BOM_TREE_PAGE A bom-screen goal miss hover={} {}",
                     describeBomScreenHover(mc.screen, mouse.x(), mouse.y()),
                     BomTreePageHelper.describeActiveState());
             return false;
@@ -698,7 +628,7 @@ public final class InputEvents {
             abortCurrentJob("BoM tree canceled by A on BoMScreen goal");
             clearPreflightState();
         }
-        ModLogger.info("BOM_TREE_PAGE A bom-screen goal cancel recipe={} removed={} hover={} {}",
+        ModLogger.debug("BOM_TREE_PAGE A bom-screen goal cancel recipe={} removed={} hover={} {}",
                 goalRecipeId,
                 removed,
                 describeBomScreenHover(mc.screen, mouse.x(), mouse.y()),
@@ -912,12 +842,12 @@ public final class InputEvents {
         if (BDProxy.isBDCraftGUI(handled)) {
             PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
             event.setCanceled(true);
-            ModLogger.info("B key: BD single craft triggered");
+            ModLogger.debug("B key: BD single craft triggered");
             return;
         }
 
         if (!isPatternEncodingTerminal(handled)) {
-            ModLogger.info("B key: not a pattern terminal or BD craft, screen={}", handled.getClass().getName());
+            ModLogger.debug("B key: not a pattern terminal or BD craft, screen={}", handled.getClass().getName());
             return;
         }
 
@@ -938,16 +868,16 @@ public final class InputEvents {
         }
 
         if (recipe == null) {
-            ModLogger.info("B key: no recipe found for hovered stack");
+            ModLogger.debug("B key: no recipe found for hovered stack");
             return;
         }
 
         if (EmiRecipeFiller.performFill(recipe, handled,
                 EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.NONE, 1)) {
-            ModLogger.info("QuickPattern: encoded {}", recipe.getId());
+            ModLogger.debug("QuickPattern: encoded {}", recipe.getId());
             event.setCanceled(true);
         } else {
-            ModLogger.info("QuickPattern: performFill returned false for {}", recipe.getId());
+            ModLogger.debug("QuickPattern: performFill returned false for {}", recipe.getId());
         }
     }
 
@@ -981,7 +911,7 @@ public final class InputEvents {
                 }
                 PacketDistributor.sendToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
-                ModLogger.info("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
+                ModLogger.debug("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
                 event.setCanceled(true);
                 return;
             }
@@ -2110,7 +2040,7 @@ public final class InputEvents {
     }
 
     private static void qcLog(long runId, String msg, Object... args) {
-        ModLogger.info("QuickCraft#{}: " + msg, prependRunId(runId, args));
+        ModLogger.debug("QuickCraft#{}: " + msg, prependRunId(runId, args));
     }
 
     private static void qcDebug(long runId, String msg, Object... args) {

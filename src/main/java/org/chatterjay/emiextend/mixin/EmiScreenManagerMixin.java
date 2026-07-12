@@ -9,7 +9,7 @@ import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
-import org.chatterjay.emiextend.client.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.spongepowered.asm.mixin.Mixin;
@@ -49,24 +49,12 @@ public class EmiScreenManagerMixin {
         }
     }
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"), require = 0)
-    private static void emilink$logMouseClickedHead(double mouseX, double mouseY, int button,
-                                                   CallbackInfoReturnable<Boolean> cir) {
-        org.chatterjay.emiextend.client.InputEvents.logBomMouseDown(
-                "emi-manager-click-head", Minecraft.getInstance().screen, mouseX, mouseY, button, null);
-    }
-
-    @Inject(method = "mouseClicked", at = @At("RETURN"), require = 0)
-    private static void emilink$logMouseClickedReturn(double mouseX, double mouseY, int button,
-                                                     CallbackInfoReturnable<Boolean> cir) {
-        org.chatterjay.emiextend.client.InputEvents.logBomMouseDown(
-                "emi-manager-click-return", Minecraft.getInstance().screen, mouseX, mouseY, button, cir.getReturnValueZ());
-    }
-
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
-                "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+        if (org.chatterjay.emiextend.util.ModLogger.isDebugEnabled()) {
+            org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
+                    "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+        }
 
         if (emilink$dropFavoriteOnPagedBookmark(mouseX, mouseY)) {
             pressedStack = EmiStack.EMPTY;

@@ -1,105 +1,91 @@
 # EmiLink
 
-*NeoForge 1.21.1*
+适用于 Minecraft 1.21.1 / NeoForge 的 EMI 网络存储与合成增强模组。
 
-EMI ↔ AE2 / BeyondDimensions / ExtendedAE_Plus 集成增强模组。
+EmiLink 将 EMI 与 Applied Energistics 2（AE2）、BeyondDimensions（BD）及 ExtendedAE Plus（EAEP）连接起来，提供网络库存显示、配方转移、BOM 递归合成、书签分页和常用库存操作。
 
----
+## 环境与依赖
 
-## 依赖
+- Minecraft 1.21.1
+- NeoForge 21.1.220 或更高版本
+- Java 21
+- 必需：EMI 1.1.23 或兼容版本
+- 可选：Applied Energistics 2 19.2.17 或兼容版本
+- 可选：BeyondDimensions 0.7.14 或兼容版本
+- 可选：ExtendedAE Plus 1.5.4 或兼容版本
+- 可选：Curios、Inventory Profiles Next、Inventory Essentials
 
-- **必要**: NeoForge ≥21.1.220, Minecraft 1.21.1, Java 21, [EMI](https://modrinth.com/mod/emi) ≥1.1.22
-- **可选**: [Applied Energistics 2](https://modrinth.com/mod/ae2) ≥19.2.17
-- **可选**: [BeyondDimensions](https://github.com/Frostbite-time/BeyondDimensions) ≥0.7.14
-- **可选**: [ExtendedAE_Plus](https://github.com/GaLicn/ExtendedAE_Plus) ≥1.5.4
-- **可选**: Curios
+AE2 是软依赖。未安装 AE2 时，BD 和通用 EMI 功能仍可使用。
 
----
+## 快捷操作
 
-## 快捷键
+| 操作 | 功能 |
+| --- | --- |
+| `F` | 将 EMI 悬浮物品名称填入当前终端搜索框 |
+| `Alt+F` | 将 EMI 悬浮物品的 `@modid` 填入搜索框 |
+| `B` | 在 AE2/RS 样板终端快速写入当前 EMI 配方 |
+| `N` | 将 EMI 悬浮物品填入第一个空过滤槽 |
+| `Space+左键` | 在普通容器、AE2 或 BD 界面批量转移物品 |
+| `Ctrl+左键` | 在 AE2 合成终端提取 EMI 悬浮物品；库存不足且可合成时打开自动合成请求 |
+| `Ctrl+左键` BD 合成结果 | 单次合成并转移结果 |
+| `Ctrl+Shift+原版丢弃键` | 丢弃背包内所有与鼠标指向物品相同的物品 |
+| `Shift+C` | 对鼠标指向的 BOM 最终产物执行递归快速合成 |
+| `A` | 对鼠标指向的 BOM 最终产物取消对应 BOM 树 |
 
-| 快捷键 | 功能 | 适用场景 |
-|--------|------|----------|
-| **F** | 将 EMI 悬浮物品名填入搜索框 | AE2 / BD 终端 |
-| **Alt + F** | 以 `@modid` 格式填入搜索框 | AE2 / BD 终端 |
-| **P** | 按 BoM 树数量从 AE 递归合成全部中间产物 | EMI BoM 关闭后（需 AE 终端） |
-| **B** | 快速编写样板 | AE2 样板编码终端 |
-| **N** | 将悬浮物品填入空过滤槽 | 含 FakeSlot 的界面 |
-| **Space + 左键** | 提取 / 存入物品 | AE2 / BD 终端 |
-| **Space + 左键合成结果** | 批量合成（最多 512 次） | BD 合成界面 |
-| **Shift + 左键** | 取出 / 自动合成物品 | AE2 网络（需 EAEP） |
-| **Shift + 左键网络存储槽** | 提取单组物品 | BD 网络界面 |
-| **鼠标中键** | 打开合成数量界面 | 需 EAEP + 无线终端 |
+`F`、`B`、`N` 在 Minecraft 按键设置中修改。BOM 快速合成的修饰键和主按键在 EmiLink 模组配置中修改；批量丢弃沿用原版丢弃键，不单独注册按键。
 
----
+## BOM 与书签分页
 
-## 功能
+- 收藏栏默认保留 5 页，可通过 `emi_ui.favoritePageCount` 调整为 1 至 50 页。
+- 每一页可同时保存最多 10 条独立 BOM 树，每条树单独占一行。
+- 不同页面的 BOM 状态彼此独立，相同配方也可以分别保存在不同页面。
+- 每次只执行鼠标指向的那一条 BOM，其他树保持显示和状态。
+- 普通书签会在各自页面内从页首自动紧凑排列；窗口尺寸变化不会把下一页内容并入当前页。
+- BOM 状态会持久化，重新进入游戏后继续保留。
 
-### AE 网络信息提示
+递归快速合成会按依赖顺序处理材料。中间产物优先回存当前 AE2 或 BD 网络，最终产物保留在背包；背包空间不足时会使用可用网络作为溢出容器。普通容器场景会在无法继续安全存放时停止。
 
-在 EMI 侧边栏显示 AE 网络中的物品数量和可合成状态，支持 `/emilink clearcache` 清空缓存。
+## 网络库存集成
 
-### 样板编码
+- EMI 提示中显示 AE2/BD 网络的库存数量和可合成状态。
+- 大数量采用 AE 风格缩写，例如 `1.2M`、`3.4G`。
+- 可选的 EMI 物品角标区分“已有库存”和“仅可合成”。
+- AE2 查询采用批量请求、内存缓存和磁盘缓存，减少大型网络下的鼠标卡顿。
+- 在 EMI 侧边栏携带物品点击时可存入 AE2；批量存入修饰键可配置。
+- BD 网络库存可参与 EMI 缺失材料判断和 BOM 递归合成。
 
-在样板编码终端按 **B** 键，自动将 EMI 悬浮的配方填入样板槽并编码。支持 AE2 和 ExtendedAE 无线样板终端。
+可使用 `/emilink clearcache` 清除网络缓存，使用 `/emilink debug` 临时开启或关闭详细诊断日志。
 
-### 书签优先
+## 样板与终端集成
 
-编码样板时优先使用 EMI 收藏栏中的物品设定过滤槽。（配置 `bookmarkPriority`，默认开启）
-
-### 成书包裹（WB 模式）
-
-编码处理样板时将输出物品包裹为成书。（配置 `enableWrapBook`，默认开启）
-
-### BoM 一键递归合成（P 键）
-
-在 EMI 的 BoM（物料清单）树中设置好数量后，在 AE2 合成终端按 **P** 键即可自底向上递归合成全部中间产物和最终目标。
-
-| 特性 | 说明 |
-|------|------|
-| 中间产物 | 使用 `FILL_BUTTON + INVENTORY` 合成，结束后统一存入 AE 网络 |
-| 最终目标 | 留在玩家背包 |
-| 合成顺序 | 按 BoM 树自底向上（先合成叶子节点，再合成父节点） |
-| 防卡顿 | 每游戏 tick 只处理 1 批合成，避免冻结 |
-| 数量计算 | 按配方输入/输出比例自顶向下推算每组需要合成次数 |
-| 背包溢出 | 最终目标背包满时通过 `AEDepositPacket` 溢出到 AE
-
-### EAEP 联动
-
-需安装 [ExtendedAE_Plus](https://github.com/GaLicn/ExtendedAE_Plus)。
-
-| 功能 | 说明 |
-|------|------|
-| 中键点击 | 打开 AE2 合成数量界面 |
-| Shift+左键 | 取出物品或自动打开合成界面 |
-| 上传样板 | 自动选择对应配方类型标签 |
-
-### BD 联动
-
-需安装 [BeyondDimensions](https://github.com/Frostbite-time/BeyondDimensions)。
-
-| 功能 | 说明 |
-|------|------|
-| Space+点击 | 提取 / 存入网络物品 |
-| Space+点击合成结果 | 批量合成（最多 512 次） |
-| Shift+点击网络存储槽 | 提取单组物品 |
-
----
+- AE2、ExtendedAE Plus 和部分 RS 样板终端支持从 EMI 配方快速写入样板。
+- 编码时可优先采用 EMI 收藏栏中的物品作为输入或过滤项。
+- EAEP 上传样板时会自动填充配方类型或已保存的提供器搜索名称。
+- AE2 合成计划和 CPU 界面保留 EMI 侧边栏支持。
+- F/Alt+F 搜索支持 AE2、BD、RS、ExtendedAE 和部分兼容终端。
 
 ## 配置
 
-`config/emilink-client.toml`
+在 Minecraft 的“模组”列表中打开 EmiLink 配置，可完整查看各功能区域：
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `enableWrapBook` | `true` | 样板编码时将输出包裹为成书 |
-| `enableNetworkBadges` | `false` | EMI 物品图标角落显示网络状态角标 |
-| `bookmarkPriority` | `true` | 编码样板时优先使用 EMI 收藏栏物品 |
-| `cacheTTLMs` | `5000` | AE 缓存 TTL |
-| `batchFlushMs` | `5000` | 批查询刷新间隔 |
+- `general`：调试模式。
+- `cache`：缓存有效期、负缓存和批量查询间隔。
+- `emi_ui`：成书包裹、拖拽填充、书签优先、默认收藏页数。
+- `ae_network`：读取网络库存、角标样式、提取修饰键、侧边栏存入。
+- `quick_craft`：BOM 快速合成开关、修饰键和主按键。
+- `inventory`：Space+左键批量转移、批量丢弃同类物品。
+- `debug`：调试数据包限流。
 
----
+默认关闭详细调试日志。需要排查 BOM、分页、AE 自动合成或 BD 网络问题时，可执行 `/emilink debug` 后复现一次，再查看 `logs/latest.log`。
+
+## 构建
+
+```powershell
+.\gradlew.bat build
+```
+
+构建产物位于 `build/libs/`。
 
 ## 许可证
 
-GNU AGPL 3.0
+本项目使用 AGPL-3.0 许可证。
