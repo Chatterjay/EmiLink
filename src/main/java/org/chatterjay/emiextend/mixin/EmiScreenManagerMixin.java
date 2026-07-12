@@ -1,10 +1,15 @@
 package org.chatterjay.emiextend.mixin;
 
 import dev.emi.emi.api.stack.EmiIngredient;
+import dev.emi.emi.api.stack.EmiStack;
+import dev.emi.emi.config.SidebarType;
+import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.screen.EmiScreenManager;
+import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import org.chatterjay.emiextend.client.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -40,6 +45,13 @@ public class EmiScreenManagerMixin {
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
                 "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+
+        if (emilink$dropFavoriteOnPagedBookmark(mouseX, mouseY)) {
+            pressedStack = EmiStack.EMPTY;
+            draggedStack = EmiStack.EMPTY;
+            cir.setReturnValue(true);
+            return;
+        }
 
         // Drag-fill: when dragging an EMI item, fill text fields with item name
         if (draggedStack != null && !draggedStack.isEmpty()
@@ -84,6 +96,27 @@ public class EmiScreenManagerMixin {
         return EmiInteractionHandler.addAeTooltipInfo(hov, lastMouseX, lastMouseY, hov.getTooltip());
     }
 
+    @Redirect(method = "renderDraggedStack",
+            at = @At(value = "INVOKE", target = "Ljava/util/List;size()I"),
+            require = 0)
+    private static int emilink$allowFavoriteDropPreviewOnEmptyPages(List<?> stacks) {
+        return Integer.MAX_VALUE;
+    }
+
+    @Redirect(method = "renderDraggedStack",
+            at = @At(value = "INVOKE", target = "Ldev/emi/emi/screen/EmiScreenManager$ScreenSpace;getClosestEdge(II)I"),
+            require = 0)
+    private static int emilink$compactFavoriteDropPreview(ScreenSpace space, int x, int y) {
+        int localIndex = space.getClosestEdge(x, y);
+        var panel = EmiScreenManager.getHoveredPanel(x, y);
+        if (panel != null && panel.getType() == SidebarType.FAVORITES
+                && space.getType() == SidebarType.FAVORITES && space.pageSize > 0) {
+            BookmarkPageHelper.compactAllPages(space.pageSize);
+            return BookmarkPageHelper.compactLocalInsertIndex(panel.page, space.pageSize, localIndex);
+        }
+        return localIndex;
+    }
+
     /** Get fill text from EMI dragged stack */
     private static String getDragFillText(EmiIngredient stack) {
         if (stack == null || stack.isEmpty()) return null;
@@ -94,5 +127,27 @@ public class EmiScreenManagerMixin {
             return id != null ? "@" + id.getNamespace() : null;
         }
         return first.getName().getString();
+    }
+
+    private static boolean emilink$dropFavoriteOnPagedBookmark(double mouseX, double mouseY) {
+        if (draggedStack == null || draggedStack.isEmpty()) return false;
+        int mx = (int) mouseX;
+        int my = (int) mouseY;
+        var panel = EmiScreenManager.getHoveredPanel(mx, my);
+        if (panel == null || panel.getType() != SidebarType.FAVORITES) return false;
+        var space = panel.getHoveredSpace(mx, my);
+        if (space == null || space.getType() != SidebarType.FAVORITES || space.pageSize <= 0) return false;
+
+        int localIndex = space.getClosestEdge(mx, my);
+        BookmarkPageHelper.compactAllPages(space.pageSize);
+        localIndex = BookmarkPageHelper.compactLocalInsertIndex(panel.page, space.pageSize, localIndex);
+
+        int pageStart = panel.page * space.pageSize;
+        int offset = pageStart + localIndex;
+        BookmarkPageHelper.ensureSize(pageStart);
+        EmiFavorites.addFavoriteAt(draggedStack, offset);
+        BookmarkPageHelper.compactAllPages(space.pageSize);
+        space.batcher.repopulate();
+        return true;
     }
 }
