@@ -8,6 +8,7 @@ import dev.emi.emi.api.stack.serializer.EmiIngredientSerializer;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.runtime.EmiPersistentData;
+import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ public final class BookmarkPageHelper {
 
     public static void rememberPageSize(int pageSize) {
         if (pageSize > 0) {
+            recoverSparsePageExplosion(pageSize);
             if (lastPageSize > 0 && lastPageSize != pageSize) {
                 reflowPages(lastPageSize, pageSize);
             }
@@ -60,6 +62,75 @@ public final class BookmarkPageHelper {
             }
         }
         return count;
+    }
+
+    public static int effectiveFavoriteSize() {
+        int last = EmiFavorites.favorites.size() - 1;
+        while (last >= 0 && isEmptyPlaceholder(EmiFavorites.favorites.get(last))) {
+            last--;
+        }
+        return last + 1;
+    }
+
+    public static int realFavoritePageCount(int pageSize) {
+        if (pageSize <= 0) {
+            return MIN_FAVORITE_PAGES;
+        }
+        recoverSparsePageExplosion(pageSize);
+        int effectiveSize = effectiveFavoriteSize();
+        int pages = effectiveSize <= 0 ? 1 : (effectiveSize + pageSize - 1) / pageSize;
+        return Math.max(MIN_FAVORITE_PAGES, pages);
+    }
+
+    public static List<EmiFavorite> realPageContents(int page, int pageSize) {
+        List<EmiFavorite> real = new ArrayList<>();
+        if (page < 0 || pageSize <= 0) {
+            return real;
+        }
+        int start = page * pageSize;
+        int end = Math.min(start + pageSize, EmiFavorites.favorites.size());
+        for (int i = start; i < end; i++) {
+            EmiFavorite favorite = EmiFavorites.favorites.get(i);
+            if (!isEmptyPlaceholder(favorite)) {
+                real.add(favorite);
+            }
+        }
+        return real;
+    }
+
+    public static boolean recoverSparsePageExplosion(int pageSize) {
+        if (EmiFavorites.favorites.isEmpty()) {
+            return false;
+        }
+
+        int total = EmiFavorites.favorites.size();
+        int realCount = 0;
+        for (EmiFavorite favorite : EmiFavorites.favorites) {
+            if (!isEmptyPlaceholder(favorite)) {
+                realCount++;
+            }
+        }
+        int emptyCount = total - realCount;
+        int pages = pageSize > 0 ? (total + pageSize - 1) / pageSize : total;
+        boolean sparseExplosion = total > 4096
+                && realCount > 0
+                && emptyCount > realCount * 8
+                && (pageSize <= 0 || pages > Math.max(MIN_FAVORITE_PAGES * 4, realCount + MIN_FAVORITE_PAGES));
+        if (!sparseExplosion) {
+            return false;
+        }
+
+        List<EmiFavorite> real = new ArrayList<>(realCount);
+        for (EmiFavorite favorite : EmiFavorites.favorites) {
+            if (!isEmptyPlaceholder(favorite)) {
+                real.add(favorite);
+            }
+        }
+        EmiFavorites.favorites.clear();
+        EmiFavorites.favorites.addAll(real);
+        ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder explosion total={} real={} empty={} pageSize={}",
+                total, realCount, emptyCount, pageSize);
+        return true;
     }
 
     public static int compactLocalInsertIndex(int page, int pageSize, int localIndex) {

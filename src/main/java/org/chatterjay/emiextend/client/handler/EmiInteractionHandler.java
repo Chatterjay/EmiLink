@@ -22,6 +22,8 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.integration.AE2Proxy;
@@ -227,9 +229,20 @@ public final class EmiInteractionHandler {
             return false;
         }
 
+        ItemStack hoveredStack = getItemStack(hovered);
+        if (hoveredStack != null && tryExtractHoveredAeStack(hoveredStack)) {
+            return true;
+        }
+
         EmiRecipe recipe = getRecipeForHovered(hovered);
         if (recipe == null) {
-            return false;
+            return hoveredStack != null && tryRequestHoveredAeStack(hoveredStack);
+        }
+
+        if (hoveredStack != null
+                && !areRecipeInputsAvailable(recipe)
+                && tryRequestHoveredAeStack(hoveredStack)) {
+            return true;
         }
 
         boolean filled = EmiRecipeFiller.performFill(
@@ -249,6 +262,67 @@ public final class EmiInteractionHandler {
         }
 
         return tryAeCraftingTransferFallback(recipe, (CraftingTermMenu) handled.getMenu());
+    }
+
+    private static boolean tryExtractHoveredAeStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        var cached = AENetworkCache.getCachedResult(stack);
+        if (!cached.found() || cached.count() <= 0) return false;
+        PacketDistributor.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1));
+        org.chatterjay.emiextend.util.ModLogger.info(
+                "AE_EMI_CTRL_CRAFT ctrl-hover extract item={} stored={} craftable={}",
+                stack.getHoverName().getString(), cached.count(), cached.craftable());
+        return true;
+    }
+
+    private static boolean tryRequestHoveredAeStack(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        var cached = AENetworkCache.getCachedResult(stack);
+        if (!cached.found() || !cached.craftable()) return false;
+        PacketDistributor.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1));
+        org.chatterjay.emiextend.util.ModLogger.info(
+                "AE_EMI_CTRL_CRAFT ctrl-hover autocraft item={} amount=1",
+                stack.getHoverName().getString());
+        return true;
+    }
+
+    private static boolean areRecipeInputsAvailable(EmiRecipe recipe) {
+        var reserved = new ArrayList<ItemStack>();
+        for (var input : recipe.getInputs()) {
+            if (input == null || input.isEmpty()) continue;
+            long need = Math.max(1L, input.getAmount());
+            boolean satisfied = false;
+            for (var emiStack : input.getEmiStacks()) {
+                ItemStack stack = emiStack.getItemStack();
+                if (stack.isEmpty()) continue;
+                long available = AENetworkCache.getCachedResult(stack).count() - countReserved(reserved, stack);
+                if (available >= need) {
+                    for (int i = 0; i < need; i++) {
+                        reserved.add(stack.copyWithCount(1));
+                    }
+                    satisfied = true;
+                    break;
+                }
+            }
+            if (!satisfied) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static long countReserved(List<ItemStack> reserved, ItemStack template) {
+        long count = 0;
+        for (var stack : reserved) {
+            if (ItemStack.isSameItemSameComponents(stack, template)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static EmiRecipe getRecipeForHovered(EmiStackInteraction hovered) {

@@ -29,6 +29,10 @@ public final class ModLogger {
         }
     }
 
+    public static boolean isDebugEnabled() {
+        return EmiLinkConfig.DEBUG_MODE.get();
+    }
+
     public static void debugChat(ServerPlayer player, String msg, Object... args) {
         if (EmiLinkConfig.DEBUG_MODE.get() && player != null) {
             var text = String.format("[EmiLink] " + msg, args);

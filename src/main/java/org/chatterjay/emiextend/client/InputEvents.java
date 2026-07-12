@@ -6,6 +6,7 @@ import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.bom.BoM;
 import dev.emi.emi.bom.MaterialNode;
 import dev.emi.emi.registry.EmiRecipeFiller;
+import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -36,6 +37,7 @@ import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDDepositSlotPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.lwjgl.glfw.GLFW;
 
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
@@ -130,6 +132,10 @@ public final class InputEvents {
 
     private record NodeAvailability(long ae, long inventory, long carried, long total, String detail) {}
 
+    private record AeCraftableShortage(MaterialNode node, ItemStack stack, long needed, long available, int missing) {}
+
+    private record AeInputNeed(ItemStack stack, long needed) {}
+
     @SubscribeEvent
     public static void onCharTypedPre(ScreenEvent.CharacterTyped.Pre event) {
         if (fillSearchHandled) {
@@ -174,10 +180,86 @@ public final class InputEvents {
 
     @SubscribeEvent
     public static void onMouseButtonPressedPre(ScreenEvent.MouseButtonPressed.Pre event) {
+        var mouse = getCurrentGuiMousePosition();
+        logBomMouseDown("screen-event-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton(), null);
+
         if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !Screen.hasControlDown()) return;
 
-        var mouse = getCurrentGuiMousePosition();
         logAeCtrlLeftClick("screen-press-pre", event.getScreen(), mouse.x(), mouse.y(), event.getButton());
+    }
+
+    public static void logBomMouseDown(String phase, Screen screen, double mouseX, double mouseY,
+                                       int button, Boolean consumed) {
+        if (screen == null || !BomTreePageHelper.isRecipeTreeUiOpen()) {
+            return;
+        }
+        try {
+            int mx = (int) mouseX;
+            int my = (int) mouseY;
+            var hovered = EmiScreenManager.getHoveredStack(mx, my, false);
+            var recipe = hovered == null ? null : hovered.getRecipeContext();
+            var panel = EmiScreenManager.getHoveredPanel(mx, my);
+            var space = EmiScreenManager.getHoveredSpace(mx, my);
+            String panelInfo = "none";
+            if (panel != null) {
+                try {
+                    panelInfo = "type=" + panel.getType() + ",page=" + panel.page;
+                } catch (Throwable t) {
+                    panelInfo = safeClassName(panel);
+                }
+            }
+            String spaceInfo = "none";
+            if (space != null) {
+                try {
+                    spaceInfo = "type=" + space.getType() + ",pageSize=" + space.pageSize
+                            + ",origin=(" + space.tx + "," + space.ty + ")"
+                            + ",widths=" + java.util.Arrays.toString(space.widths);
+                } catch (Throwable t) {
+                    spaceInfo = safeClassName(space);
+                }
+            }
+
+            String slotInfo = "none";
+            String menuInfo = "none";
+            if (screen instanceof AbstractContainerScreen<?> cs) {
+                var slot = cs.getSlotUnderMouse();
+                if (slot != null) {
+                    slotInfo = "index=" + slot.index
+                            + ",containerSlot=" + slot.getContainerSlot()
+                            + ",container=" + safeClassName(slot.container)
+                            + ",hasItem=" + slot.hasItem()
+                            + ",item=" + formatItemStack(slot.getItem());
+                }
+                menuInfo = safeClassName(cs.getMenu()) + "#" + cs.getMenu().containerId;
+            }
+
+            String bomRecipe = BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null
+                    ? "null"
+                    : String.valueOf(BoM.tree.goal.recipe.getId());
+            ModLogger.info(
+                    "BOM_MOUSE_DOWN phase={} button={} consumed={} ctrl={} shift={} alt={} xy=({}, {}) screen={} menu={} slot={} hovered={} hoveredRecipe={} panel={} space={} bomRecipe={} bomCraftingMode={} activePage={}",
+                    phase,
+                    button,
+                    consumed == null ? "n/a" : consumed,
+                    Screen.hasControlDown(),
+                    Screen.hasShiftDown(),
+                    Screen.hasAltDown(),
+                    mx,
+                    my,
+                    safeClassName(screen),
+                    menuInfo,
+                    slotInfo,
+                    formatHoveredStack(hovered),
+                    recipe == null || recipe.getId() == null ? "none" : recipe.getId(),
+                    panelInfo,
+                    spaceInfo,
+                    bomRecipe,
+                    BoM.craftingMode,
+                    BomTreePageHelper.getActiveFavoritePage());
+        } catch (Throwable t) {
+            ModLogger.warn("BOM_MOUSE_DOWN log-error phase={} error={}: {}",
+                    phase, t.getClass().getName(), t.getMessage());
+        }
     }
 
     public static void logAeCtrlLeftClick(String phase, Screen screen, double mouseX, double mouseY, int button) {
@@ -527,6 +609,24 @@ public final class InputEvents {
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
     private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event) {
         long runId = ++quickCraftRunSeq;
+        var hovered = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
+        if (hovered.getStack() instanceof EmiFavorite.Synthetic synthetic) {
+            boolean activated = BomTreePageHelper.activateSynthetic(synthetic);
+            if (!activated) {
+                BomTreePageHelper.refreshActiveSynthetic();
+                activated = BomTreePageHelper.activateSynthetic(synthetic);
+            }
+            if (activated) {
+                qcLog(runId, "activated BoM tree from hovered synthetic favorite");
+            } else {
+                qcLog(runId, "hovered synthetic favorite did not activate BoM tree: {}",
+                        BomTreePageHelper.describeSyntheticActivationFailure(synthetic));
+            }
+        } else {
+            qcDebug(runId, "hovered stack is not synthetic for BoM activation: type={} stack={}",
+                    hovered == null || hovered.getStack() == null ? "null" : hovered.getStack().getClass().getName(),
+                    formatHoveredStack(hovered));
+        }
         BomTreePageHelper.applyActiveToBoM();
         var mc = Minecraft.getInstance();
         var handled = EmiApi.getHandledScreen();
@@ -698,7 +798,7 @@ public final class InputEvents {
         }
 
         // Preflight: invalidate stale cache entries and send fresh queries
-        // for ALL node outputs. Bypasses TTL checks so we always get current AE counts.
+        // for ALL node outputs and inputs. Bypasses TTL checks so we always get current AE counts.
         var queryItems = new java.util.LinkedHashSet<ItemStack>();
         if (storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
             for (var node : nodes) {
@@ -708,13 +808,21 @@ public final class InputEvents {
                     if (stack.isEmpty()) continue;
                     queryItems.add(stack.copyWithCount(1));
                 }
+                for (var input : node.recipe.getInputs()) {
+                    if (input == null || input.isEmpty()) continue;
+                    for (var es : input.getEmiStacks()) {
+                        var stack = es.getItemStack();
+                        if (stack.isEmpty()) continue;
+                        queryItems.add(stack.copyWithCount(1));
+                    }
+                }
             }
         }
         preflightQueryStartedAt = System.currentTimeMillis();
         if (!queryItems.isEmpty()) {
             AENetworkCache.invalidateEntries(queryItems);
             PacketDistributor.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)));
-            qcLog(runId, "preflight direct query sent for {} outputs: {}", queryItems.size(), describeStacks(queryItems));
+            qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
         }
 
         preflightNodes = nodes;
@@ -927,6 +1035,29 @@ public final class InputEvents {
                 logPlanSummary(runId, preflightNodes, jobNeededAmounts, "adjusted");
             }
 
+            if (storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
+                AeCraftableShortage directAeRequest = findTopDownAeCraftableOutputShortage(
+                        preflightGoalNode, jobNeededAmounts, mc.player, preflightGoalNode, goalOutputDeduction);
+                if (directAeRequest != null) {
+                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                            directAeRequest.stack().copyWithCount(1), directAeRequest.missing()));
+                    qcLog(runId, "AE_QUICKCRAFT direct top-down ME autocraft recipe={} item={} needed={} available={} missing={}; P job paused before manual chain",
+                            recipeId(directAeRequest.node()),
+                            directAeRequest.stack().getHoverName().getString(),
+                            directAeRequest.needed(),
+                            directAeRequest.available(),
+                            directAeRequest.missing());
+                    preflightNodes = null;
+                    preflightGoalNode = null;
+                    preflightNeededAmounts = null;
+                    preflightScreen = null;
+                    preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
+                    preflightQueryStartedAt = 0;
+                    preflightRunId = 0;
+                    return;
+                }
+            }
+
             currentJob = new CraftingJob(preflightScreen, preflightGoalNode,
                     preflightNodes, jobNeededAmounts, runId, goalOutputDeduction, storageMode);
             preflightNodes = null;
@@ -1111,13 +1242,39 @@ public final class InputEvents {
                 return;
             }
 
+            if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
+                AeInputNeed aeInputNeed = findAeAutocraftInputNeed(node, currentJob.remainingBatches, mc.player);
+                if (aeInputNeed != null && aeInputNeed.needed() > 0) {
+                    long available = countPlayerAndCarried(mc.player, aeInputNeed.stack())
+                            + AENetworkCache.getCachedResult(aeInputNeed.stack()).count();
+                    long missing = Math.max(0, aeInputNeed.needed() - available);
+                    qcLog(currentJob.runId, "AE_QUICKCRAFT prefill direct request recipe={} item={} needed={} available={} missing={}",
+                            node.recipe.getId(), aeInputNeed.stack().getHoverName().getString(),
+                            aeInputNeed.needed(), available, missing);
+                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                            aeInputNeed.stack().copyWithCount(1), (int) Math.min(Integer.MAX_VALUE, missing)));
+                    abortCurrentJob("prefill AE autocraft request");
+                    return;
+                }
+            }
+
             // All nodes use INVENTORY — goes through CraftingTermSlotMixin
             // which reliably puts items into PlayerInternalInventory.
+            //
+            // Important for AE quick-craft: do not enable the post-fill AE autocraft
+            // handoff here. That path only runs after EMI/AE has filled the crafting
+            // grid, and AE's missing-material calculation does not count items already
+            // sitting in that grid. Missing craftable inputs are requested above before
+            // performFill, while the network still sees the complete inventory.
             long beforeOutputTotal = currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL
                     ? 0
                     : getNodeAvailability(node, mc.player, currentJob.storageMode).total();
             if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
                 PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
+            }
+            if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
+                qcLog(currentJob.runId, "AE_QUICKCRAFT performFill without post-fill ME handoff for {}; prefill request already checked",
+                        node.recipe.getId());
             }
             boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
                     EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
@@ -1469,6 +1626,14 @@ public final class InputEvents {
                 if (stack.isEmpty()) continue;
                 if (!AENetworkCache.getCachedResultSince(stack, minTimestamp).found()) return false;
             }
+            for (var input : node.recipe.getInputs()) {
+                if (input == null || input.isEmpty()) continue;
+                for (var es : input.getEmiStacks()) {
+                    var stack = es.getItemStack();
+                    if (stack.isEmpty()) continue;
+                    if (!AENetworkCache.getCachedResultSince(stack, minTimestamp).found()) return false;
+                }
+            }
         }
         return true;
     }
@@ -1501,6 +1666,14 @@ public final class InputEvents {
                 if (stack.isEmpty()) continue;
                 if (AENetworkCache.getCachedResultSince(stack, minTimestamp).found()) count++;
             }
+            for (var input : node.recipe.getInputs()) {
+                if (input == null || input.isEmpty()) continue;
+                for (var es : input.getEmiStacks()) {
+                    var stack = es.getItemStack();
+                    if (stack.isEmpty()) continue;
+                    if (AENetworkCache.getCachedResultSince(stack, minTimestamp).found()) count++;
+                }
+            }
         }
         return count;
     }
@@ -1512,6 +1685,13 @@ public final class InputEvents {
             for (var output : node.recipe.getOutputs()) {
                 var stack = output.getItemStack();
                 if (!stack.isEmpty()) count++;
+            }
+            for (var input : node.recipe.getInputs()) {
+                if (input == null || input.isEmpty()) continue;
+                for (var es : input.getEmiStacks()) {
+                    var stack = es.getItemStack();
+                    if (!stack.isEmpty()) count++;
+                }
             }
         }
         return count;
@@ -1574,6 +1754,121 @@ public final class InputEvents {
                     tag, i, node.recipe.getId(), availability.total(), availability.ae(),
                     availability.inventory(), availability.carried(), availability.detail());
         }
+    }
+
+    private static AeInputNeed findAeAutocraftInputNeed(MaterialNode node, long batches, Player player) {
+        if (node == null || node.recipe == null || batches <= 0) {
+            return null;
+        }
+
+        var needs = new java.util.ArrayList<AeInputNeed>();
+        for (var input : node.recipe.getInputs()) {
+            if (input == null || input.isEmpty()) {
+                continue;
+            }
+            ItemStack craftableStack = ItemStack.EMPTY;
+            for (var emiStack : input.getEmiStacks()) {
+                var stack = emiStack.getItemStack();
+                if (stack == null || stack.isEmpty()) {
+                    continue;
+                }
+                var cached = AENetworkCache.getCachedResult(stack);
+                if (cached.craftable()) {
+                    craftableStack = stack.copyWithCount(1);
+                    break;
+                }
+            }
+            if (craftableStack.isEmpty()) {
+                continue;
+            }
+
+            long need = Math.max(1L, input.getAmount()) * batches;
+            boolean merged = false;
+            for (int i = 0; i < needs.size(); i++) {
+                var existing = needs.get(i);
+                if (ItemStack.isSameItemSameComponents(existing.stack(), craftableStack)) {
+                    needs.set(i, new AeInputNeed(existing.stack(), existing.needed() + need));
+                    merged = true;
+                    break;
+                }
+            }
+            if (!merged) {
+                needs.add(new AeInputNeed(craftableStack, need));
+            }
+        }
+
+        for (var need : needs) {
+            long available = AENetworkCache.getCachedResult(need.stack()).count()
+                    + countPlayerAndCarried(player, need.stack());
+            if (need.needed() > available) {
+                return need;
+            }
+        }
+        return null;
+    }
+
+    private static AeCraftableShortage findTopDownAeCraftableOutputShortage(
+            MaterialNode node, java.util.Map<MaterialNode, Long> neededAmounts, Player player,
+            MaterialNode goalNode, long goalOutputDeduction) {
+        if (node == null || node.recipe == null) {
+            return null;
+        }
+
+        long needed = neededAmounts.getOrDefault(node, (long) Math.max(1, node.divisor));
+        for (var output : node.recipe.getOutputs()) {
+            var stack = output.getItemStack();
+            if (stack == null || stack.isEmpty()) {
+                continue;
+            }
+            var cached = AENetworkCache.getCachedResult(stack);
+            if (!cached.found() || !cached.craftable()) {
+                continue;
+            }
+            long available = cached.count() + countPlayerAndCarried(player, stack);
+            if (node == goalNode && goalOutputDeduction > 0) {
+                available = Math.max(0, available - goalOutputDeduction);
+            }
+            long missing = Math.max(0, needed - available);
+            if (missing > 0) {
+                return new AeCraftableShortage(
+                        node,
+                        stack.copyWithCount(1),
+                        needed,
+                        available,
+                        (int) Math.min(Integer.MAX_VALUE, missing));
+            }
+        }
+
+        if (node.children != null) {
+            for (MaterialNode child : node.children) {
+                AeCraftableShortage childRequest = findTopDownAeCraftableOutputShortage(
+                        child, neededAmounts, player, goalNode, goalOutputDeduction);
+                if (childRequest != null) {
+                    return childRequest;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static long countPlayerAndCarried(Player player, ItemStack template) {
+        if (player == null || template == null || template.isEmpty()) {
+            return 0;
+        }
+        long count = 0;
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.items.size(); i++) {
+            var stack = inv.getItem(i);
+            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, template)) {
+                count += stack.getCount();
+            }
+        }
+        var carried = player.containerMenu.getCarried();
+        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, template)) {
+            count += carried.getCount();
+        }
+        return count;
     }
 
     private static NodeAvailability getNodeAvailability(MaterialNode node, Player player, QuickCraftStorageMode storageMode) {

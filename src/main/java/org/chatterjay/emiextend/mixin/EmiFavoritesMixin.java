@@ -57,12 +57,17 @@ public abstract class EmiFavoritesMixin {
 
     @Inject(method = "updateSynthetic", at = @At("HEAD"))
     private static void emilink$useActiveBookmarkPageTree(EmiPlayerInventory inv, CallbackInfo ci) {
+        if (BomTreePageHelper.isBuildingPageSynthetic()) return;
+        if (BomTreePageHelper.isRecipeTreeUiOpen()) return;
         BomTreePageHelper.applyActiveToBoM();
     }
 
     @Inject(method = "updateSynthetic", at = @At("RETURN"))
     private static void emilink$storeActiveBookmarkPageTreeMode(EmiPlayerInventory inv, CallbackInfo ci) {
+        if (BomTreePageHelper.isBuildingPageSynthetic()) return;
+        if (BomTreePageHelper.isRecipeTreeUiOpen()) return;
         BomTreePageHelper.syncActiveModeFromBoM();
+        BomTreePageHelper.refreshActiveSynthetic();
     }
 
     @Inject(method = "removeFavorite", at = @At("HEAD"), cancellable = true)
@@ -123,6 +128,7 @@ public abstract class EmiFavoritesMixin {
             }
         }
         if (!hasEmilinkGaps) {
+            BookmarkPageHelper.recoverSparsePageExplosion(BookmarkPageHelper.getLastPageSize());
             return;
         }
 
@@ -143,5 +149,6 @@ public abstract class EmiFavoritesMixin {
 
         favorites.clear();
         favorites.addAll(rebuilt);
+        BookmarkPageHelper.recoverSparsePageExplosion(BookmarkPageHelper.getLastPageSize());
     }
 }

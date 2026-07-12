@@ -28,7 +28,7 @@ public abstract class EmiSidebarPanelMixin {
     @Inject(method = "render", at = @At("HEAD"))
     private void emilink$activateBookmarkPageTree(EmiDrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (getType() == SidebarType.FAVORITES && space != null && space.pageSize > 0) {
-            BomTreePageHelper.activateFavoritePage(page, space.pageSize);
+            BomTreePageHelper.activateFavoritePage(page, space.pageSize, space.widths);
         }
     }
 
@@ -64,8 +64,8 @@ public abstract class EmiSidebarPanelMixin {
         int size = stacks.size();
         if (getType() == SidebarType.FAVORITES && space != null && space.pageSize > 0) {
             BookmarkPageHelper.rememberPageSize(space.pageSize);
-            BomTreePageHelper.activateFavoritePage(page, space.pageSize);
-            return Math.max(size, space.pageSize * BookmarkPageHelper.MIN_FAVORITE_PAGES);
+            BomTreePageHelper.activateFavoritePage(page, space.pageSize, space.widths);
+            return BomTreePageHelper.virtualFavoriteSize(space.pageSize, space.widths);
         }
         return size;
     }

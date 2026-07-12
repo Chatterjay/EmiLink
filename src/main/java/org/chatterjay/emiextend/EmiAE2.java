@@ -20,6 +20,8 @@ import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftAmountOverridePacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
@@ -108,6 +110,16 @@ public class EmiAE2 {
                 AEQueryPacket.TYPE,
                 AEQueryPacket.STREAM_CODEC,
                 AEQueryPacket::handle
+        );
+        registrar.playToServer(
+                AEAutocraftAmountOverridePacket.TYPE,
+                AEAutocraftAmountOverridePacket.STREAM_CODEC,
+                AEAutocraftAmountOverridePacket::handle
+        );
+        registrar.playToServer(
+                AEAutocraftRequestPacket.TYPE,
+                AEAutocraftRequestPacket.STREAM_CODEC,
+                AEAutocraftRequestPacket::handle
         );
         registrar.playToServer(
                 AEBatchQueryPacket.TYPE,

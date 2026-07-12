@@ -41,6 +41,20 @@ public class EmiScreenManagerMixin {
         }
     }
 
+    @Inject(method = "mouseClicked", at = @At("HEAD"), require = 0)
+    private static void emilink$logMouseClickedHead(double mouseX, double mouseY, int button,
+                                                   CallbackInfoReturnable<Boolean> cir) {
+        org.chatterjay.emiextend.client.InputEvents.logBomMouseDown(
+                "emi-manager-click-head", Minecraft.getInstance().screen, mouseX, mouseY, button, null);
+    }
+
+    @Inject(method = "mouseClicked", at = @At("RETURN"), require = 0)
+    private static void emilink$logMouseClickedReturn(double mouseX, double mouseY, int button,
+                                                     CallbackInfoReturnable<Boolean> cir) {
+        org.chatterjay.emiextend.client.InputEvents.logBomMouseDown(
+                "emi-manager-click-return", Minecraft.getInstance().screen, mouseX, mouseY, button, cir.getReturnValueZ());
+    }
+
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
