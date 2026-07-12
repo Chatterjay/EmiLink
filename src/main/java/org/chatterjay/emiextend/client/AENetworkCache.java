@@ -4,6 +4,7 @@ import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.api.stack.EmiStack;
 import io.netty.buffer.Unpooled;
+import appeng.util.ReadableNumberConverter;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -73,6 +74,7 @@ public final class AENetworkCache {
 
     /** Queue a single item for the next batch query. */
     public static void submitForBatch(ItemStack stack) {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
         if (stack == null || stack.isEmpty()) return;
         pendingBatch.add(stack.copyWithCount(1));
     }
@@ -88,6 +90,7 @@ public final class AENetworkCache {
 
     /** Immediately flush the pending batch (used after initial scan collection). */
     public static void flushBatchNow() {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
         if (!pendingBatch.isEmpty()) {
             lastBatchFlushTime = System.currentTimeMillis();
             flushBatch();
@@ -368,7 +371,7 @@ public final class AENetworkCache {
 
         if (cached.count() > 0) {
             list.add(EmiTooltipComponents.of(
-                    Component.translatable("ae_tooltip.count", cached.count())
+                    Component.translatable("ae_tooltip.count", formatNetworkAmount(cached.count()))
                             .withStyle(ChatFormatting.GRAY)));
         }
         if (cached.craftable()) {
@@ -383,11 +386,45 @@ public final class AENetworkCache {
      */
     public record CachedResult(long count, boolean craftable, boolean found) {}
 
+    public static String formatNetworkAmount(long count) {
+        if (count <= 0) {
+            return "0";
+        }
+        try {
+            return ReadableNumberConverter.format(count, 4);
+        } catch (Throwable ignored) {
+            return fallbackFormatNetworkAmount(count);
+        }
+    }
+
+    private static String fallbackFormatNetworkAmount(long count) {
+        if (count < 1_000L) {
+            return Long.toString(count);
+        }
+        if (count < 1_000_000L) {
+            return compactAmount(count, 1_000L, "K");
+        }
+        if (count < 1_000_000_000L) {
+            return compactAmount(count, 1_000_000L, "M");
+        }
+        return compactAmount(count, 1_000_000_000L, "G");
+    }
+
+    private static String compactAmount(long count, long unit, String suffix) {
+        long whole = count / unit;
+        long tenths = (count % unit) * 10 / unit;
+        if (whole >= 10 || tenths == 0) {
+            return whole + suffix;
+        }
+        return whole + "." + tenths + suffix;
+    }
+
     /**
      * Public accessor for corner badge rendering. Returns cached AE network info
      * for the given stack, or {@code CachedResult(0, false, false)} if not cached.
      */
     public static CachedResult getCachedResult(ItemStack stack) {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return new CachedResult(0, false, false);
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
         var cached = findCached(stack);
         if (cached != null) {
@@ -402,6 +439,7 @@ public final class AENetworkCache {
      * cache entries cannot satisfy a forced refresh.
      */
     public static CachedResult getCachedResultSince(ItemStack stack, long minTimestamp) {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return new CachedResult(0, false, false);
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
         var cached = findCached(stack);
         if (cached != null && cached.timestamp() >= minTimestamp) {
@@ -429,10 +467,12 @@ public final class AENetworkCache {
 
     /** Quick check if the cache has any entries (avoids iterating visible items). */
     public static boolean hasAnyCached() {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return false;
         return !current.cache.isEmpty();
     }
 
     public static boolean hasAEAccess() {
+        if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return false;
         var mc = Minecraft.getInstance();
         if (mc.screen == accessCheckScreen) return accessCheckResult;
         accessCheckScreen = mc.screen;

@@ -50,18 +50,28 @@ public class RecipeTreeButtonWidgetMixin {
     private void emilink$syncRecipeTreeButtonReturn(int mouseX, int mouseY, int button,
                                                     CallbackInfoReturnable<Boolean> cir) {
         EmiRecipe recipe = emilink$getRecipe();
-        if (cir.getReturnValueZ() && emilink$wasCurrentTreeButton) {
+        if (cir.getReturnValueZ() && emilink$wasCurrentTreeButton && emilink$previousCraftingMode) {
             if (BoM.tree != null) {
                 BoM.tree.batches = emilink$previousBatches;
             }
-            BoM.craftingMode = emilink$previousCraftingMode;
+            BoM.craftingMode = true;
             if (Minecraft.getInstance().screen instanceof BoMScreen bomScreen) {
                 bomScreen.recalculateTree();
             }
-            ModLogger.info("BOM_TREE_BUTTON preserved current tree state recipe={} craftingMode={} batches={}",
+            ModLogger.info("BOM_TREE_BUTTON preserved current tree state recipe={} previousCraftingMode={} forcedCraftingMode=true batches={}",
                     recipe == null || recipe.getId() == null ? "null" : recipe.getId(),
                     emilink$previousCraftingMode,
                     emilink$previousBatches);
+        } else if (cir.getReturnValueZ() && BoM.tree != null) {
+            if (Minecraft.getInstance().screen instanceof BoMScreen bomScreen) {
+                bomScreen.recalculateTree();
+            }
+            ModLogger.info("BOM_TREE_BUTTON opened normal tree recipe={} previousCraftingMode={} batches={}",
+                    BoM.tree.goal == null || BoM.tree.goal.recipe == null || BoM.tree.goal.recipe.getId() == null
+                            ? "null"
+                            : BoM.tree.goal.recipe.getId(),
+                    emilink$previousCraftingMode,
+                    BoM.tree.batches);
         }
         ModLogger.info("BOM_TREE_BUTTON click-return result={} button={} afterRecipe={} afterCraftingMode={} afterBatches={} activePage={}",
                 cir.getReturnValueZ(),

@@ -60,8 +60,20 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        ModLogger.info("BOM_TREE_SCREEN key-return keyCode={} scanCode={} modifiers={} consumed={} beforeSync={} bomRecipe={} craftingMode={} batches={}",
+                keyCode,
+                scanCode,
+                modifiers,
+                cir.getReturnValueZ(),
+                BomTreePageHelper.describeActiveState(),
+                BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null
+                        ? "null"
+                        : BoM.tree.goal.recipe.getId(),
+                BoM.craftingMode,
+                BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
+        ModLogger.info("BOM_TREE_SCREEN key-return afterSync={}", BomTreePageHelper.describeActiveState());
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"))
@@ -71,8 +83,18 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "mouseClicked", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterClick(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+        ModLogger.info("BOM_TREE_SCREEN click-sync before button={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
+                button,
+                cir.getReturnValueZ(),
+                BomTreePageHelper.describeActiveState(),
+                BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null
+                        ? "null"
+                        : BoM.tree.goal.recipe.getId(),
+                BoM.craftingMode,
+                BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
+        ModLogger.info("BOM_TREE_SCREEN click-sync after={}", BomTreePageHelper.describeActiveState());
         logBoMScreenClick("return", mouseX, mouseY, button, cir.getReturnValueZ());
         if (cir.getReturnValueZ()) {
             BomTreePageHelper.logCurrentState("bom-screen-click");
@@ -81,8 +103,18 @@ public abstract class BoMScreenMixin {
 
     @Inject(method = "mouseScrolled", at = @At("RETURN"))
     private void emilink$syncPageTreeAfterScroll(double mouseX, double mouseY, double horizontal, double amount, CallbackInfoReturnable<Boolean> cir) {
+        ModLogger.info("BOM_TREE_SCREEN scroll-sync before amount={} consumed={} state={} bomRecipe={} craftingMode={} batches={}",
+                amount,
+                cir.getReturnValueZ(),
+                BomTreePageHelper.describeActiveState(),
+                BoM.tree == null || BoM.tree.goal == null || BoM.tree.goal.recipe == null
+                        ? "null"
+                        : BoM.tree.goal.recipe.getId(),
+                BoM.craftingMode,
+                BoM.tree == null ? 0 : BoM.tree.batches);
         BomTreePageHelper.syncActiveModeFromBoM();
         BomTreePageHelper.refreshActiveSynthetic();
+        ModLogger.info("BOM_TREE_SCREEN scroll-sync after={}", BomTreePageHelper.describeActiveState());
     }
 
     private void logBoMScreenClick(String phase, double mouseX, double mouseY, int button, Boolean consumed) {

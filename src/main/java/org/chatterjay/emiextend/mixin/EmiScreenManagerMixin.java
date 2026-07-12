@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import org.chatterjay.emiextend.client.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -37,6 +38,13 @@ public class EmiScreenManagerMixin {
     private static void emilink$onKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         if (cir.getReturnValueZ()) return;
         if (EmiInteractionHandler.onKeyPressed(keyCode, scanCode, modifiers, lastMouseX, lastMouseY)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$onBomKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (InputEvents.tryHandleBomKeyFromEmi(keyCode, scanCode)) {
             cir.setReturnValue(true);
         }
     }

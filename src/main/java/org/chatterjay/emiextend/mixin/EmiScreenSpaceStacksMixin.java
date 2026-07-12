@@ -18,6 +18,8 @@ public abstract class EmiScreenSpaceStacksMixin {
 
     @Shadow private int tw;
 
+    @Shadow public int pageSize;
+
     @Shadow public int[] widths;
 
     @Shadow
@@ -33,8 +35,8 @@ public abstract class EmiScreenSpaceStacksMixin {
                     cir.setReturnValue(MobSeparator.separateStacks(original, tw));
                 }
             } else if (type == SidebarType.FAVORITES && tw > 0) {
-                int pageSize = BookmarkPageHelper.getLastPageSize();
                 if (pageSize > 0) {
+                    BookmarkPageHelper.rememberPageSize(pageSize);
                     cir.setReturnValue(BomTreePageHelper.buildVirtualFavoriteStacks(pageSize, widths));
                 }
             }

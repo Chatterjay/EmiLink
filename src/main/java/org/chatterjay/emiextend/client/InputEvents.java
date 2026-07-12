@@ -3,6 +3,7 @@ package org.chatterjay.emiextend.client;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
+import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.bom.BoM;
 import dev.emi.emi.bom.MaterialNode;
 import dev.emi.emi.registry.EmiRecipeFiller;
@@ -150,6 +151,12 @@ public final class InputEvents {
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
+        boolean quickCraftKey = EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+                && matchesConfiguredQuickCraftKey(keyCode);
+
+        if (keyCode == GLFW.GLFW_KEY_A || quickCraftKey) {
+            logBomKeyPress("pre", keyCode, scanCode, quickCraftKey);
+        }
 
         if (ModKeybindings.FILL_SEARCH_KEY.matches(keyCode, scanCode)) {
             onFillSearchKey(event);
@@ -167,15 +174,69 @@ public final class InputEvents {
         }
 
         if (EmiLinkConfig.ENABLE_DISCARD_MATCHING_KEY.get()
-                && matchesDiscardMatchingKeyCombo(keyCode)) {
-            tryHandleDiscardMatchingKey(keyCode);
+                && matchesDiscardMatchingKeyCombo(keyCode, scanCode)) {
+            tryHandleDiscardMatchingKey(keyCode, scanCode);
             event.setCanceled(true);
             return;
         }
 
-        if (keyCode == GLFW.GLFW_KEY_P && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()) {
+        if (keyCode == GLFW.GLFW_KEY_A) {
+            boolean canceled = tryCancelHoveredFinalBomTree();
+            ModLogger.info("BOM_KEY A result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
+            if (canceled) {
+                event.setCanceled(true);
+            }
+            return;
+        }
+
+        if (quickCraftKey) {
+            EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
+            ModLogger.info("BOM_KEY quick-craft matched bind={} finalSynthetic={} synthetic={} {}",
+                    quickCraftBindText(),
+                    synthetic != null,
+                    synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
+                    BomTreePageHelper.describeActiveState());
+            event.setCanceled(true);
+            if (synthetic == null) {
+                var mouse = getCurrentGuiMousePosition();
+                ModLogger.info("BOM_KEY quick-craft ignored: hovered target is not a final synthetic preciseFavorite={}",
+                        describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
+                return;
+            }
             onQuickCraftTabKey(event);
         }
+    }
+
+    public static boolean tryHandleBomKeyFromEmi(int keyCode, int scanCode) {
+        boolean quickCraftKey = EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+                && matchesConfiguredQuickCraftKey(keyCode);
+
+        if (keyCode != GLFW.GLFW_KEY_A && !quickCraftKey) {
+            return false;
+        }
+
+        logBomKeyPress("emi-head", keyCode, scanCode, quickCraftKey);
+
+        if (keyCode == GLFW.GLFW_KEY_A) {
+            boolean canceled = tryCancelHoveredFinalBomTree();
+            ModLogger.info("BOM_KEY A emi result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
+            return canceled;
+        }
+
+        EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
+        ModLogger.info("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} synthetic={} {}",
+                quickCraftBindText(),
+                synthetic != null,
+                synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
+                BomTreePageHelper.describeActiveState());
+        if (synthetic == null) {
+            var mouse = getCurrentGuiMousePosition();
+            ModLogger.info("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic preciseFavorite={}",
+                    describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
+            return false;
+        }
+        onQuickCraftTabKey(null);
+        return true;
     }
 
     @SubscribeEvent
@@ -313,6 +374,154 @@ public final class InputEvents {
         }
     }
 
+    private static void logBomKeyPress(String phase, int keyCode, int scanCode, boolean quickCraftKey) {
+        try {
+            var mc = Minecraft.getInstance();
+            var mouse = getCurrentGuiMousePosition();
+            var hoveredScreen = EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
+            var hoveredApi = EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
+            var hoveredLast = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
+            ModLogger.info(
+                    "BOM_KEY {} keyCode={} scanCode={} keyName={} bind={} quickCraftKey={} ctrl={} shift={} alt={} xy=({}, {}) lastXY=({}, {}) screen={} handled={} focus={} hoveredScreen={} hoveredApi={} hoveredLast={} bomScreenHover={} {}",
+                    phase,
+                    keyCode,
+                    scanCode,
+                    keyName(keyCode),
+                    quickCraftBindText(),
+                    quickCraftKey,
+                    Screen.hasControlDown(),
+                    Screen.hasShiftDown(),
+                    Screen.hasAltDown(),
+                    (int) mouse.x(),
+                    (int) mouse.y(),
+                    EmiScreenManager.lastMouseX,
+                    EmiScreenManager.lastMouseY,
+                    safeClassName(mc.screen),
+                    safeClassName(EmiApi.getHandledScreen()),
+                    mc.screen == null ? "none" : safeClassName(mc.screen.getFocused()),
+                    describeHoveredSynthetic(hoveredScreen),
+                    describeHoveredSynthetic(hoveredApi),
+                    describeHoveredSynthetic(hoveredLast),
+                    describeBomScreenHover(mc.screen, mouse.x(), mouse.y()),
+                    BomTreePageHelper.describeActiveState());
+        } catch (Throwable t) {
+            ModLogger.warn("BOM_KEY log-error phase={} error={}: {}",
+                    phase, t.getClass().getName(), t.getMessage());
+        }
+    }
+
+    private static String keyName(int keyCode) {
+        if (keyCode >= GLFW.GLFW_KEY_A && keyCode <= GLFW.GLFW_KEY_Z) {
+            return Character.toString((char) ('A' + keyCode - GLFW.GLFW_KEY_A));
+        }
+        if (keyCode >= GLFW.GLFW_KEY_0 && keyCode <= GLFW.GLFW_KEY_9) {
+            return Character.toString((char) ('0' + keyCode - GLFW.GLFW_KEY_0));
+        }
+        if (keyCode >= GLFW.GLFW_KEY_F1 && keyCode <= GLFW.GLFW_KEY_F25) {
+            return "F" + (keyCode - GLFW.GLFW_KEY_F1 + 1);
+        }
+        return switch (keyCode) {
+            case GLFW.GLFW_KEY_SPACE -> "SPACE";
+            case GLFW.GLFW_KEY_TAB -> "TAB";
+            case GLFW.GLFW_KEY_ENTER -> "ENTER";
+            case GLFW.GLFW_KEY_ESCAPE -> "ESCAPE";
+            case GLFW.GLFW_KEY_BACKSPACE -> "BACKSPACE";
+            case GLFW.GLFW_KEY_DELETE -> "DELETE";
+            default -> Integer.toString(keyCode);
+        };
+    }
+
+    private static String describeHoveredSynthetic(dev.emi.emi.api.stack.EmiStackInteraction hovered) {
+        if (hovered == null || hovered.isEmpty()) {
+            return formatHoveredStack(hovered);
+        }
+        String base = formatHoveredStack(hovered);
+        if (hovered.getStack() instanceof EmiFavorite.Synthetic synthetic) {
+            return base + " synthetic={" + BomTreePageHelper.describeSyntheticDebug(synthetic) + "}";
+        }
+        return base + " stackType=" + safeClassName(hovered.getStack());
+    }
+
+    private static String describeBomScreenHover(Screen screen, double mouseX, double mouseY) {
+        if (!(screen instanceof dev.emi.emi.screen.BoMScreen)) {
+            return "not-bom-screen";
+        }
+        Object hover = getBomScreenHoverObject(screen, mouseX, mouseY);
+        if (hover == null) {
+            return "none";
+        }
+        if (hover instanceof String text) {
+            return text;
+        }
+        try {
+            Object stack = getDeclaredFieldValue(hover, "stack");
+            Object node = getDeclaredFieldValue(hover, "node");
+            Object resolve = getDeclaredFieldValue(hover, "resolve");
+            return "hoverClass=" + hover.getClass().getName()
+                    + ",stack=" + describeIngredientObject(stack)
+                    + ",node=" + describeMaterialNodeObject(node)
+                    + ",resolve=" + describeMaterialNodeObject(resolve)
+                    + ",isGoal=" + isGoalNodeObject(node);
+        } catch (Throwable t) {
+            return hover.getClass().getName() + ":describe-error:" + t.getClass().getSimpleName();
+        }
+    }
+
+    private static Object getBomScreenHoverObject(Screen screen, double mouseX, double mouseY) {
+        try {
+            var method = screen.getClass().getDeclaredMethod("getHoveredStack", int.class, int.class);
+            method.setAccessible(true);
+            return method.invoke(screen, (int) mouseX, (int) mouseY);
+        } catch (Throwable t) {
+            return "method-missing:" + t.getClass().getSimpleName();
+        }
+    }
+
+    private static Object getDeclaredFieldValue(Object owner, String name) throws ReflectiveOperationException {
+        var field = owner.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(owner);
+    }
+
+    private static String describeIngredientObject(Object value) {
+        if (!(value instanceof EmiIngredient ingredient) || ingredient.isEmpty()) {
+            return "none";
+        }
+        var stacks = ingredient.getEmiStacks();
+        if (stacks.isEmpty()) {
+            return "empty";
+        }
+        var first = stacks.getFirst();
+        return first.getId() + "/" + first.getName().getString();
+    }
+
+    private static String describeMaterialNodeObject(Object value) {
+        if (!(value instanceof MaterialNode node)) {
+            return "none";
+        }
+        return "recipe=" + recipeId(node)
+                + ",amount=" + node.amount
+                + ",neededBatches=" + node.neededBatches
+                + ",totalNeeded=" + node.totalNeeded
+                + ",isGoal=" + isGoalNodeObject(node);
+    }
+
+    private static boolean isGoalNodeObject(Object value) {
+        if (!(value instanceof MaterialNode node)) {
+            return false;
+        }
+        if (BoM.tree == null || BoM.tree.goal == null) {
+            return false;
+        }
+        if (node == BoM.tree.goal) {
+            return true;
+        }
+        return node.recipe != null
+                && BoM.tree.goal.recipe != null
+                && node.recipe.getId() != null
+                && node.recipe.getId().equals(BoM.tree.goal.recipe.getId());
+    }
+
     private record GuiMousePosition(double x, double y) {}
 
     private static GuiMousePosition getCurrentGuiMousePosition() {
@@ -350,58 +559,61 @@ public final class InputEvents {
         return value == null ? "none" : value.getClass().getName();
     }
 
-    private record KeyCombo(int keyCode, boolean control, boolean shift, boolean alt) {}
-
-    public static boolean tryHandleDiscardMatchingKey(int keyCode) {
+    public static boolean tryHandleDiscardMatchingKey(int keyCode, int scanCode) {
         if (!EmiLinkConfig.ENABLE_DISCARD_MATCHING_KEY.get()) return false;
-        if (!matchesDiscardMatchingKeyCombo(keyCode)) return false;
+        if (!matchesDiscardMatchingKeyCombo(keyCode, scanCode)) return false;
 
         BDShortcutHandler.tryBatchDropMatchingFromCurrentScreen();
         return true;
     }
 
-    private static boolean matchesDiscardMatchingKeyCombo(int keyCode) {
-        var combo = parseKeyCombo(EmiLinkConfig.DISCARD_MATCHING_KEY_COMBO.get());
-        if (combo == null) {
-            combo = parseKeyCombo("CONTROL+SHIFT+Q");
-        }
-        return combo != null
-                && keyCode == combo.keyCode()
-                && Screen.hasControlDown() == combo.control()
-                && Screen.hasShiftDown() == combo.shift()
-                && Screen.hasAltDown() == combo.alt();
+    private static boolean matchesDiscardMatchingKeyCombo(int keyCode, int scanCode) {
+        var mc = Minecraft.getInstance();
+        return mc.options.keyDrop.matches(keyCode, scanCode)
+                && Screen.hasControlDown()
+                && Screen.hasShiftDown()
+                && !Screen.hasAltDown();
     }
 
-    @javax.annotation.Nullable
-    private static KeyCombo parseKeyCombo(String value) {
+    private static boolean matchesConfiguredQuickCraftKey(int keyCode) {
+        int configuredKey = parseKeyToken(EmiLinkConfig.QUICK_CRAFT_KEY.get());
+        if (configuredKey < 0) {
+            configuredKey = GLFW.GLFW_KEY_C;
+        }
+        return keyCode == configuredKey && matchesModifier(EmiLinkConfig.QUICK_CRAFT_MODIFIER.get());
+    }
+
+    private static boolean matchesModifier(EmiLinkConfig.ExtractTrigger modifier) {
+        return switch (modifier) {
+            case SHIFT -> Screen.hasShiftDown() && !Screen.hasControlDown() && !Screen.hasAltDown();
+            case CONTROL -> Screen.hasControlDown() && !Screen.hasShiftDown() && !Screen.hasAltDown();
+            case ALT -> Screen.hasAltDown() && !Screen.hasControlDown() && !Screen.hasShiftDown();
+            case OFF -> !Screen.hasControlDown() && !Screen.hasShiftDown() && !Screen.hasAltDown();
+        };
+    }
+
+    public static String quickCraftBindText() {
+        String key = normalizeKeyToken(EmiLinkConfig.QUICK_CRAFT_KEY.get());
+        if (key == null) {
+            key = "C";
+        }
+        return switch (EmiLinkConfig.QUICK_CRAFT_MODIFIER.get()) {
+            case SHIFT -> "Shift+" + key;
+            case CONTROL -> "Ctrl+" + key;
+            case ALT -> "Alt+" + key;
+            case OFF -> key;
+        };
+    }
+
+    private static String normalizeKeyToken(String value) {
         if (value == null || value.isBlank()) return null;
-
-        boolean control = false;
-        boolean shift = false;
-        boolean alt = false;
-        int keyCode = -1;
-
-        for (String rawToken : value.toUpperCase(java.util.Locale.ROOT).split("\\+")) {
-            String token = rawToken.trim().replace("-", "_");
-            if (token.isEmpty()) continue;
-
-            switch (token) {
-                case "CTRL", "CONTROL" -> control = true;
-                case "SHIFT" -> shift = true;
-                case "ALT" -> alt = true;
-                default -> {
-                    int parsedKey = parseKeyToken(token);
-                    if (parsedKey < 0 || keyCode >= 0) return null;
-                    keyCode = parsedKey;
-                }
-            }
-        }
-
-        if (keyCode < 0) return null;
-        return new KeyCombo(keyCode, control, shift, alt);
+        String token = value.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
+        return parseKeyToken(token) < 0 ? null : token;
     }
 
-    private static int parseKeyToken(String token) {
+    private static int parseKeyToken(String value) {
+        if (value == null || value.isBlank()) return -1;
+        String token = value.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
         if (token.length() == 1) {
             char c = token.charAt(0);
             if (c >= 'A' && c <= 'Z') return GLFW.GLFW_KEY_A + (c - 'A');
@@ -431,6 +643,177 @@ public final class InputEvents {
             case "DOWN" -> GLFW.GLFW_KEY_DOWN;
             default -> -1;
         };
+    }
+
+    private static boolean tryCancelHoveredFinalBomTree() {
+        EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
+        if (synthetic == null) {
+            boolean removedBomGoal = tryCancelHoveredBomScreenGoalTree();
+            if (removedBomGoal) {
+                return true;
+            }
+            var mouse = getCurrentGuiMousePosition();
+            var hovered = EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
+            ModLogger.info("BOM_TREE_PAGE A cancel miss hovered={} textFocused={} bomHover={} preciseFavorite={} {}",
+                    formatHoveredStack(hovered),
+                    isTextInputFocused(),
+                    describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()),
+                    describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()),
+                    BomTreePageHelper.describeActiveState());
+            return false;
+        }
+        boolean removed = BomTreePageHelper.removeFinalSyntheticTree(synthetic);
+        ModLogger.info("BOM_TREE_PAGE A cancel synthetic={} removed={}",
+                BomTreePageHelper.describeSyntheticDebug(synthetic), removed);
+        if (removed) {
+            abortCurrentJob("BoM tree canceled by A");
+            clearPreflightState();
+            ModLogger.info("BOM_TREE_PAGE canceled hovered final tree with A");
+        }
+        return removed;
+    }
+
+    private static boolean tryCancelHoveredBomScreenGoalTree() {
+        var mc = Minecraft.getInstance();
+        if (!(mc.screen instanceof dev.emi.emi.screen.BoMScreen)) {
+            return false;
+        }
+        var mouse = getCurrentGuiMousePosition();
+        Object hover = getBomScreenHoverObject(mc.screen, mouse.x(), mouse.y());
+        Object node = null;
+        try {
+            if (hover != null && !(hover instanceof String)) {
+                node = getDeclaredFieldValue(hover, "node");
+            }
+        } catch (Throwable ignored) {}
+        if (!isGoalNodeObject(node)) {
+            ModLogger.info("BOM_TREE_PAGE A bom-screen goal miss hover={} {}",
+                    describeBomScreenHover(mc.screen, mouse.x(), mouse.y()),
+                    BomTreePageHelper.describeActiveState());
+            return false;
+        }
+        String goalRecipeId = BoM.tree == null || BoM.tree.goal == null ? "(unknown)" : recipeId(BoM.tree.goal);
+        boolean removed = BomTreePageHelper.removeTreeForRecipeId(goalRecipeId);
+        if (removed) {
+            abortCurrentJob("BoM tree canceled by A on BoMScreen goal");
+            clearPreflightState();
+        }
+        ModLogger.info("BOM_TREE_PAGE A bom-screen goal cancel recipe={} removed={} hover={} {}",
+                goalRecipeId,
+                removed,
+                describeBomScreenHover(mc.screen, mouse.x(), mouse.y()),
+                BomTreePageHelper.describeActiveState());
+        return removed;
+    }
+
+    private static boolean isTextInputFocused() {
+        var screen = Minecraft.getInstance().screen;
+        return screen != null && screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox;
+    }
+
+    @javax.annotation.Nullable
+    private static EmiFavorite.Synthetic getHoveredFinalSynthetic() {
+        var mouse = getCurrentGuiMousePosition();
+        EmiFavorite.Synthetic synthetic = getFinalSyntheticFromHovered(
+                EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (synthetic != null) {
+            return synthetic;
+        }
+        synthetic = getFinalSyntheticFromHovered(
+                EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (synthetic != null) {
+            return synthetic;
+        }
+        synthetic = getFinalSyntheticFromPreciseFavoriteHit((int) mouse.x(), (int) mouse.y());
+        if (synthetic != null) {
+            return synthetic;
+        }
+        return getFinalSyntheticFromHovered(
+                EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false));
+    }
+
+    @javax.annotation.Nullable
+    private static EmiFavorite.Synthetic getFinalSyntheticFromPreciseFavoriteHit(int mouseX, int mouseY) {
+        try {
+            var panel = EmiScreenManager.getHoveredPanel(mouseX, mouseY);
+            if (panel == null || panel.getType() != dev.emi.emi.config.SidebarType.FAVORITES) {
+                return null;
+            }
+            var space = panel.getHoveredSpace(mouseX, mouseY);
+            if (space == null || space.pageSize <= 0) {
+                return null;
+            }
+            int offset = space.getRawOffsetFromMouse(mouseX, mouseY);
+            if (offset < 0) {
+                return null;
+            }
+            int index = offset;
+            if (space == panel.space) {
+                index += space.pageSize * panel.page;
+            }
+            var stacks = space.getStacks();
+            if (index < 0 || index >= stacks.size()) {
+                return null;
+            }
+            var ingredient = stacks.get(index);
+            if (ingredient instanceof EmiFavorite.Synthetic synthetic && BomTreePageHelper.isFinalSynthetic(synthetic)) {
+                return synthetic;
+            }
+        } catch (Throwable t) {
+            ModLogger.warn("BOM_KEY precise favorite hit error: {}: {}",
+                    t.getClass().getName(), t.getMessage());
+        }
+        return null;
+    }
+
+    private static String describePreciseFavoriteHit(int mouseX, int mouseY) {
+        try {
+            var panel = EmiScreenManager.getHoveredPanel(mouseX, mouseY);
+            if (panel == null) {
+                return "panel=none";
+            }
+            var space = panel.getHoveredSpace(mouseX, mouseY);
+            if (space == null) {
+                return "panel=" + panel.getType() + ",space=none,page=" + panel.page;
+            }
+            int offset = space.getRawOffsetFromMouse(mouseX, mouseY);
+            int index = offset;
+            if (offset >= 0 && space == panel.space) {
+                index += space.pageSize * panel.page;
+            }
+            String ingredientInfo = "none";
+            if (offset >= 0) {
+                var stacks = space.getStacks();
+                if (index >= 0 && index < stacks.size()) {
+                    var ingredient = stacks.get(index);
+                    ingredientInfo = ingredient == null || ingredient.isEmpty()
+                            ? "empty"
+                            : ingredient.getClass().getName();
+                    if (ingredient instanceof EmiFavorite.Synthetic synthetic) {
+                        ingredientInfo += " synthetic={" + BomTreePageHelper.describeSyntheticDebug(synthetic) + "}";
+                    }
+                } else {
+                    ingredientInfo = "out-of-range size=" + stacks.size();
+                }
+            }
+            return "panel=" + panel.getType()
+                    + ",page=" + panel.page
+                    + ",spaceType=" + space.getType()
+                    + ",offset=" + offset
+                    + ",index=" + index
+                    + ",pageSize=" + space.pageSize
+                    + ",hit=" + ingredientInfo;
+        } catch (Throwable t) {
+            return "error=" + t.getClass().getSimpleName() + ":" + t.getMessage();
+        }
+    }
+
+    @javax.annotation.Nullable
+    private static EmiFavorite.Synthetic getFinalSyntheticFromHovered(dev.emi.emi.api.stack.EmiStackInteraction hovered) {
+        if (hovered == null || !(hovered.getStack() instanceof EmiFavorite.Synthetic synthetic)) {
+            return null;
+        }
+        return BomTreePageHelper.isFinalSynthetic(synthetic) ? synthetic : null;
     }
 
     private static void onFillSearchKey(ScreenEvent.KeyPressed.Pre event) {
@@ -609,8 +992,8 @@ public final class InputEvents {
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
     private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event) {
         long runId = ++quickCraftRunSeq;
-        var hovered = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
-        if (hovered.getStack() instanceof EmiFavorite.Synthetic synthetic) {
+        EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
+        if (synthetic != null) {
             boolean activated = BomTreePageHelper.activateSynthetic(synthetic);
             if (!activated) {
                 BomTreePageHelper.refreshActiveSynthetic();
@@ -623,7 +1006,8 @@ public final class InputEvents {
                         BomTreePageHelper.describeSyntheticActivationFailure(synthetic));
             }
         } else {
-            qcDebug(runId, "hovered stack is not synthetic for BoM activation: type={} stack={}",
+            var hovered = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
+            qcDebug(runId, "hovered stack is not a final BoM synthetic for activation: type={} stack={}",
                     hovered == null || hovered.getStack() == null ? "null" : hovered.getStack().getClass().getName(),
                     formatHoveredStack(hovered));
         }
@@ -631,22 +1015,28 @@ public final class InputEvents {
         var mc = Minecraft.getInstance();
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
-            event.setCanceled(true);
-            qcLog(runId, "no handled screen (P ignored)");
+            if (event != null) {
+                event.setCanceled(true);
+            }
+            qcLog(runId, "no handled screen (quick craft ignored)");
             return;
         }
         QuickCraftStorageMode storageMode = getQuickCraftStorageMode(handled, mc.player);
         qcLog(runId, "BEGIN handled={} storageMode={}",
                 handled.getClass().getName(), storageMode);
         if (storageMode == QuickCraftStorageMode.UNSAFE_EXTERNAL_GRID) {
-            event.setCanceled(true);
-            qcLog(runId, "unsupported external grid for P quick craft; stopping to avoid losing outputs");
+            if (event != null) {
+                event.setCanceled(true);
+            }
+            qcLog(runId, "unsupported external grid for quick craft; stopping to avoid losing outputs");
             return;
         }
 
         if (BoM.tree == null || BoM.tree.goal == null) {
-            event.setCanceled(true);
-            qcLog(runId, "no BoM tree (P ignored)");
+            if (event != null) {
+                event.setCanceled(true);
+            }
+            qcLog(runId, "no BoM tree (quick craft ignored)");
             return;
         }
 
@@ -735,7 +1125,7 @@ public final class InputEvents {
         }
 
         if (currentJob != null || preflightNodes != null) {
-            qcLog(runId, "already {} (P ignored)",
+            qcLog(runId, "already {} (quick craft ignored)",
                     currentJob != null ? "crafting" : "in preflight");
             return;
         }
@@ -1010,6 +1400,7 @@ public final class InputEvents {
             long goalOutputDeduction = 0;
             if (remainingGoalNeed <= 0) {
                 qcLog(runId, "goal already satisfied; no crafting needed");
+                removeCompletedBomTree(runId, preflightGoalNode, "goal already satisfied");
                 preflightNodes = null;
                 preflightGoalNode = null;
                 preflightNeededAmounts = null;
@@ -1041,7 +1432,7 @@ public final class InputEvents {
                 if (directAeRequest != null) {
                     PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
                             directAeRequest.stack().copyWithCount(1), directAeRequest.missing()));
-                    qcLog(runId, "AE_QUICKCRAFT direct top-down ME autocraft recipe={} item={} needed={} available={} missing={}; P job paused before manual chain",
+                    qcLog(runId, "AE_QUICKCRAFT direct top-down ME autocraft recipe={} item={} needed={} available={} missing={}; quick craft job paused before manual chain",
                             recipeId(directAeRequest.node()),
                             directAeRequest.stack().getHoverName().getString(),
                             directAeRequest.needed(),
@@ -1339,12 +1730,23 @@ public final class InputEvents {
                     completedBatches.size(), completedBatches);
         } else {
             qcLog(currentJob.runId, "finished cleanly; clearing completedBatches ({} entries)", completedBatches.size());
+            removeCompletedBomTree(currentJob.runId, currentJob.goalNode, "quick craft finished cleanly");
             completedBatches.clear();
             lastGoalRecipeId = null;
             lastBoMBatches = -1;
             lastPlanSignature = null;
         }
         currentJob = null;
+    }
+
+    private static void removeCompletedBomTree(long runId, MaterialNode goalNode, String reason) {
+        String goalRecipeId = recipeId(goalNode);
+        if (goalRecipeId == null) {
+            return;
+        }
+        boolean removed = BomTreePageHelper.removeTreeForRecipeId(goalRecipeId);
+        qcLog(runId, "BOM_TREE_PAGE completion cleanup recipe={} reason={} removed={}",
+                goalRecipeId, reason, removed);
     }
 
     private static void finishCurrentNode(Player player, MaterialNode node) {
@@ -1380,6 +1782,16 @@ public final class InputEvents {
         }
         savePartialNodeProgress(reason);
         currentJob = null;
+    }
+
+    private static void clearPreflightState() {
+        preflightNodes = null;
+        preflightGoalNode = null;
+        preflightNeededAmounts = null;
+        preflightScreen = null;
+        preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
+        preflightQueryStartedAt = 0;
+        preflightRunId = 0;
     }
 
     private static void savePartialNodeProgress(String reason) {

@@ -8,13 +8,14 @@ import dev.emi.emi.api.stack.serializer.EmiIngredientSerializer;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.runtime.EmiPersistentData;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public final class BookmarkPageHelper {
-    public static final int MIN_FAVORITE_PAGES = 5;
+    public static final int DEFAULT_FAVORITE_PAGES = 5;
 
     private static int lastPageSize = 0;
 
@@ -33,6 +34,14 @@ public final class BookmarkPageHelper {
 
     public static int getLastPageSize() {
         return lastPageSize;
+    }
+
+    public static int configuredFavoritePageCount() {
+        try {
+            return Math.max(1, Math.min(50, EmiLinkConfig.FAVORITE_PAGE_COUNT.get()));
+        } catch (Exception ignored) {
+            return DEFAULT_FAVORITE_PAGES;
+        }
     }
 
     public static boolean isEmptyPlaceholder(EmiFavorite favorite) {
@@ -74,12 +83,12 @@ public final class BookmarkPageHelper {
 
     public static int realFavoritePageCount(int pageSize) {
         if (pageSize <= 0) {
-            return MIN_FAVORITE_PAGES;
+            return configuredFavoritePageCount();
         }
         recoverSparsePageExplosion(pageSize);
         int effectiveSize = effectiveFavoriteSize();
         int pages = effectiveSize <= 0 ? 1 : (effectiveSize + pageSize - 1) / pageSize;
-        return Math.max(MIN_FAVORITE_PAGES, pages);
+        return Math.max(configuredFavoritePageCount(), pages);
     }
 
     public static List<EmiFavorite> realPageContents(int page, int pageSize) {
@@ -104,28 +113,56 @@ public final class BookmarkPageHelper {
         }
 
         int total = EmiFavorites.favorites.size();
-        int realCount = 0;
-        for (EmiFavorite favorite : EmiFavorites.favorites) {
+        List<EmiFavorite> real = new ArrayList<>();
+        int lastRealIndex = -1;
+        for (int i = 0; i < EmiFavorites.favorites.size(); i++) {
+            EmiFavorite favorite = EmiFavorites.favorites.get(i);
             if (!isEmptyPlaceholder(favorite)) {
-                realCount++;
+                real.add(favorite);
+                lastRealIndex = i;
             }
         }
+        int realCount = real.size();
         int emptyCount = total - realCount;
+        int configuredPages = configuredFavoritePageCount();
+
+        if (pageSize > 0 && realCount > 0) {
+            int pages = (total + pageSize - 1) / pageSize;
+            int lastRealPage = lastRealIndex < 0 ? 0 : (lastRealIndex / pageSize) + 1;
+            boolean pollutedSparsePages = pages > configuredPages
+                    && lastRealPage > configuredPages
+                    && realCount <= configuredPages * pageSize
+                    && emptyCount > realCount * 4;
+            if (pollutedSparsePages) {
+                EmiFavorites.favorites.clear();
+                EmiFavorites.favorites.addAll(real);
+                ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder pollution total={} real={} empty={} pageSize={} pages={} configuredPages={} lastRealPage={}",
+                        total, realCount, emptyCount, pageSize, pages, configuredPages, lastRealPage);
+                return true;
+            }
+        }
+
+        if (pageSize <= 0 && total > 1024 && realCount > 0 && emptyCount > realCount * 8) {
+            EmiFavorites.favorites.clear();
+            EmiFavorites.favorites.addAll(real);
+            ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder pollution before page size total={} real={} empty={}",
+                    total, realCount, emptyCount);
+            return true;
+        }
+
+        /*
+         * Legacy safety net for very large sparse explosions. This is kept for
+         * older polluted files where page size might not be known yet.
+         */
         int pages = pageSize > 0 ? (total + pageSize - 1) / pageSize : total;
         boolean sparseExplosion = total > 4096
                 && realCount > 0
                 && emptyCount > realCount * 8
-                && (pageSize <= 0 || pages > Math.max(MIN_FAVORITE_PAGES * 4, realCount + MIN_FAVORITE_PAGES));
+                && (pageSize <= 0 || pages > Math.max(configuredPages * 4, realCount + configuredPages));
         if (!sparseExplosion) {
             return false;
         }
 
-        List<EmiFavorite> real = new ArrayList<>(realCount);
-        for (EmiFavorite favorite : EmiFavorites.favorites) {
-            if (!isEmptyPlaceholder(favorite)) {
-                real.add(favorite);
-            }
-        }
         EmiFavorites.favorites.clear();
         EmiFavorites.favorites.addAll(real);
         ModLogger.info("BOOKMARK_PAGE recovered sparse placeholder explosion total={} real={} empty={} pageSize={}",

@@ -17,8 +17,8 @@ public record BDActionPacket(ItemStack targetStack, int action) implements Custo
     // action: 0 = extract from network to player inventory
     // action: 1 = mass craft (Space+Click on result slot)
     // action: 2 = single craft (Ctrl+Click on result slot or B key)
-    // action: 3 = P quick craft: make BD return crafting-grid leftovers to network
-    // action: 4 = P quick craft: restore BD crafting-grid return direction
+    // action: 3 = BoM quick craft: make BD return crafting-grid leftovers to network
+    // action: 4 = BoM quick craft: restore BD crafting-grid return direction
     // action: 5 = deposit matching player-inventory stacks to BD network
     // action: 6 = clean BD crafting-grid leftovers to BD network
     // action: 7 = single craft result directly into BD network

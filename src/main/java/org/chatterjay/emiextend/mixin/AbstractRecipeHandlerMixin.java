@@ -120,7 +120,7 @@ public class AbstractRecipeHandlerMixin {
                 && missingCheck.anyCraftable()) {
             ModLogger.info("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_missing_autocraft recipe={} craftableSlots={} missingSlots={} trigger={}",
                     recipe.getId(), missingCheck.craftableSlots(), missingCheck.missingSlots(),
-                    quickCraftAeAutocraft ? "P" : "CTRL");
+                    quickCraftAeAutocraft ? "QUICK" : "CTRL");
             sendMissingAutocraftTransferOrFallback(recipe, context, ctm, slotIndex);
             if (quickCraftAeAutocraft) {
                 EmiCraftHelper.markAeAutocraftHandoff();
@@ -132,7 +132,7 @@ public class AbstractRecipeHandlerMixin {
                 && allowAeAutocraft
                 && shortageCheck.anyCraftableShortage()) {
             ModLogger.info("AE_EMI_CTRL_CRAFT decision=schedule_result_click_for_shortage_autocraft recipe={} shortage={} trigger={}",
-                    recipe.getId(), shortageCheck.detail(), quickCraftAeAutocraft ? "P" : "CTRL");
+                    recipe.getId(), shortageCheck.detail(), quickCraftAeAutocraft ? "QUICK" : "CTRL");
             sendMissingAutocraftTransferOrFallback(recipe, context, ctm, slotIndex);
             if (quickCraftAeAutocraft) {
                 EmiCraftHelper.markAeAutocraftHandoff();

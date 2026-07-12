@@ -198,6 +198,159 @@ public final class BomTreePageHelper {
                 + " state=" + synthetic.state;
     }
 
+    public static String describeActiveState() {
+        return "activePage=" + activeFavoritePage
+                + " activeEntries=" + entriesFor(activeFavoritePage).size()
+                + " activeIndex=" + activeIndex(activeFavoritePage)
+                + " syntheticGroups=" + ACTIVE_SYNTHETIC_GROUPS.size()
+                + " syntheticFavorites=" + EmiFavorites.syntheticFavorites.size()
+                + " current=" + describeCurrentBoM();
+    }
+
+    public static boolean hasVisibleSyntheticTree() {
+        return !ACTIVE_SYNTHETIC_GROUPS.isEmpty() || !EmiFavorites.syntheticFavorites.isEmpty();
+    }
+
+    public static String describeSyntheticDebug(EmiFavorite.Synthetic synthetic) {
+        if (synthetic == null) {
+            return "synthetic=null " + describeActiveState();
+        }
+        TreeEntry identityOwner = SYNTHETIC_OWNERS.get(synthetic);
+        TreeEntry keyOwner = lookupSyntheticOwnerByStableKey(synthetic);
+        TreeEntry outputOwner = lookupSyntheticOwnerByFinalOutput(synthetic);
+        TreeEntry owner = ownerOfSynthetic(synthetic);
+        return "recipe=" + (synthetic.getRecipe() == null || synthetic.getRecipe().getId() == null ? "null" : synthetic.getRecipe().getId())
+                + " key=" + syntheticKey(synthetic)
+                + " batches=" + synthetic.batches
+                + " amount=" + synthetic.amount
+                + " total=" + synthetic.total
+                + " state=" + synthetic.state
+                + " identityOwner=" + (identityOwner != null)
+                + " keyOwner=" + (keyOwner != null)
+                + " outputOwner=" + (outputOwner != null)
+                + " ownerPage=" + pageOf(owner)
+                + " isFinal=" + isFinalSyntheticForEntry(synthetic, owner)
+                + " " + describeActiveState();
+    }
+
+    public static boolean hasSyntheticOwner(EmiFavorite.Synthetic synthetic) {
+        if (synthetic == null) {
+            return false;
+        }
+        return SYNTHETIC_OWNERS.containsKey(synthetic) || lookupSyntheticOwnerByStableKey(synthetic) != null;
+    }
+
+    public static boolean isFinalSynthetic(EmiFavorite.Synthetic synthetic) {
+        TreeEntry owner = ownerOfSynthetic(synthetic);
+        return isFinalSyntheticForEntry(synthetic, owner);
+    }
+
+    private static boolean isFinalSyntheticForEntry(EmiFavorite.Synthetic synthetic, TreeEntry owner) {
+        if (synthetic == null || owner == null || owner.tree == null || owner.tree.goal == null) {
+            return false;
+        }
+        if (owner.tree.goal.recipe != null && synthetic.getRecipe() != null) {
+            var syntheticId = synthetic.getRecipe().getId();
+            var goalId = owner.tree.goal.recipe.getId();
+            if (syntheticId != null && syntheticId.equals(goalId)) {
+                return true;
+            }
+        }
+        try {
+            if (synthetic.getStack() != null && EmiIngredient.areEqual(synthetic.getStack(), owner.tree.goal.ingredient)) {
+                return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static boolean removeFinalSyntheticTree(EmiFavorite.Synthetic synthetic) {
+        TreeEntry owner = ownerOfSynthetic(synthetic);
+        if (owner == null || !isFinalSynthetic(synthetic)) {
+            return false;
+        }
+
+        int ownerPage = pageOf(owner);
+        if (ownerPage < 0) {
+            return false;
+        }
+
+        List<TreeEntry> entries = entriesFor(ownerPage);
+        int removeIndex = entries.indexOf(owner);
+        if (removeIndex < 0) {
+            return false;
+        }
+
+        int active = activeIndex(ownerPage);
+        entries.remove(removeIndex);
+        if (entries.isEmpty()) {
+            PAGE_TREES.remove(ownerPage);
+            ACTIVE_INDEXES.remove(ownerPage);
+        } else {
+            if (removeIndex < active) {
+                active--;
+            } else if (removeIndex == active) {
+                active = Math.min(removeIndex, entries.size() - 1);
+            }
+            ACTIVE_INDEXES.put(ownerPage, Math.max(0, Math.min(active, entries.size() - 1)));
+        }
+
+        if (activeFavoritePage == ownerPage) {
+            applyActiveToBoM();
+        }
+        savePersisted();
+        refreshActiveSynthetic();
+        ModLogger.info("BOM_TREE_PAGE removed final tree page={} recipe={}",
+                ownerPage,
+                synthetic.getRecipe() == null || synthetic.getRecipe().getId() == null ? "null" : synthetic.getRecipe().getId());
+        return true;
+    }
+
+    private static TreeEntry ownerOfSynthetic(EmiFavorite.Synthetic synthetic) {
+        if (synthetic == null) {
+            return null;
+        }
+        TreeEntry owner = SYNTHETIC_OWNERS.get(synthetic);
+        if (owner == null) {
+            owner = lookupSyntheticOwnerByStableKey(synthetic);
+        }
+        if (owner == null) {
+            owner = lookupSyntheticOwnerByFinalOutput(synthetic);
+        }
+        return owner;
+    }
+
+    public static boolean removeTreeForRecipeId(String recipeId) {
+        if (recipeId == null || recipeId.isBlank()) {
+            return false;
+        }
+        boolean removed = removeRecipeFromAllPages(recipeId);
+        if (removed) {
+            applyActiveToBoM();
+            savePersisted();
+            refreshActiveSynthetic();
+            ModLogger.info("BOM_TREE_PAGE removed completed tree recipe={}", recipeId);
+        }
+        return removed;
+    }
+
+    public static boolean removeActiveTree(String reason) {
+        TreeEntry entry = activeEntry(activeFavoritePage);
+        if (entry == null || entry.tree == null || entry.tree.goal == null || entry.tree.goal.recipe == null
+                || entry.tree.goal.recipe.getId() == null) {
+            return false;
+        }
+        String recipeId = entry.tree.goal.recipe.getId().toString();
+        boolean removed = removeRecipeFromAllPages(recipeId);
+        if (removed) {
+            applyActiveToBoM();
+            savePersisted();
+            refreshActiveSynthetic();
+            ModLogger.info("BOM_TREE_PAGE removed active tree recipe={} reason={}", recipeId, reason);
+        }
+        return removed;
+    }
+
     public static void storeNewActiveTree() {
         if (BoM.tree == null || BoM.tree.goal == null) {
             storeActiveFromBoM();
@@ -316,10 +469,11 @@ public final class BomTreePageHelper {
         savePersisted();
     }
 
-    private static void removeRecipeFromAllPages(String recipeId) {
+    private static boolean removeRecipeFromAllPages(String recipeId) {
         if (recipeId == null || recipeId.isBlank()) {
-            return;
+            return false;
         }
+        boolean anyRemoved = false;
         var pageIterator = PAGE_TREES.entrySet().iterator();
         while (pageIterator.hasNext()) {
             var pageEntry = pageIterator.next();
@@ -337,6 +491,7 @@ public final class BomTreePageHelper {
                 if (recipeId.equals(treeRecipeId(entry == null ? null : entry.tree))) {
                     entries.remove(i);
                     removed = true;
+                    anyRemoved = true;
                     if (i < active) {
                         active--;
                     } else if (i == active) {
@@ -351,6 +506,7 @@ public final class BomTreePageHelper {
                 ACTIVE_INDEXES.put(page, Math.max(0, Math.min(active, entries.size() - 1)));
             }
         }
+        return anyRemoved;
     }
 
     private static String treeRecipeId(MaterialTree tree) {
@@ -383,7 +539,7 @@ public final class BomTreePageHelper {
             return 0;
         }
         int pages = BookmarkPageHelper.realFavoritePageCount(pageSize) + activeOverflowExtraPages(pageSize, rowWidths);
-        return Math.max(BookmarkPageHelper.MIN_FAVORITE_PAGES, pages) * pageSize;
+        return Math.max(BookmarkPageHelper.configuredFavoritePageCount(), pages) * pageSize;
     }
 
     public static List<EmiIngredient> buildVirtualFavoriteStacks(int pageSize, int[] rowWidths) {
@@ -440,8 +596,6 @@ public final class BomTreePageHelper {
         int cursor = pageView.size();
         var groups = getActiveSyntheticGroups();
         if (groups == null || groups.isEmpty()) {
-            appendPaddingToNextRow(pageView, cursor, pageSize, rowWidths);
-            pageView.addAll(EmiFavorites.syntheticFavorites);
             return pageView;
         }
 
@@ -510,6 +664,14 @@ public final class BomTreePageHelper {
                 BoM.tree = entry.tree;
                 BoM.craftingMode = true;
                 EmiFavorites.updateSynthetic(inv);
+                if (EmiFavorites.syntheticFavorites.isEmpty()) {
+                    EmiFavorite.Synthetic anchor = createFinalAnchorSynthetic(entry);
+                    if (anchor != null) {
+                        EmiFavorites.syntheticFavorites.add(anchor);
+                        ModLogger.info("BOM_TREE_PAGE synthetic anchor recipe={} reason=updateSynthetic-empty treeBatches={} entryCraftingMode={}",
+                                treeRecipeId(entry.tree), entry.tree.batches, entry.craftingMode);
+                    }
+                }
                 if (!EmiFavorites.syntheticFavorites.isEmpty()) {
                     List<EmiFavorite.Synthetic> group = new ArrayList<>(EmiFavorites.syntheticFavorites);
                     for (EmiFavorite.Synthetic synthetic : group) {
@@ -533,6 +695,18 @@ public final class BomTreePageHelper {
             }
             applying = false;
         }
+    }
+
+    private static EmiFavorite.Synthetic createFinalAnchorSynthetic(TreeEntry entry) {
+        if (entry == null || entry.tree == null || entry.tree.goal == null || entry.tree.goal.recipe == null) {
+            return null;
+        }
+        if (entry.tree.goal.recipe.getOutputs().isEmpty() || entry.tree.goal.recipe.getOutputs().get(0).isEmpty()) {
+            return null;
+        }
+        long batches = Math.max(1, entry.tree.batches);
+        long total = Math.max(batches, entry.tree.goal.totalNeeded);
+        return new EmiFavorite.Synthetic(entry.tree.goal.recipe, batches, 0, total, 2);
     }
 
     private static void putSyntheticOwnerKey(EmiFavorite.Synthetic synthetic, TreeEntry entry) {
@@ -559,6 +733,33 @@ public final class BomTreePageHelper {
             }
         }
         return owners.get(0);
+    }
+
+    private static TreeEntry lookupSyntheticOwnerByFinalOutput(EmiFavorite.Synthetic synthetic) {
+        if (synthetic == null) {
+            return null;
+        }
+        List<TreeEntry> activeEntries = entriesFor(activeFavoritePage);
+        for (TreeEntry owner : activeEntries) {
+            if (isFinalSyntheticForEntry(synthetic, owner)) {
+                return owner;
+            }
+        }
+        for (var pageEntry : PAGE_TREES.entrySet()) {
+            if (pageEntry.getKey() == activeFavoritePage) {
+                continue;
+            }
+            List<TreeEntry> entries = pageEntry.getValue();
+            if (entries == null) {
+                continue;
+            }
+            for (TreeEntry owner : entries) {
+                if (isFinalSyntheticForEntry(synthetic, owner)) {
+                    return owner;
+                }
+            }
+        }
+        return null;
     }
 
     private static String syntheticKey(EmiFavorite.Synthetic synthetic) {

@@ -2,6 +2,7 @@ package org.chatterjay.emiextend.client.handler;
 
 import appeng.menu.me.items.CraftingTermMenu;
 import appeng.integration.modules.itemlists.CraftingHelper;
+import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.api.EmiApi;
@@ -11,16 +12,21 @@ import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
 import dev.emi.emi.registry.EmiRecipeFiller;
+import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.client.BomTreePageHelper;
+import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
@@ -436,18 +442,32 @@ public final class EmiInteractionHandler {
             EmiIngredient hovered, int mouseX, int mouseY, List<ClientTooltipComponent> original) {
         if (original == null || original.isEmpty()) return original;
 
+        List<ClientTooltipComponent> result = original;
+        if (EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+                && hovered instanceof EmiFavorite.Synthetic synthetic
+                && BomTreePageHelper.isFinalSynthetic(synthetic)) {
+            result = new ArrayList<>(result);
+            result.add(EmiTooltipComponents.of(
+                    Component.translatable(
+                            "emilink.tooltip.quick_craft",
+                            Component.literal(InputEvents.quickCraftBindText())
+                    ).withStyle(ChatFormatting.GRAY)));
+        }
+
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
-        if (space == null) return original;
-        if (!AENetworkCache.hasAEAccess()) return original;
+        if (space == null) return result;
+        if (!AENetworkCache.hasAEAccess()) return result;
 
         var stack = hovered.getEmiStacks().stream()
                 .map(EmiStack::getItemStack)
                 .filter(s -> !s.isEmpty())
                 .findFirst()
                 .orElse(ItemStack.EMPTY);
-        if (stack.isEmpty()) return original;
+        if (stack.isEmpty()) return result;
 
-        var result = new ArrayList<>(original);
+        if (result == original) {
+            result = new ArrayList<>(original);
+        }
         AENetworkCache.addToTooltip(stack, result);
         return result;
     }

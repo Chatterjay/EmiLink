@@ -12,7 +12,7 @@ public class AbstractContainerScreenMixin {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void emilink$discardMatchingBeforeVanillaDrop(int keyCode, int scanCode, int modifiers,
                                                          CallbackInfoReturnable<Boolean> cir) {
-        if (InputEvents.tryHandleDiscardMatchingKey(keyCode)) {
+        if (InputEvents.tryHandleDiscardMatchingKey(keyCode, scanCode)) {
             cir.setReturnValue(true);
         }
     }
