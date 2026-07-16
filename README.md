@@ -10,10 +10,6 @@
 - NeoForge 21.1.220 或兼容版本
 - Java 21
 - EMI 1.1.23+1.21.1
-- 可选：Applied Energistics 2 19.2.17
-- 可选：BeyondDimensions 0.7.14
-- 可选：ExtendedAE Plus 1.5.4
-- 可选：Ars Nouveau 5.11.7
 
 ## Client-only 限制
 
@@ -35,52 +31,6 @@
 - EmiLink 自定义 AE/BD 网络查询包
 - EmiLink 自定义提取、存入、批量转移包
 - 依赖 EmiLink 服务端缓存清理或服务端状态回传的功能
-
-## 构建
-
-```powershell
-.\gradlew.bat build --stacktrace -Pci=true
-```
-
-产物位于 `build/libs/`，命名规则为：
-
-```text
-mod_id-vmod_version-minecraft_version.jar
-```
-
-当前示例：
-
-```text
-emilink-v1.1.13-clientonly-1.21.1.jar
-```
-
-## CI 与 Release
-
-GitHub Actions 会在以下情况构建：
-
-- push 到 `master`
-- pull request 到 `master`
-- 手动 `workflow_dispatch`
-- push `v*` tag
-
-发布 Release 时，tag 必须匹配：
-
-```text
-v{mod_version}-{minecraft_version}
-```
-
-当前版本对应：
-
-```text
-v1.1.13-clientonly-1.21.1
-```
-
-本地发布命令：
-
-```powershell
-git tag v1.1.13-clientonly-1.21.1
-git push origin v1.1.13-clientonly-1.21.1
-```
 
 ## 许可
 

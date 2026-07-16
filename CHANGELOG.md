@@ -5,9 +5,6 @@
 ### 新增
 
 - 新增 NeoForge 1.21.1 client-only 项目结构，保留 EmiLink 的客户端 EMI/AE2/BD/EAEP 交互能力。
-- 新增 GitHub Actions 自动构建流程，支持 `master`、PR、手动触发和 `v*` tag 构建。
-- 新增 tag 发布校验，Release tag 必须为 `v{mod_version}-{minecraft_version}`。
-- 新增 CI 构建依赖兜底：本地开发优先使用本地 jar，CI 或 `-Pci=true` 时使用远程 Maven/Modrinth 依赖。
 
 ### 变更
 
