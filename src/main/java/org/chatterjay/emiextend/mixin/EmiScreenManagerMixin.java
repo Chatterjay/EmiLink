@@ -1,23 +1,25 @@
 package org.chatterjay.emiextend.mixin;
 
-import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
-import dev.emi.emi.api.stack.EmiStackInteraction;
+import dev.emi.emi.config.SidebarType;
+import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.screen.EmiScreenManager;
+import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import org.chatterjay.emiextend.integration.AE2Proxy;
-import org.chatterjay.emiextend.integration.BDProxy;
-import org.chatterjay.emiextend.integration.CuriosProxy;
-import org.chatterjay.emiextend.integration.EAEPProxy;
-import org.chatterjay.emiextend.util.ModLogger;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.InputEvents;
+import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.List;
 
 @Mixin(value = EmiScreenManager.class, remap = false)
 public class EmiScreenManagerMixin {
@@ -25,118 +27,137 @@ public class EmiScreenManagerMixin {
     private static int lastMouseX;
     @Shadow
     private static int lastMouseY;
+    @Shadow
+    public static dev.emi.emi.api.stack.EmiIngredient pressedStack;
+    @Shadow
+    public static dev.emi.emi.api.stack.EmiIngredient draggedStack;
+    @Shadow
+    public static dev.emi.emi.screen.widget.EmiSearchWidget search;
 
     @Inject(method = "keyPressed", at = @At("RETURN"), cancellable = true, require = 0)
     private static void emilink$onKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         if (cir.getReturnValueZ()) return;
+        if (EmiInteractionHandler.onKeyPressed(keyCode, scanCode, modifiers, lastMouseX, lastMouseY)) {
+            cir.setReturnValue(true);
+        }
+    }
 
-        var mc = Minecraft.getInstance();
-        if (AE2Proxy.isCraftConfirmScreen(mc.screen)) {
-            ItemStack stack = AE2Proxy.getStackUnderMouse(mc.screen, lastMouseX, lastMouseY);
-            if (!stack.isEmpty()) {
-                EmiStack emiStack = EmiStack.of(stack);
-                if (EmiScreenManager.stackInteraction(new EmiStackInteraction(emiStack), bind -> bind.matchesKey(keyCode, scanCode))) {
-                    cir.setReturnValue(true);
-                }
-            }
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$onBomKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (InputEvents.tryHandleQuickFillSlotKeyFromEmi(keyCode, scanCode)) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (InputEvents.tryHandleBomKeyFromEmi(keyCode, scanCode)) {
+            cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
-        // Only handle left-click (0) with shift, or middle-click (2)
-        if (button != 2 && button != 0) return;
+        if (org.chatterjay.emiextend.util.ModLogger.isDebugEnabled()) {
+            org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
+                    "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+        }
 
-        EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
-        if (hovered == null || hovered.isEmpty()) return;
+        if (emilink$dropFavoriteOnPagedBookmark(mouseX, mouseY)) {
+            pressedStack = EmiStack.EMPTY;
+            draggedStack = EmiStack.EMPTY;
+            cir.setReturnValue(true);
+            return;
+        }
 
-        var itemStack = hovered.getStack().getEmiStacks().stream()
-                .map(EmiStack::getItemStack)
-                .filter(s -> !s.isEmpty())
-                .findFirst()
-                .orElse(null);
-        if (itemStack == null) return;
-
-        // ---- AE2 / EAEP integration ----
-        if (button == 2) {
-            handleMiddleClick(itemStack, cir);
-            if (cir.isCancelled()) return;
-        } else if (button == 0 && Screen.hasShiftDown()) {
-            // If on a BD screen, try BD first
+        // Drag-fill: when dragging an EMI item, fill text fields with item name
+        if (draggedStack != null && !draggedStack.isEmpty()
+                && org.chatterjay.emiextend.config.EmiLinkConfig.ENABLE_DRAG_FILL.get()) {
             var mc = Minecraft.getInstance();
-            boolean isBDScreen = mc.screen != null && (BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen));
-            ModLogger.debug("Shift-click: isBDScreen={} screen={}", isBDScreen, mc.screen != null ? mc.screen.getClass().getSimpleName() : "null");
-
-            if (isBDScreen) {
-                handleShiftClickBD(itemStack, cir);
-                if (cir.isCancelled()) return;
-                // Fall through to AE2 if BD didn't handle it
-                handleShiftClickAE2(itemStack, cir);
-            } else {
-                // --- Try AE2/EAEP first ---
-                handleShiftClickAE2(itemStack, cir);
-                if (cir.isCancelled()) return;
-
-                // --- Then try BD ---
-                handleShiftClickBD(itemStack, cir);
+            if (mc.screen != null) {
+                var text = getDragFillText(draggedStack);
+                if (text != null) {
+                    // Check EMI's own search widget first (not in screen.children())
+                    if (search.isMouseOver(mouseX, mouseY)) {
+                        search.setValue(text);
+                        search.setCursorPosition(text.length());
+                        pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                        draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                        cir.setReturnValue(true);
+                        return;
+                    }
+                    // Check other EditBox children on the screen
+                    for (var child : mc.screen.children()) {
+                        if (child instanceof EditBox eb && eb.isMouseOver((int) mouseX, (int) mouseY)) {
+                            eb.setValue(text);
+                            eb.setCursorPosition(text.length());
+                            pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            cir.setReturnValue(true);
+                            return;
+                        }
+                    }
+                }
             }
         }
-    }
 
-    // ---- AE2 / EAEP handlers ----
-
-    private static void handleMiddleClick(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
-        var player = Minecraft.getInstance().player;
-        if (player == null || !hasWirelessTerminal(player)) return;
-
-        if (EAEPProxy.openCraftScreen(itemStack)) {
-            ModLogger.debug("Middle-click: opened AE2 craft screen for {}", itemStack.getHoverName().getString());
+        if (EmiInteractionHandler.onMouseReleased(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
         }
     }
 
-    private static void handleShiftClickAE2(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
-        var player = Minecraft.getInstance().player;
-        if (player == null) return;
-        if (!hasWirelessTerminal(player)) return;
-
-        if (EAEPProxy.pullFromNetwork(itemStack)) {
-            ModLogger.debug("Shift-click: pulled {} from AE2 network", itemStack.getHoverName().getString());
-            cir.setReturnValue(true);
-        }
+    @Redirect(method = "renderCurrentTooltip",
+              at = @At(value = "INVOKE", target = "Ldev/emi/emi/api/stack/EmiIngredient;getTooltip()Ljava/util/List;"),
+              require = 0)
+    private static List<ClientTooltipComponent> emilink$addAeTooltipInfo(EmiIngredient hov) {
+        return EmiInteractionHandler.addAeTooltipInfo(hov, lastMouseX, lastMouseY, hov.getTooltip());
     }
 
-    private static boolean hasWirelessTerminal(Player player) {
-        if (!AE2Proxy.isLoaded()) return false;
-        var inventory = player.getInventory();
-        for (int i = 0; i < inventory.items.size(); i++) {
-            if (AE2Proxy.isWirelessTerminal(inventory.items.get(i))) {
-                return true;
-            }
-        }
-        if (AE2Proxy.isWirelessTerminal(player.getOffhandItem())) {
-            return true;
-        }
-        Class<?> wtClass = AE2Proxy.getWirelessTerminalClass();
-        return wtClass != null && CuriosProxy.hasWirelessTerminal(player, wtClass);
+    @Redirect(method = "renderDraggedStack",
+            at = @At(value = "INVOKE", target = "Ljava/util/List;size()I"),
+            require = 0)
+    private static int emilink$allowFavoriteDropPreviewOnEmptyPages(List<?> stacks) {
+        return Integer.MAX_VALUE;
     }
 
-    // ---- BD handler ----
+    @Redirect(method = "renderDraggedStack",
+            at = @At(value = "INVOKE", target = "Ldev/emi/emi/screen/EmiScreenManager$ScreenSpace;getClosestEdge(II)I"),
+            require = 0)
+    private static int emilink$compactFavoriteDropPreview(ScreenSpace space, int x, int y) {
+        int localIndex = space.getClosestEdge(x, y);
+        var panel = EmiScreenManager.getHoveredPanel(x, y);
+        if (panel != null && panel.getType() == SidebarType.FAVORITES
+                && space.getType() == SidebarType.FAVORITES && space.pageSize > 0) {
+            BookmarkPageHelper.compactAllPages(space.pageSize);
+            return BookmarkPageHelper.compactLocalInsertIndex(panel.page, space.pageSize, localIndex);
+        }
+        return localIndex;
+    }
 
-    private static void handleShiftClickBD(ItemStack itemStack, CallbackInfoReturnable<Boolean> cir) {
-        var mc = Minecraft.getInstance();
-        var screen = mc.screen;
-        if (screen == null) return;
+    /** Get fill text from EMI dragged stack */
+    private static String getDragFillText(EmiIngredient stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        var first = stack.getEmiStacks().stream().findFirst().orElse(null);
+        if (first == null) return null;
+        if (net.minecraft.client.gui.screens.Screen.hasAltDown()) {
+            var id = first.getId();
+            return id != null ? "@" + id.getNamespace() : null;
+        }
+        return first.getName().getString();
+    }
 
-        // Handle both BD storage GUI and craft terminal
-        if (!BDProxy.isBDNetGUI(screen) && !BDProxy.isBDCraftGUI(screen)) return;
+    private static boolean emilink$dropFavoriteOnPagedBookmark(double mouseX, double mouseY) {
+        if (draggedStack == null || draggedStack.isEmpty()) return false;
+        int mx = (int) mouseX;
+        int my = (int) mouseY;
+        var panel = EmiScreenManager.getHoveredPanel(mx, my);
+        if (panel == null || panel.getType() != SidebarType.FAVORITES) return false;
+        var space = panel.getHoveredSpace(mx, my);
+        if (space == null || space.getType() != SidebarType.FAVORITES || space.pageSize <= 0) return false;
 
-        var player = mc.player;
-        if (player == null) return;
+        BookmarkPageHelper.compactAllPages(space.pageSize);
 
-        // Client-side extract (no custom packet needed)
-        BDProxy.extractFromNetwork(player, itemStack);
-        ModLogger.debug("Shift-click: BD extract for {}", itemStack.getHoverName().getString());
-        cir.setReturnValue(true);
+        int pageStart = panel.page * space.pageSize;
+        BookmarkPageHelper.ensureSize(pageStart);
+        BookmarkPageHelper.addOrMoveFavoriteToPage(draggedStack, null, panel.page, space.pageSize);
+        space.batcher.repopulate();
+        return true;
     }
 }

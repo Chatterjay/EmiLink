@@ -8,6 +8,9 @@ version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
 description = '''${mod_description}'''
+logoFile = "emilink.png"
+displayTest = "IGNORE_SERVER_VERSION"
+displaySide = "CLIENT"
 
 [[mixins]]
 config = "${mod_id}.mixins.json"
@@ -16,29 +19,29 @@ config = "${mod_id}.mixins.json"
 modId = "neoforge"
 type = "required"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "minecraft"
 type = "required"
 versionRange = "${minecraft_version_range}"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "emi"
 type = "required"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "ae2"
 type = "optional"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "beyonddimensions"
 type = "optional"
 ordering = "NONE"
-side = "BOTH"
+side = "CLIENT"

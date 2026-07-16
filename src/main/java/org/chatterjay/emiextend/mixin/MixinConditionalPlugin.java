@@ -1,9 +1,7 @@
 package org.chatterjay.emiextend.mixin;
 
-import net.neoforged.fml.ModList;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-
 import java.util.List;
 import java.util.Set;
 
@@ -18,10 +16,15 @@ public class MixinConditionalPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        // Skip mixins targeting AE2 classes when AE2 is not loaded
-        if (targetClassName.startsWith("appeng.")) {
-            var modList = ModList.get();
-            return modList != null && modList.isLoaded("ae2");
+        // Skip mixins targeting optional mod classes when the mod is not loaded.
+        // Check classpath resource instead of Class.forName to avoid loading the class,
+        // which would prevent Mixin from transforming it (MixinTargetAlreadyLoadedException)
+        if (targetClassName.startsWith("appeng.")
+                || targetClassName.startsWith("net.blay09.mods.inventoryessentials.")
+                || targetClassName.startsWith("com.hollingsworth.arsnouveau.")
+                || targetClassName.startsWith("com.wintercogs.beyonddimensions.")) {
+            String resource = targetClassName.replace('.', '/') + ".class";
+            return getClass().getClassLoader().getResource(resource) != null;
         }
         return true;
     }

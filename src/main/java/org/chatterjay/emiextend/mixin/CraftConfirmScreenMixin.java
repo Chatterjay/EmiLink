@@ -16,10 +16,14 @@ public class CraftConfirmScreenMixin {
     private void emilink$onDrawFG(GuiGraphics guiGraphics, int offsetX, int offsetY, int mouseX, int mouseY, CallbackInfo ci) {
         var pose = guiGraphics.pose();
         pose.pushPose();
+        // Revert the container-relative translation (added by Forge/NeoForge)
+        // so EMI sidebar renders in screen space
         pose.translate(-offsetX, -offsetY, 0);
 
         var ctx = EmiDrawContext.wrap(guiGraphics);
         EmiScreenManager.drawBackground(ctx, mouseX, mouseY, 0);
+        EmiScreenManager.render(ctx, mouseX, mouseY, 0);
+        EmiScreenManager.drawForeground(ctx, mouseX, mouseY, 0);
 
         pose.popPose();
     }

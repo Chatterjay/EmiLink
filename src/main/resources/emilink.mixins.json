@@ -6,13 +6,37 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AbstractRecipeHandlerMixin",
+    "AbstractContainerScreenAccessor",
+    "AbstractContainerScreenMixin",
     "AEConfigMixin",
     "CraftConfirmScreenMixin",
+    "CraftingCPUScreenMixin",
     "EmiEncodePatternHandlerMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
-    "MEStorageScreenAccessor"
+    "EmiPlayerInventoryMixin",
+    "BoMMixin",
+    "BoMScreenMixin",
+    "CraftConfirmMenuMixin",
+    "EmiFavoritesMixin",
+    "EmiScreenSpaceMixin",
+    "EmiSidebarPanelMixin",
+    "MEStorageScreenAccessor",
+    "RecipeScreenMixin",
+    "RecipeButtonWidgetAccessor",
+    "RecipeTreeButtonWidgetMixin",
+    "EmiStackListMixin",
+    "EmiScreenSpaceStacksMixin",
+    "AEBaseMenuMixin",
+    "CraftConfirmMenuAmountMixin",
+    "CraftingTermMenuMixin",
+    "CraftingTermSlotInvoker",
+    "CraftingTermSlotMixin",
+    "DimensionsCraftMenuMixin",
+    "EncodingHelperMixin",
+    "FillCraftingGridFromRecipePacketMixin"
   ],
+  "mixins": [],
   "injectors": {
     "defaultRequire": 1
   }
