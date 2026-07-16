@@ -44,6 +44,10 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onBomKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (InputEvents.tryHandleQuickFillSlotKeyFromEmi(keyCode, scanCode)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (InputEvents.tryHandleBomKeyFromEmi(keyCode, scanCode)) {
             cir.setReturnValue(true);
         }

@@ -883,19 +883,31 @@ public final class InputEvents {
 
     /** N key (configurable) — fill the first empty FakeSlot with the hovered item */
     private static void onQuickFillSlotKey(ScreenEvent.KeyPressed.Pre event) {
-        var hovered = EmiApi.getHoveredStack(true);
-        if (hovered == null || hovered.isEmpty()) return;
+        if (tryQuickFillSlot()) {
+            event.setCanceled(true);
+        }
+    }
 
-        var ingredient = hovered.getStack();
-        if (ingredient == null || ingredient.isEmpty()) return;
+    public static boolean tryHandleQuickFillSlotKeyFromEmi(int keyCode, int scanCode) {
+        if (!ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
+            return false;
+        }
+        return tryQuickFillSlot();
+    }
 
-        var emiStacks = ingredient.getEmiStacks();
-        if (emiStacks.isEmpty()) return;
-
-        var emiStack = emiStacks.getFirst();
-
+    private static boolean tryQuickFillSlot() {
         var mc = Minecraft.getInstance();
-        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return;
+        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
+
+        var emiStack = getQuickFillEmiStack();
+        if (emiStack == null || emiStack.isEmpty()) {
+            ModLogger.debug("QuickFillSlot: no EMI stack under cursor screen={}", safeClassName(mc.screen));
+            return false;
+        }
+
+        if (tryFillCraftingTrackerLocatorSlot(mc.screen, containerScreen, emiStack)) {
+            return true;
+        }
 
         for (var slot : containerScreen.getMenu().slots) {
             if (!slot.getItem().isEmpty()) continue;
@@ -912,11 +924,100 @@ public final class InputEvents {
                 PacketDistributor.sendToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
                 ModLogger.debug("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
-                event.setCanceled(true);
-                return;
+                return true;
             }
 
         }
+        return false;
+    }
+
+    private static boolean tryFillCraftingTrackerLocatorSlot(Screen screen,
+                                                             AbstractContainerScreen<?> containerScreen,
+                                                             dev.emi.emi.api.stack.EmiStack emiStack) {
+        if (screen == null || !screen.getClass().getName()
+                .equals("org.chatterjay.crafting_tracker.client.screen.NetworkLocatorScreen")) {
+            return false;
+        }
+
+        ItemStack itemStack = emiStack.getItemStack();
+        if (itemStack.isEmpty()) {
+            return false;
+        }
+
+        int slotIndex = firstEmptyCraftingTrackerFilterSlot(containerScreen);
+        if (slotIndex < 0) {
+            ModLogger.debug("QuickFillSlot: Crafting Tracker locator has no empty filter slot");
+            return false;
+        }
+
+        try {
+            var method = screen.getClass().getMethod("applyGhostFilter", int.class, ItemStack.class);
+            method.invoke(screen, slotIndex, itemStack.copyWithCount(1));
+            ModLogger.debug("QuickFillSlot: set Crafting Tracker locator slot {} with {}",
+                    slotIndex, emiStack.getId());
+            return true;
+        } catch (ReflectiveOperationException e) {
+            ModLogger.warn("QuickFillSlot: Crafting Tracker locator compatibility failed: {}",
+                    e.getMessage());
+            return false;
+        }
+    }
+
+    private static int firstEmptyCraftingTrackerFilterSlot(AbstractContainerScreen<?> containerScreen) {
+        var slots = containerScreen.getMenu().slots;
+        Object menu = containerScreen.getMenu();
+        try {
+            var isFilterSlot = menu.getClass().getMethod("isFilterSlot", int.class);
+            for (int i = 0; i < slots.size(); i++) {
+                if (!Boolean.TRUE.equals(isFilterSlot.invoke(menu, i))) continue;
+                if (slots.get(i).getItem().isEmpty()) {
+                    return i;
+                }
+            }
+            return -1;
+        } catch (ReflectiveOperationException ignored) {
+            int max = Math.min(9, slots.size());
+            for (int i = 0; i < max; i++) {
+                if (slots.get(i).getItem().isEmpty()) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+    }
+
+    private static dev.emi.emi.api.stack.EmiStack getQuickFillEmiStack() {
+        var mouse = getCurrentGuiMousePosition();
+        dev.emi.emi.api.stack.EmiStack stack;
+
+        stack = firstStack(EmiApi.getHoveredStack(true));
+        if (stack != null && !stack.isEmpty()) return stack;
+
+        stack = firstStack(EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (stack != null && !stack.isEmpty()) return stack;
+
+        stack = firstStack(EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (stack != null && !stack.isEmpty()) return stack;
+
+        stack = firstStack(EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false));
+        if (stack != null && !stack.isEmpty()) return stack;
+
+        stack = firstStack(EmiScreenManager.draggedStack);
+        if (stack != null && !stack.isEmpty()) return stack;
+
+        return firstStack(EmiScreenManager.pressedStack);
+    }
+
+    private static dev.emi.emi.api.stack.EmiStack firstStack(dev.emi.emi.api.stack.EmiStackInteraction hovered) {
+        if (hovered == null || hovered.isEmpty()) return null;
+        return firstStack(hovered.getStack());
+    }
+
+    private static dev.emi.emi.api.stack.EmiStack firstStack(EmiIngredient ingredient) {
+        if (ingredient == null || ingredient.isEmpty()) return null;
+        var stacks = ingredient.getEmiStacks();
+        if (stacks.isEmpty()) return null;
+        return stacks.getFirst();
     }
 
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
