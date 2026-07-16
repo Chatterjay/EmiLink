@@ -2,20 +2,12 @@
 
 适用于 Minecraft 1.21.1 / NeoForge 的 EMI 网络存储与合成增强模组。
 
-EmiLink 将 EMI 与 Applied Energistics 2（AE2）、BeyondDimensions（BD）及 ExtendedAE Plus（EAEP）连接起来，提供网络库存显示、配方转移、BOM 递归合成、书签分页和常用库存操作。
-
 ## 环境与依赖
 
 - Minecraft 1.21.1
 - NeoForge 21.1.220 或更高版本
 - Java 21
 - 必需：EMI 1.1.23 或兼容版本
-- 可选：Applied Energistics 2 19.2.17 或兼容版本
-- 可选：BeyondDimensions 0.7.14 或兼容版本
-- 可选：ExtendedAE Plus 1.5.4 或兼容版本
-- 可选：Curios、Inventory Profiles Next、Inventory Essentials
-
-AE2 是软依赖。未安装 AE2 时，BD 和通用 EMI 功能仍可使用。
 
 ## 快捷操作
 
@@ -77,12 +69,6 @@ AE2 是软依赖。未安装 AE2 时，BD 和通用 EMI 功能仍可使用。
 - `debug`：调试数据包限流。
 
 默认关闭详细调试日志。需要排查 BOM、分页、AE 自动合成或 BD 网络问题时，可执行 `/emilink debug` 后复现一次，再查看 `logs/latest.log`。
-
-## 构建
-
-```powershell
-.\gradlew.bat build
-```
 
 构建产物位于 `build/libs/`。
 
