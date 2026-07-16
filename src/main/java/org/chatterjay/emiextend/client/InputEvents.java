@@ -1,10 +1,11 @@
-
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.stack.EmiIngredient;
+import dev.emi.emi.api.stack.EmiStack;
+import dev.emi.emi.api.stack.EmiStackInteraction;
 import dev.emi.emi.bom.BoM;
 import dev.emi.emi.bom.MaterialNode;
 import dev.emi.emi.registry.EmiRecipeFiller;
@@ -46,6 +47,12 @@ import org.lwjgl.glfw.GLFW;
 @EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class InputEvents {
     private InputEvents() {}
+
+    private static final String CRAFTING_TRACKER_LOCATOR_SCREEN =
+            "org.chatterjay.crafting_tracker.client.screen.NetworkLocatorScreen";
+    private static final String CRAFTING_TRACKER_APPLY_GHOST_FILTER = "applyGhostFilter";
+    private static final String CRAFTING_TRACKER_IS_FILTER_SLOT = "isFilterSlot";
+    private static final int CRAFTING_TRACKER_FALLBACK_FILTER_SLOTS = 9;
 
     private static boolean fillSearchHandled = false;
 
@@ -881,7 +888,7 @@ public final class InputEvents {
         }
     }
 
-    /** N key (configurable) — fill the first empty FakeSlot with the hovered item */
+    /** N key (configurable): fill the first compatible ghost/filter slot with the hovered item. */
     private static void onQuickFillSlotKey(ScreenEvent.KeyPressed.Pre event) {
         if (tryQuickFillSlot()) {
             event.setCanceled(true);
@@ -912,7 +919,7 @@ public final class InputEvents {
         for (var slot : containerScreen.getMenu().slots) {
             if (!slot.getItem().isEmpty()) continue;
 
-            // AE2 FakeSlot — try with ItemStack, fallback to GenericStack for fluids/chemicals
+            // AE2 FakeSlot: try ItemStack first, then wrap fluids/chemicals as GenericStack.
             if (slot instanceof FakeSlot fakeSlot) {
                 var itemStack = emiStack.getItemStack();
                 if (itemStack.isEmpty()) {
@@ -933,9 +940,8 @@ public final class InputEvents {
 
     private static boolean tryFillCraftingTrackerLocatorSlot(Screen screen,
                                                              AbstractContainerScreen<?> containerScreen,
-                                                             dev.emi.emi.api.stack.EmiStack emiStack) {
-        if (screen == null || !screen.getClass().getName()
-                .equals("org.chatterjay.crafting_tracker.client.screen.NetworkLocatorScreen")) {
+                                                             EmiStack emiStack) {
+        if (screen == null || !CRAFTING_TRACKER_LOCATOR_SCREEN.equals(screen.getClass().getName())) {
             return false;
         }
 
@@ -951,7 +957,7 @@ public final class InputEvents {
         }
 
         try {
-            var method = screen.getClass().getMethod("applyGhostFilter", int.class, ItemStack.class);
+            var method = screen.getClass().getMethod(CRAFTING_TRACKER_APPLY_GHOST_FILTER, int.class, ItemStack.class);
             method.invoke(screen, slotIndex, itemStack.copyWithCount(1));
             ModLogger.debug("QuickFillSlot: set Crafting Tracker locator slot {} with {}",
                     slotIndex, emiStack.getId());
@@ -967,7 +973,7 @@ public final class InputEvents {
         var slots = containerScreen.getMenu().slots;
         Object menu = containerScreen.getMenu();
         try {
-            var isFilterSlot = menu.getClass().getMethod("isFilterSlot", int.class);
+            var isFilterSlot = menu.getClass().getMethod(CRAFTING_TRACKER_IS_FILTER_SLOT, int.class);
             for (int i = 0; i < slots.size(); i++) {
                 if (!Boolean.TRUE.equals(isFilterSlot.invoke(menu, i))) continue;
                 if (slots.get(i).getItem().isEmpty()) {
@@ -976,7 +982,7 @@ public final class InputEvents {
             }
             return -1;
         } catch (ReflectiveOperationException ignored) {
-            int max = Math.min(9, slots.size());
+            int max = Math.min(CRAFTING_TRACKER_FALLBACK_FILTER_SLOTS, slots.size());
             for (int i = 0; i < max; i++) {
                 if (slots.get(i).getItem().isEmpty()) {
                     return i;
@@ -986,9 +992,9 @@ public final class InputEvents {
         }
     }
 
-    private static dev.emi.emi.api.stack.EmiStack getQuickFillEmiStack() {
+    private static EmiStack getQuickFillEmiStack() {
         var mouse = getCurrentGuiMousePosition();
-        dev.emi.emi.api.stack.EmiStack stack;
+        EmiStack stack;
 
         stack = firstStack(EmiApi.getHoveredStack(true));
         if (stack != null && !stack.isEmpty()) return stack;
@@ -1008,12 +1014,12 @@ public final class InputEvents {
         return firstStack(EmiScreenManager.pressedStack);
     }
 
-    private static dev.emi.emi.api.stack.EmiStack firstStack(dev.emi.emi.api.stack.EmiStackInteraction hovered) {
+    private static EmiStack firstStack(EmiStackInteraction hovered) {
         if (hovered == null || hovered.isEmpty()) return null;
         return firstStack(hovered.getStack());
     }
 
-    private static dev.emi.emi.api.stack.EmiStack firstStack(EmiIngredient ingredient) {
+    private static EmiStack firstStack(EmiIngredient ingredient) {
         if (ingredient == null || ingredient.isEmpty()) return null;
         var stacks = ingredient.getEmiStacks();
         if (stacks.isEmpty()) return null;

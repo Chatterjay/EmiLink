@@ -2,7 +2,7 @@
   "key.categories.emilink": "EmiLink",
   "key.emilink.fill_search": "Fill AE2 Search",
   "key.emilink.quick_pattern": "Quick Encode Pattern",
-  "key.emilink.quick_fill_slot": "Fill Empty Filter Slot",
+  "key.emilink.quick_fill_slot": "Fill Ghost/Filter Slot",
 
   "emilink.tooltip.deposit": "Deposit into network",
   "emilink.tooltip.deposit_all": "Deposit all matching",
@@ -12,6 +12,13 @@
   "emilink.tooltip.wrap_as_book.on": "Wrap as Book: On",
   "emilink.tooltip.wrap_as_book.off": "Wrap as Book: Off",
   "emilink.suffix.pattern": "'s Pattern",
+
+  "emilink.command.state.on": "ON",
+  "emilink.command.state.off": "OFF",
+  "emilink.command.debug": "EmiLink debug mode: %s",
+  "emilink.command.wrap_book": "EmiLink wrap-as-book mode: %s",
+  "emilink.command.extract": "EmiLink extract modifier: %s",
+  "emilink.command.clear_cache": "AE network cache cleared",
 
   "emilink.configuration.title": "EmiLink Config",
   "emilink.configuration.general": "General",
@@ -36,7 +43,7 @@
 
   "emilink.config.emi_ui.enableWrapBook": "Wrap as Book",
   "emilink.config.emi_ui.enableWrapBook.tooltip": "Wrap pattern outputs while encoding.",
-  "emilink.config.emi_ui.wbFillInputGrid": "WB Fill Input Grid",
+  "emilink.config.emi_ui.wbFillInputGrid": "Fill Input Grid",
   "emilink.config.emi_ui.wbFillInputGrid.tooltip": "When Wrap as Book is on:\nplace the original output into an empty input slot.",
   "emilink.config.emi_ui.enableDragFill": "Drag Fill Search",
   "emilink.config.emi_ui.enableDragFill.tooltip": "Drag EMI stacks into the search field.",
@@ -53,7 +60,7 @@
   "emilink.config.ae_network.networkBadgeStyle.tooltip": "1: bottom-right filled square.\n2: top-left hollow border.",
   "emilink.config.ae_network.extractModifier": "Extract Modifier",
   "emilink.config.ae_network.extractModifier.tooltip": "Click EMI stacks to extract from network.\nSHIFT, CONTROL, ALT, or OFF.",
-  "emilink.config.ae_network.enableAeDeposit": "Deposit EMI Sidebar into AE",
+  "emilink.config.ae_network.enableAeDeposit": "Deposit from EMI Sidebar",
   "emilink.config.ae_network.enableAeDeposit.tooltip": "Click the EMI sidebar with a carried item.\nRequires a wireless terminal or open AE terminal.",
   "emilink.config.ae_network.depositBatchModifier": "Batch Deposit Modifier",
   "emilink.config.ae_network.depositBatchModifier.tooltip": "Modifier for depositing all matching items.\nSHIFT, CONTROL, ALT, or OFF.",

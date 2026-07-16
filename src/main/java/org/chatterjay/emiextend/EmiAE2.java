@@ -69,7 +69,7 @@ public class EmiAE2 {
                                     EmiLinkConfig.DEBUG_MODE.set(!current);
                                     EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
-                                            () -> Component.literal("EmiLink debug mode: " + (!current ? "ON" : "OFF")),
+                                            () -> Component.translatable("emilink.command.debug", stateKey(!current)),
                                             false
                                     );
                                     return 1;
@@ -81,7 +81,7 @@ public class EmiAE2 {
                                     EmiLinkConfig.ENABLE_WRAP_BOOK.set(!current);
                                     EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
-                                            () -> Component.literal("EmiLink wrap book mode: " + (!current ? "ON" : "OFF")),
+                                            () -> Component.translatable("emilink.command.wrap_book", stateKey(!current)),
                                             false
                                     );
                                     return 1;
@@ -95,13 +95,17 @@ public class EmiAE2 {
                                     EmiLinkConfig.EXTRACT_MODIFIER.set(next);
                                     EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
-                                            () -> Component.literal("EmiLink extract: " + next),
+                                            () -> Component.translatable("emilink.command.extract", next.name()),
                                             false
                                     );
                                     return 1;
                                 })
                         )
         );
+    }
+
+    private static Component stateKey(boolean enabled) {
+        return Component.translatable(enabled ? "emilink.command.state.on" : "emilink.command.state.off");
     }
 
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
@@ -229,7 +233,7 @@ public class EmiAE2 {
                                 var player = ctx.getSource().getPlayerOrException();
                                 PacketDistributor.sendToPlayer(player, new ClearCachePacket());
                                 ctx.getSource().sendSuccess(
-                                        () -> net.minecraft.network.chat.Component.literal("AE network cache cleared"),
+                                        () -> net.minecraft.network.chat.Component.translatable("emilink.command.clear_cache"),
                                         false
                                 );
                                 return 1;

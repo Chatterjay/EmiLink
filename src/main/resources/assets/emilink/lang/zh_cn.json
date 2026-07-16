@@ -2,7 +2,7 @@
   "key.categories.emilink": "EmiLink",
   "key.emilink.fill_search": "填入 AE2 搜索框",
   "key.emilink.quick_pattern": "快速编写样板",
-  "key.emilink.quick_fill_slot": "填入空过滤槽",
+  "key.emilink.quick_fill_slot": "填入幽灵/过滤槽",
 
   "emilink.tooltip.deposit": "存入网络",
   "emilink.tooltip.deposit_all": "存入所有同类",
@@ -12,6 +12,13 @@
   "emilink.tooltip.wrap_as_book.on": "成书包裹：开启",
   "emilink.tooltip.wrap_as_book.off": "成书包裹：关闭",
   "emilink.suffix.pattern": " 的样板",
+
+  "emilink.command.state.on": "开启",
+  "emilink.command.state.off": "关闭",
+  "emilink.command.debug": "EmiLink 调试模式：%s",
+  "emilink.command.wrap_book": "EmiLink 成书包裹模式：%s",
+  "emilink.command.extract": "EmiLink 提取修饰键：%s",
+  "emilink.command.clear_cache": "AE 网络缓存已清除",
 
   "emilink.configuration.title": "EmiLink 配置",
   "emilink.configuration.general": "常规",
@@ -36,7 +43,7 @@
 
   "emilink.config.emi_ui.enableWrapBook": "成书包裹",
   "emilink.config.emi_ui.enableWrapBook.tooltip": "编码样板时包装输出物品。",
-  "emilink.config.emi_ui.wbFillInputGrid": "WB 填充输入栏",
+  "emilink.config.emi_ui.wbFillInputGrid": "填充输入栏",
   "emilink.config.emi_ui.wbFillInputGrid.tooltip": "开启成书包裹时：\n把原输出也放入空白输入槽。",
   "emilink.config.emi_ui.enableDragFill": "拖拽填入搜索栏",
   "emilink.config.emi_ui.enableDragFill.tooltip": "将 EMI 物品拖入搜索栏。",
@@ -53,7 +60,7 @@
   "emilink.config.ae_network.networkBadgeStyle.tooltip": "1：右下实心方块。\n2：左上空心边框。",
   "emilink.config.ae_network.extractModifier": "提取修饰键",
   "emilink.config.ae_network.extractModifier.tooltip": "点击 EMI 物品时从网络提取。\nSHIFT、CONTROL、ALT 或 OFF。",
-  "emilink.config.ae_network.enableAeDeposit": "EMI 侧边栏存入 AE",
+  "emilink.config.ae_network.enableAeDeposit": "从 EMI 侧边栏存入",
   "emilink.config.ae_network.enableAeDeposit.tooltip": "手持物品点击 EMI 侧边栏。\n需要无线终端或打开 AE 终端。",
   "emilink.config.ae_network.depositBatchModifier": "批量存入修饰键",
   "emilink.config.ae_network.depositBatchModifier.tooltip": "存入所有同类物品的修饰键。\nSHIFT、CONTROL、ALT 或 OFF。",
