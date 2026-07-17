@@ -2,6 +2,7 @@ package org.chatterjay.emiextend;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -33,6 +34,7 @@ import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
+import org.chatterjay.emiextend.util.ModLogger;
 
 @Mod(EmiAE2.MODID)
 public class EmiAE2 {
@@ -42,6 +44,7 @@ public class EmiAE2 {
         container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
         if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             registerConfigScreenReflectively(container);
+            registerAeClientHandlersIfLoaded();
         }
         modBus.addListener((ModConfigEvent.Loading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
@@ -110,6 +113,37 @@ public class EmiAE2 {
 
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
         final PayloadRegistrar registrar = event.registrar("1").optional();
+        if (isModLoaded("ae2")) {
+            registerAePackets(registrar);
+        }
+        registrar.playToServer(
+                BDActionPacket.TYPE,
+                BDActionPacket.STREAM_CODEC,
+                BDActionPacket::handle
+        );
+        registrar.playToServer(
+                BDDepositSlotPacket.TYPE,
+                BDDepositSlotPacket.STREAM_CODEC,
+                BDDepositSlotPacket::handle
+        );
+        registrar.playToServer(
+                TransferMatchingPacket.TYPE,
+                TransferMatchingPacket.STREAM_CODEC,
+                TransferMatchingPacket::handle
+        );
+        registrar.playToClient(
+                ClearCachePacket.TYPE,
+                ClearCachePacket.STREAM_CODEC,
+                ClearCachePacket::handle
+        );
+        registrar.playToClient(
+                ServerHasModPacket.TYPE,
+                ServerHasModPacket.STREAM_CODEC,
+                ServerHasModPacket::handle
+        );
+    }
+
+    private void registerAePackets(final PayloadRegistrar registrar) {
         registrar.playToServer(
                 AEQueryPacket.TYPE,
                 AEQueryPacket.STREAM_CODEC,
@@ -136,21 +170,6 @@ public class EmiAE2 {
                 AELockedSlotsPacket::handle
         );
         registrar.playToServer(
-                BDActionPacket.TYPE,
-                BDActionPacket.STREAM_CODEC,
-                BDActionPacket::handle
-        );
-        registrar.playToServer(
-                BDDepositSlotPacket.TYPE,
-                BDDepositSlotPacket.STREAM_CODEC,
-                BDDepositSlotPacket::handle
-        );
-        registrar.playToServer(
-                TransferMatchingPacket.TYPE,
-                TransferMatchingPacket.STREAM_CODEC,
-                TransferMatchingPacket::handle
-        );
-        registrar.playToServer(
                 AEDepositPacket.TYPE,
                 AEDepositPacket.STREAM_CODEC,
                 AEDepositPacket::handle
@@ -170,16 +189,28 @@ public class EmiAE2 {
                 AEBatchQueryResponsePacket.STREAM_CODEC,
                 AEBatchQueryResponsePacket::handle
         );
-        registrar.playToClient(
-                ClearCachePacket.TYPE,
-                ClearCachePacket.STREAM_CODEC,
-                ClearCachePacket::handle
-        );
-        registrar.playToClient(
-                ServerHasModPacket.TYPE,
-                ServerHasModPacket.STREAM_CODEC,
-                ServerHasModPacket::handle
-        );
+    }
+
+    private static void registerAeClientHandlersIfLoaded() {
+        if (!isModLoaded("ae2")) {
+            return;
+        }
+        registerStaticEventHandler("org.chatterjay.emiextend.client.AEQuickCraftDelayHandler");
+        registerStaticEventHandler("org.chatterjay.emiextend.client.AENetworkCache");
+        registerStaticEventHandler("org.chatterjay.emiextend.client.InputEvents");
+    }
+
+    private static void registerStaticEventHandler(String className) {
+        try {
+            NeoForge.EVENT_BUS.register(Class.forName(className));
+        } catch (Throwable t) {
+            ModLogger.warn("Failed to register optional event handler {}: {}", className, t.toString());
+        }
+    }
+
+    private static boolean isModLoaded(String modId) {
+        var modList = ModList.get();
+        return modList != null && modList.isLoaded(modId);
     }
 
     /** Client-only: register NeoForge built-in config screen via reflection. */

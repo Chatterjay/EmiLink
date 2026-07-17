@@ -31,15 +31,3 @@ modId = "emi"
 type = "required"
 ordering = "NONE"
 side = "BOTH"
-
-[[dependencies."${mod_id}"]]
-modId = "ae2"
-type = "optional"
-ordering = "NONE"
-side = "BOTH"
-
-[[dependencies."${mod_id}"]]
-modId = "beyonddimensions"
-type = "optional"
-ordering = "NONE"
-side = "BOTH"

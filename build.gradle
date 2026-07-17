@@ -80,9 +80,8 @@ dependencies {
     compileOnly "dev.emi:emi-neoforge:${emi_version}"
     runtimeOnly "dev.emi:emi-neoforge:${emi_version}"
 
-    // AE2, EAEP, BD — all optional at runtime (compileOnly for compilation, runtimeOnly for dev)
+    // Optional integrations are compile-only so the published jar can run with EMI alone.
     compileOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    runtimeOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
     implementation files('libs/extendedae_plus-1.21.1-1.5.4.jar')
     compileOnly files('../BeyondDimensions/beyonddimensions-1.21.1-neoforge-0.7.14.jar')
     compileOnly files('run/mods/ars_nouveau-1.21.1-5.11.7.jar')

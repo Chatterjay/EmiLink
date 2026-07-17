@@ -4,16 +4,12 @@ package org.chatterjay.emiextend.client;
 import appeng.core.network.serverbound.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import net.minecraft.client.Minecraft;
-import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
-@EventBusSubscriber(modid = EmiAE2.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class AEQuickCraftDelayHandler {
     private static PendingResultClick pending;
 
