@@ -1,5 +1,12 @@
 # 更新日志
 
+## [1.1.15] - 2026-07-17
+
+### 修复
+
+- 修复未安装 AE2 时，`Ctrl+左键` EMI 物品仍进入 AE2 快速合成路径导致 `CraftingTermMenu` 缺失崩溃的问题
+- 移除 `EmiInteractionHandler` 对 AE2 菜单和 `CraftingHelper` 的直接类型引用，改为仅在 AE2 已加载时反射调用
+
 ## [1.1.14] - 2026-07-17
 
 ### 修复

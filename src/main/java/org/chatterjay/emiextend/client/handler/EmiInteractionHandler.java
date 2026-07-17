@@ -1,7 +1,5 @@
 package org.chatterjay.emiextend.client.handler;
 
-import appeng.menu.me.items.CraftingTermMenu;
-import appeng.integration.modules.itemlists.CraftingHelper;
 import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
@@ -171,12 +169,14 @@ public final class EmiInteractionHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (button != 2 && button != 0) return false;
 
-        if (button == 0 && Screen.hasControlDown() && tryCtrlLeftQuickCraft(mouseX, mouseY)) {
+        boolean ae2Loaded = AE2Proxy.isLoaded();
+
+        if (ae2Loaded && button == 0 && Screen.hasControlDown() && tryCtrlLeftQuickCraft(mouseX, mouseY)) {
             return true;
         }
 
         // Deposit: cursor has item → deposit into AE (only when EMI won't delete it)
-        if (button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
+        if (ae2Loaded && button == 0 && EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) {
             var mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
@@ -219,6 +219,10 @@ public final class EmiInteractionHandler {
     }
 
     private static boolean tryCtrlLeftQuickCraft(double mouseX, double mouseY) {
+        if (!AE2Proxy.isLoaded()) {
+            return false;
+        }
+
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
             var mc = Minecraft.getInstance();
@@ -226,7 +230,7 @@ public final class EmiInteractionHandler {
                 handled = containerScreen;
             }
         }
-        if (handled == null || !(handled.getMenu() instanceof CraftingTermMenu)) {
+        if (handled == null || !isAeCraftingTermMenu(handled.getMenu())) {
             return false;
         }
 
@@ -267,7 +271,7 @@ public final class EmiInteractionHandler {
             return true;
         }
 
-        return tryAeCraftingTransferFallback(recipe, (CraftingTermMenu) handled.getMenu());
+        return tryAeCraftingTransferFallback(recipe, handled.getMenu());
     }
 
     private static boolean tryExtractHoveredAeStack(ItemStack stack) {
@@ -352,7 +356,7 @@ public final class EmiInteractionHandler {
         return recipes == null || recipes.isEmpty() ? null : recipes.getFirst();
     }
 
-    private static boolean tryAeCraftingTransferFallback(EmiRecipe emiRecipe, CraftingTermMenu menu) {
+    private static boolean tryAeCraftingTransferFallback(EmiRecipe emiRecipe, Object menu) {
         var mc = Minecraft.getInstance();
         if (mc.level == null) {
             return false;
@@ -370,13 +374,39 @@ public final class EmiInteractionHandler {
             return false;
         }
 
-        CraftingHelper.performTransfer(menu, holder.id(), holder.value(), true);
-        org.chatterjay.emiextend.util.ModLogger.debug(
-                "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} holder={} menu={}",
-                emiRecipe.getId(),
-                holder.id(),
-                menu.getClass().getName());
-        return true;
+        try {
+            Class<?> craftingTermMenuClass = Class.forName("appeng.menu.me.items.CraftingTermMenu");
+            Class<?> craftingHelperClass = Class.forName("appeng.integration.modules.itemlists.CraftingHelper");
+            var method = craftingHelperClass.getMethod(
+                    "performTransfer",
+                    craftingTermMenuClass,
+                    net.minecraft.resources.ResourceLocation.class,
+                    net.minecraft.world.item.crafting.Recipe.class,
+                    boolean.class
+            );
+            method.invoke(null, menu, holder.id(), holder.value(), true);
+            org.chatterjay.emiextend.util.ModLogger.debug(
+                    "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} holder={} menu={}",
+                    emiRecipe.getId(),
+                    holder.id(),
+                    menu.getClass().getName());
+            return true;
+        } catch (ReflectiveOperationException e) {
+            org.chatterjay.emiextend.util.ModLogger.warn(
+                    "AE_EMI_CTRL_CRAFT direct-fill-fallback failed: {}", e.toString());
+            return false;
+        }
+    }
+
+    private static boolean isAeCraftingTermMenu(Object menu) {
+        if (menu == null || !AE2Proxy.isLoaded()) {
+            return false;
+        }
+        try {
+            return Class.forName("appeng.menu.me.items.CraftingTermMenu").isInstance(menu);
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
     public static boolean matchesExtractModifier() {
@@ -456,6 +486,7 @@ public final class EmiInteractionHandler {
 
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
         if (space == null) return result;
+        if (!AE2Proxy.isLoaded()) return result;
         if (!AENetworkCache.hasAEAccess()) return result;
 
         var stack = hovered.getEmiStacks().stream()
