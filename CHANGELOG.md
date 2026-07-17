@@ -1,5 +1,17 @@
 # 更新日志
 
+## [1.1.14] - 2026-07-17
+
+### 修复
+
+- 修复未安装 AE2 时 EmiLink 启动崩溃的问题：避免 NeoForge 自动事件订阅扫描提前加载 `appeng.helpers.InventoryAction`
+- 修复无 AE2 环境下 AE2 客户端事件处理器和 AE2 网络包被无条件注册的问题
+
+### 变更
+
+- AE2 改为仅编译期依赖，发布包运行时只强制依赖 EMI
+- `neoforge.mods.toml` 移除 AE2 和 BeyondDimensions 依赖声明，仅保留 NeoForge、Minecraft 和 EMI
+
 ## [1.1.13] - 2026-07-13
 
 ### 新增
