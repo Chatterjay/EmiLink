@@ -1,5 +1,16 @@
 # 更新日志
 
+## [Unreleased]
+
+### 新增
+
+- 在 Super Factory Manager 的代码编辑器界面中显示 EMI 侧栏，并转发鼠标、滚轮和键盘输入，使 EMI 搜索、悬停和配方查看可在编辑器内使用。
+
+### 修复
+
+- 修复 SFM 代码编辑器中悬停 EMI 物品时因非容器界面缺少菜单导致的 `Error rendering tooltip`。
+- 修复从 SFM 代码编辑器误触或打开 EMI 合成表后返回玩家背包的问题，现在返回 EMI 配方页会回到原 SFM 编辑器。
+
 ## [1.1.13-clientonly] - 2026-07-16
 
 ### 新增
