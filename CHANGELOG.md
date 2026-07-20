@@ -1,6 +1,6 @@
 # 更新日志
 
-## [Unreleased]
+## [1.1.14-clientonly-test.1] - 2026-07-20
 
 ### 新增
 
