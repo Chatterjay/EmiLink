@@ -10,18 +10,8 @@
 
 - 修复 SFM 代码编辑器中悬停 EMI 物品时因非容器界面缺少菜单导致的 `Error rendering tooltip`。
 - 修复从 SFM 代码编辑器误触或打开 EMI 合成表后返回玩家背包的问题，现在返回 EMI 配方页会回到原 SFM 编辑器。
-
-## [1.1.15] - 2026-07-17
-
-### 修复
-
 - 修复未安装 AE2 时，`Ctrl+左键` EMI 物品仍进入 AE2 快速合成路径导致 `CraftingTermMenu` 缺失崩溃的问题
 - 移除 `EmiInteractionHandler` 对 AE2 菜单和 `CraftingHelper` 的直接类型引用，改为仅在 AE2 已加载时反射调用
-
-## [1.1.14] - 2026-07-17
-
-### 修复
-
 - 修复未安装 AE2 时 EmiLink 启动崩溃的问题：避免 NeoForge 自动事件订阅扫描提前加载 `appeng.helpers.InventoryAction`
 - 修复无 AE2 环境下 AE2 客户端事件处理器和 AE2 网络包被无条件注册的问题
 
