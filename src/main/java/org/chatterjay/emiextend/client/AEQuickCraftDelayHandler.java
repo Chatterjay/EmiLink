@@ -4,10 +4,10 @@ package org.chatterjay.emiextend.client;
 import appeng.core.network.serverbound.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import net.minecraft.client.Minecraft;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.event.TickEvent;
 import org.chatterjay.emiextend.integration.AE2Proxy;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.util.ModLogger;
 
 public final class AEQuickCraftDelayHandler {
@@ -19,13 +19,14 @@ public final class AEQuickCraftDelayHandler {
                                 Object sourceMenu, Object recipeId) {
         pending = new PendingResultClick(action, slotIndex, id, containerId, sourceScreen, sourceMenu, String.valueOf(recipeId), 3);
         ModLogger.debug("AE_EMI_CTRL_CRAFT delayed-click scheduled action={} slot={} id={} container={} recipe={} screen={} menu={}",
-                action, slotIndex, id, containerId, recipeId,
+                action, slotIndex, id, container, recipeId,
                 sourceScreen == null ? "null" : sourceScreen.getClass().getName(),
                 sourceMenu == null ? "null" : sourceMenu.getClass().getName());
     }
 
     @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Pre event) {
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.START) return;
         if (pending == null) return;
 
         var mc = Minecraft.getInstance();
@@ -69,7 +70,7 @@ public final class AEQuickCraftDelayHandler {
 
         ModLogger.debug("AE_EMI_CTRL_CRAFT delayed-click send action={} slot={} id={} recipe={}",
                 pending.action(), pending.slotIndex(), pending.id(), pending.recipeId());
-        PacketDistributor.sendToServer(new InventoryActionPacket(pending.action(), pending.slotIndex(), pending.id()));
+        EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(pending.action(), pending.slotIndex(), pending.id()));
         pending = null;
     }
 

@@ -1,41 +1,33 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.network.PacketHelper;
 
-public record BDDepositSlotPacket(int slotIndex) implements CustomPacketPayload {
-    public static final Type<BDDepositSlotPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "bd_deposit_slot"));
+import java.util.function.Supplier;
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, BDDepositSlotPacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ByteBufCodecs.VAR_INT,
-                    BDDepositSlotPacket::slotIndex,
-                    BDDepositSlotPacket::new
-            );
+public record BDDepositSlotPacket(int slotIndex) {
 
-    private void handleInServer(final IPayloadContext context) {
-        Player player = context.player();
-        if (player == null) {
-            return;
-        }
+    public static void encode(BDDepositSlotPacket msg, FriendlyByteBuf buf) {
+        buf.writeVarInt(msg.slotIndex);
+    }
+
+    public static BDDepositSlotPacket decode(FriendlyByteBuf buf) {
+        return new BDDepositSlotPacket(buf.readVarInt());
+    }
+
+    private void handleInServer(Player player) {
         BDProxy.depositSlotToNetwork(player, slotIndex);
     }
 
-    public static void handle(final BDDepositSlotPacket packet, final IPayloadContext context) {
-        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static void handle(BDDepositSlotPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        PacketHelper.handleServerBound(ctx, () -> {
+            Player player = ctx.get().getSender();
+            if (player != null) {
+                msg.handleInServer(player);
+            }
+        });
     }
 }

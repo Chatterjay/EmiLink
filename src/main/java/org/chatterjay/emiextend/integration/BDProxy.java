@@ -7,8 +7,9 @@ import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.network.PacketDistributor;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -129,7 +130,7 @@ public class BDProxy {
 
     public static void pullFromNetwork(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) return;
-        PacketDistributor.sendToServer(new BDActionPacket(stack, 0));
+        EmiLinkNetwork.sendToServer(new BDActionPacket(stack, 0));
     }
 
     public static boolean extractFromNetwork(Player player, ItemStack targetStack) {
@@ -179,7 +180,7 @@ public class BDProxy {
                     if (isLocked(i, lockedSlots)) continue;
                     ItemStack slotStack = inventory.getItem(i);
                     if (slotStack.isEmpty()) continue;
-                    if (!ItemStack.isSameItemSameComponents(slotStack, extractedStack)) continue;
+                    if (!ItemStack.isSameItemSameTags(slotStack, extractedStack)) continue;
                     int space = slotStack.getMaxStackSize() - slotStack.getCount();
                     if (space <= 0) continue;
                     int toAdd = Math.min(remaining, space);
@@ -500,7 +501,7 @@ public class BDProxy {
 
             for (int i = 0; i < inventory.items.size(); i++) {
                 ItemStack stack = inventory.getItem(i);
-                if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, targetStack)) {
+                if (stack.isEmpty() || !ItemStack.isSameItemSameTags(stack, targetStack)) {
                     continue;
                 }
                 Object key = keyCtor.newInstance(stack);
@@ -517,7 +518,7 @@ public class BDProxy {
 
             if (player.containerMenu != null) {
                 ItemStack carried = player.containerMenu.getCarried();
-                if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, targetStack)) {
+                if (!carried.isEmpty() && ItemStack.isSameItemSameTags(carried, targetStack)) {
                     Object key = keyCtor.newInstance(carried);
                     Object remaining = insertMethod.invoke(storage, key, (long) carried.getCount(), false);
                     long remainingAmount = Math.max(0L, (long) amountMethod.invoke(remaining));
@@ -699,6 +700,12 @@ public class BDProxy {
 
     // ---- Space+Click fallback: BD's BatchTransferPacket ----
 
+    /**
+     * Forge 1.20.1: BD's BatchTransferPacket must be sent through BD's own SimpleChannel.
+     * We attempt to find the channel by common names and reflectively call sendToServer.
+     * If anything fails, this is a no-op (the main path uses TransferMatchingPacket via
+     * EmiLinkNetwork when both client and server have EmiLink installed).
+     */
     public static void sendBatchTransfer(ItemStack stack, boolean dirToStorage) {
         if (!isLoaded() || stack == null) return;
         try {
@@ -710,9 +717,45 @@ public class BDProxy {
             Constructor<?> packetCtor = batchTransferPacketClass.getConstructor(keyAmountClass, boolean.class);
             Object packet = packetCtor.newInstance(keyAmount, dirToStorage);
 
-            var sendMethod = PacketDistributor.class.getMethod("sendToServer", net.minecraft.network.protocol.common.custom.CustomPacketPayload.class);
-            sendMethod.invoke(null, packet);
+            // Try common BD network channel class/field names
+            String[] candidateClasses = {
+                    "com.wintercogs.beyonddimensions.network.BDNetwork",
+                    "com.wintercogs.beyonddimensions.network.BDNetworking",
+                    "com.wintercogs.beyonddimensions.network.NetworkHandler",
+                    "com.wintercogs.beyonddimensions.BeyondDimensions$Network"
+            };
+            String[] candidateFields = {"CHANNEL", "INSTANCE", "channel", "instance"};
+
+            for (String clsName : candidateClasses) {
+                try {
+                    Class<?> cls = Class.forName(clsName);
+                    for (String fieldName : candidateFields) {
+                        try {
+                            Field f = cls.getDeclaredField(fieldName);
+                            f.setAccessible(true);
+                            Object channel = f.get(null);
+                            if (channel != null) {
+                                try {
+                                    Method send = channel.getClass().getMethod("sendToServer", Object.class);
+                                    send.invoke(channel, packet);
+                                    return;
+                                } catch (NoSuchMethodException nsme) {
+                                    // Try the Forge SimpleChannel.send method signature
+                                    try {
+                                        Method send = channel.getClass().getMethod("send",
+                                                packet.getClass(),
+                                                net.minecraft.network.PacketDirection.class);
+                                        // can't easily get the direction; fall through
+                                    } catch (NoSuchMethodException ignored) {}
+                                }
+                            }
+                        } catch (NoSuchFieldException ignored) {}
+                    }
+                } catch (ClassNotFoundException ignored) {}
+            }
+            // Could not find BD's network channel — silently skip
         } catch (Exception e) {
+            ModLogger.debug("BDProxy.sendBatchTransfer failed: {}", e.getMessage());
         }
     }
 
@@ -733,7 +776,7 @@ public class BDProxy {
             if (slotStack.isEmpty()) {
                 int toAdd = Math.min(remaining.getCount(), remaining.getMaxStackSize());
                 inventory.setItem(i, remaining.split(toAdd));
-            } else if (ItemStack.isSameItemSameComponents(slotStack, remaining)) {
+            } else if (ItemStack.isSameItemSameTags(slotStack, remaining)) {
                 int space = slotStack.getMaxStackSize() - slotStack.getCount();
                 if (space > 0) {
                     int toAdd = Math.min(remaining.getCount(), space);

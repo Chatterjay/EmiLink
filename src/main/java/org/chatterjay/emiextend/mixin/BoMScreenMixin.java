@@ -192,7 +192,7 @@ public abstract class BoMScreenMixin {
         if (stacks.isEmpty()) {
             return "empty";
         }
-        var first = stacks.getFirst();
+        var first = stacks.get(0);
         return first.getId() + "/" + first.getName().getString();
     }
 

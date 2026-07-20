@@ -17,12 +17,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.event.TickEvent;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -31,7 +33,6 @@ import appeng.core.network.serverbound.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import appeng.integration.modules.emi.EmiStackHelper;
 import appeng.menu.slot.FakeSlot;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
@@ -424,7 +425,7 @@ public final class InputEvents {
         if (stacks.isEmpty()) {
             return "empty";
         }
-        var first = stacks.getFirst();
+        var first = stacks.get(0);
         return first.getId() + "/" + first.getName().getString();
     }
 
@@ -471,7 +472,7 @@ public final class InputEvents {
         if (ingredient == null || ingredient.isEmpty()) return "empty";
         var stacks = ingredient.getEmiStacks();
         if (stacks.isEmpty()) return "empty-stacks";
-        var first = stacks.getFirst();
+        var first = stacks.get(0);
         var itemStack = first.getItemStack();
         return "id=" + first.getId()
                 + ",name=" + first.getName().getString()
@@ -759,7 +760,7 @@ public final class InputEvents {
         var emiStacks = ingredient.getEmiStacks();
         if (emiStacks.isEmpty()) return;
 
-        var first = emiStacks.getFirst();
+        var first = emiStacks.get(0);
 
         boolean alt = Screen.hasAltDown();
         var text = alt ? "@" + first.getId().getNamespace() : first.getName().getString();
@@ -843,7 +844,7 @@ public final class InputEvents {
 
         // BD Craft GUI → single craft to inventory
         if (BDProxy.isBDCraftGUI(handled)) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
             event.setCanceled(true);
             ModLogger.debug("B key: BD single craft triggered");
             return;
@@ -864,7 +865,7 @@ public final class InputEvents {
             if (ing != null && !ing.isEmpty()) {
                 var stacks = ing.getEmiStacks();
                 if (!stacks.isEmpty()) {
-                    var list = EmiApi.getRecipeManager().getRecipesByOutput(stacks.getFirst());
+                    var list = EmiApi.getRecipeManager().getRecipesByOutput(stacks.get(0));
                     if (list != null && !list.isEmpty()) recipe = list.get(0);
                 }
             }
@@ -924,7 +925,7 @@ public final class InputEvents {
                     itemStack = GenericStack.wrapInItemStack(genericStack);
                     if (itemStack.isEmpty()) continue;
                 }
-                PacketDistributor.sendToServer(
+                EmiLinkNetwork.sendAEPacketToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
                 ModLogger.debug("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
                 return true;
@@ -1019,7 +1020,7 @@ public final class InputEvents {
         if (ingredient == null || ingredient.isEmpty()) return null;
         var stacks = ingredient.getEmiStacks();
         if (stacks.isEmpty()) return null;
-        return stacks.getFirst();
+        return stacks.get(0);
     }
 
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
@@ -1148,7 +1149,7 @@ public final class InputEvents {
                     if (stack.isEmpty()) continue;
                     if (matchesOutput(stack, allOutputs)) {
                         appendStackAmount(detail, stack, stack.getCount());
-                        PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                        EmiLinkNetwork.sendToServer(new AEDepositPacket(stack.copy(), i));
                         inv.setItem(i, ItemStack.EMPTY);
                         total += stack.getCount();
                     }
@@ -1208,9 +1209,9 @@ public final class InputEvents {
                         continue;
                     }
                     if (storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-                        PacketDistributor.sendToServer(new BDDepositSlotPacket(i));
+                        EmiLinkNetwork.sendToServer(new BDDepositSlotPacket(i));
                     } else {
-                        PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                        EmiLinkNetwork.sendToServer(new AEDepositPacket(stack.copy(), i));
                     }
                     inv.setItem(i, ItemStack.EMPTY);
                     qcLog(runId, "row-clear deposited slot {} to {}: {} x{}", i,
@@ -1244,7 +1245,7 @@ public final class InputEvents {
         preflightQueryStartedAt = System.currentTimeMillis();
         if (!queryItems.isEmpty()) {
             AENetworkCache.invalidateEntries(queryItems);
-            PacketDistributor.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)));
+            EmiLinkNetwork.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)));
             qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
         }
 
@@ -1256,7 +1257,7 @@ public final class InputEvents {
         preflightStartTime = System.currentTimeMillis();
         preflightRunId = runId;
         if (storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
             qcLog(runId, "BD_QUICKCRAFT_RETURN_MODE network-first enabled");
         }
         event.setCanceled(true);
@@ -1283,7 +1284,7 @@ public final class InputEvents {
             if (es == null || es.isEmpty()) continue;
             var outputStack = es.getItemStack();
             if (outputStack == null || outputStack.isEmpty()) continue;
-            if (ItemStack.isSameItemSameComponents(stack, outputStack)) return true;
+            if (ItemStack.isSameItemSameTags(stack, outputStack)) return true;
         }
         return false;
     }
@@ -1294,7 +1295,7 @@ public final class InputEvents {
         for (var output : node.recipe.getOutputs()) {
             var outputStack = output.getItemStack();
             if (outputStack == null || outputStack.isEmpty()) continue;
-            if (ItemStack.isSameItemSameComponents(stack, outputStack)) return true;
+            if (ItemStack.isSameItemSameTags(stack, outputStack)) return true;
         }
         return false;
     }
@@ -1317,7 +1318,7 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputsToDeposit)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                EmiLinkNetwork.sendToServer(new AEDepositPacket(stack.copy(), i));
                 inv.setItem(i, ItemStack.EMPTY);
                 total += stack.getCount();
             }
@@ -1327,7 +1328,7 @@ public final class InputEvents {
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputsToDeposit)) {
             appendStackAmount(detail, carried, carried.getCount());
-            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+            EmiLinkNetwork.sendToServer(new AEDepositPacket(carried.copy(), -1));
             player.containerMenu.setCarried(ItemStack.EMPTY);
             total += carried.getCount();
         }
@@ -1353,7 +1354,7 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputs)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                EmiLinkNetwork.sendToServer(new AEDepositPacket(stack.copy(), i));
                 inv.setItem(i, ItemStack.EMPTY);
                 total += stack.getCount();
                 invalidation.add(stack.copyWithCount(1));
@@ -1363,7 +1364,7 @@ public final class InputEvents {
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputs)) {
             appendStackAmount(detail, carried, carried.getCount());
-            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+            EmiLinkNetwork.sendToServer(new AEDepositPacket(carried.copy(), -1));
             player.containerMenu.setCarried(ItemStack.EMPTY);
             total += carried.getCount();
             invalidation.add(carried.copyWithCount(1));
@@ -1394,7 +1395,8 @@ public final class InputEvents {
 
     /** Process one batch per game tick, linear through nodes. */
     @SubscribeEvent
-    public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.START) return;
         var mc = Minecraft.getInstance();
 
         // Handle preflight: wait for AE cache queries to return before creating job
@@ -1463,7 +1465,7 @@ public final class InputEvents {
                 AeCraftableShortage directAeRequest = findTopDownAeCraftableOutputShortage(
                         preflightGoalNode, jobNeededAmounts, mc.player, preflightGoalNode, goalOutputDeduction);
                 if (directAeRequest != null) {
-                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                    EmiLinkNetwork.sendToServer(new AEAutocraftRequestPacket(
                             directAeRequest.stack().copyWithCount(1), directAeRequest.missing()));
                     qcLog(runId, "AE_QUICKCRAFT direct top-down ME autocraft recipe={} item={} needed={} available={} missing={}; quick craft job paused before manual chain",
                             recipeId(directAeRequest.node()),
@@ -1525,7 +1527,7 @@ public final class InputEvents {
 
             boolean bdIntermediate = currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL
                     && node != currentJob.goalNode;
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
             currentJob.pendingVerifyNode = node;
             currentJob.pendingVerifyTicks = 0;
             currentJob.pendingVerifyBeforeTotal = currentJob.pendingBdCraftBeforeTotal;
@@ -1675,7 +1677,7 @@ public final class InputEvents {
                     qcLog(currentJob.runId, "AE_QUICKCRAFT prefill direct request recipe={} item={} needed={} available={} missing={}",
                             node.recipe.getId(), aeInputNeed.stack().getHoverName().getString(),
                             aeInputNeed.needed(), available, missing);
-                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                    EmiLinkNetwork.sendToServer(new AEAutocraftRequestPacket(
                             aeInputNeed.stack().copyWithCount(1), (int) Math.min(Integer.MAX_VALUE, missing)));
                     abortCurrentJob("prefill AE autocraft request");
                     return;
@@ -1694,7 +1696,7 @@ public final class InputEvents {
                     ? 0
                     : getNodeAvailability(node, mc.player, currentJob.storageMode).total();
             if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-                PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
+                EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
             }
             if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
                 qcLog(currentJob.runId, "AE_QUICKCRAFT performFill without post-fill ME handoff for {}; prefill request already checked",
@@ -1755,8 +1757,8 @@ public final class InputEvents {
         depositAllIntermediates(currentJob.runId, mc.player, currentJob);
         logInventorySnapshot(currentJob.runId, mc.player, "after-sweep");
         if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
         }
         if (currentJob.hadFailures) {
             qcLog(currentJob.runId, "finished with failures; keeping completedBatches for resume ({} entries): {}",
@@ -1810,8 +1812,8 @@ public final class InputEvents {
     private static void abortCurrentJob(String reason) {
         if (currentJob == null) return;
         if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
+            EmiLinkNetwork.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
         }
         savePartialNodeProgress(reason);
         currentJob = null;
@@ -1911,7 +1913,7 @@ public final class InputEvents {
             for (var slot : simulated) {
                 if (remaining <= 0) break;
                 if (slot.isEmpty()) continue;
-                if (!ItemStack.isSameItemSameComponents(slot, out)) continue;
+                if (!ItemStack.isSameItemSameTags(slot, out)) continue;
 
                 int room = Math.max(0, slot.getMaxStackSize() - slot.getCount());
                 int moved = Math.min(room, remaining);
@@ -2231,7 +2233,7 @@ public final class InputEvents {
             boolean merged = false;
             for (int i = 0; i < needs.size(); i++) {
                 var existing = needs.get(i);
-                if (ItemStack.isSameItemSameComponents(existing.stack(), craftableStack)) {
+                if (ItemStack.isSameItemSameTags(existing.stack(), craftableStack)) {
                     needs.set(i, new AeInputNeed(existing.stack(), existing.needed() + need));
                     merged = true;
                     break;
@@ -2305,12 +2307,12 @@ public final class InputEvents {
         var inv = player.getInventory();
         for (int i = 0; i < inv.items.size(); i++) {
             var stack = inv.getItem(i);
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, template)) {
+            if (!stack.isEmpty() && ItemStack.isSameItemSameTags(stack, template)) {
                 count += stack.getCount();
             }
         }
         var carried = player.containerMenu.getCarried();
-        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, template)) {
+        if (!carried.isEmpty() && ItemStack.isSameItemSameTags(carried, template)) {
             count += carried.getCount();
         }
         return count;
@@ -2345,12 +2347,12 @@ public final class InputEvents {
                 var inv = player.getInventory();
                 for (int i = 0; i < inv.items.size(); i++) {
                     var invStack = inv.getItem(i);
-                    if (!invStack.isEmpty() && ItemStack.isSameItemSameComponents(invStack, stack)) {
+                    if (!invStack.isEmpty() && ItemStack.isSameItemSameTags(invStack, stack)) {
                         invCount += invStack.getCount();
                     }
                 }
                 var carried = player.containerMenu.getCarried();
-                if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, stack)) {
+                if (!carried.isEmpty() && ItemStack.isSameItemSameTags(carried, stack)) {
                     carriedCount += carried.getCount();
                 }
             }

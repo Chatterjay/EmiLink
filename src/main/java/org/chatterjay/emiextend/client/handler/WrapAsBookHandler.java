@@ -6,13 +6,14 @@ import appeng.core.network.serverbound.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.network.Filterable;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.WrittenBookContent;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,7 +39,7 @@ public final class WrapAsBookHandler {
         if (!wrapRequested.getAndSet(false)) return;
         if (outputs == null || outputs.isEmpty()) return;
 
-        GenericStack output = outputs.getFirst();
+        GenericStack output = outputs.get(0);
         if (output == null) return;
         if (!(output.what() instanceof AEItemKey itemKey)) return;
 
@@ -47,7 +48,7 @@ public final class WrapAsBookHandler {
 
         var outSlots = menu.getProcessingOutputSlots();
         if (outSlots.length > 0) {
-            PacketDistributor.sendToServer(new InventoryActionPacket(
+            EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(
                     InventoryAction.SET_FILTER, outSlots[0].index, book));
         }
 
@@ -63,27 +64,31 @@ public final class WrapAsBookHandler {
             if (target < 0 && inSlots.length > 0) target = 0;
 
             if (target >= 0) {
-                PacketDistributor.sendToServer(new InventoryActionPacket(
+                EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(
                         InventoryAction.SET_FILTER, inSlots[target].index, original));
             }
         }
     }
 
+    /** 1.20.1 NBT-based written book creation (replaces DataComponents API). */
     private static ItemStack createWrittenBook(ItemStack original) {
         var mc = Minecraft.getInstance();
         String title = original.getHoverName().getString()
-                + net.minecraft.network.chat.Component.translatable("emilink.suffix.pattern").getString();
+                + Component.translatable("emilink.suffix.pattern").getString();
         String author = mc.player != null ? mc.player.getName().getString() : "EmiLink";
-        var page = net.minecraft.network.chat.Component.literal("Crafted from: " + title);
+        Component page = Component.literal("Crafted from: " + title);
 
         ItemStack book = new ItemStack(Items.WRITTEN_BOOK);
-        book.set(DataComponents.WRITTEN_BOOK_CONTENT, new WrittenBookContent(
-                Filterable.passThrough(title),
-                author,
-                0,
-                List.of(Filterable.passThrough(page)),
-                true
-        ));
+        CompoundTag tag = book.getOrCreateTag();
+        tag.putString("title", title);
+        tag.putString("author", author);
+        tag.putByte("resolved", (byte) 1);
+        tag.putInt("generation", 0);
+
+        ListTag pages = new ListTag();
+        pages.add(StringTag.valueOf(Component.Serializer.toJson(page)));
+        tag.put("pages", pages);
+
         return book;
     }
 }

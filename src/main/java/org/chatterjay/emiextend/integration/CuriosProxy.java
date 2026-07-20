@@ -2,7 +2,7 @@ package org.chatterjay.emiextend.integration;
 
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
+import net.minecraftforge.fml.ModList;
 
 import java.lang.reflect.Method;
 import java.util.Optional;

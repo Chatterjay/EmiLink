@@ -15,7 +15,7 @@ import dev.emi.emi.bom.MaterialTree;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.screen.EmiScreenManager;
-import net.neoforged.fml.loading.FMLPaths;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.io.FileReader;
@@ -773,7 +773,7 @@ public final class BomTreePageHelper {
         if (stacks == null || stacks.isEmpty()) {
             return null;
         }
-        var first = stacks.getFirst();
+        var first = stacks.get(0);
         if (first == null || first.getId() == null) {
             return null;
         }

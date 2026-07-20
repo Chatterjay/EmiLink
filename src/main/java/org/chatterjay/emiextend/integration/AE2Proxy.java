@@ -2,7 +2,7 @@ package org.chatterjay.emiextend.integration;
 
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
+import net.minecraftforge.fml.ModList;
 
 import java.lang.reflect.Method;
 

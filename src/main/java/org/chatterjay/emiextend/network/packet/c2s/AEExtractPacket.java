@@ -1,34 +1,32 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.network.PacketHelper;
 import org.chatterjay.emiextend.util.ModLogger;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+import java.util.function.Supplier;
 
 /**
  * Client→Server: Extract items from AE network into player inventory.
  * Used after QuickCraft to retrieve missing final goal items.
  */
-public record AEExtractPacket(ItemStack template, int count) implements CustomPacketPayload {
-    public static final Type<AEExtractPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_extract"));
+public record AEExtractPacket(ItemStack template, int count) {
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, AEExtractPacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ItemStack.OPTIONAL_STREAM_CODEC, AEExtractPacket::template,
-                    ByteBufCodecs.VAR_INT, AEExtractPacket::count,
-                    AEExtractPacket::new
-            );
+    public static void encode(AEExtractPacket msg, FriendlyByteBuf buf) {
+        buf.writeItem(msg.template);
+        buf.writeVarInt(msg.count);
+    }
 
-    void handleInServer(final IPayloadContext context) {
-        Player player = context.player();
+    public static AEExtractPacket decode(FriendlyByteBuf buf) {
+        ItemStack template = buf.readItem();
+        int count = buf.readVarInt();
+        return new AEExtractPacket(template, count);
+    }
+
+    void handleInServer(Player player) {
         if (player == null || template == null || template.isEmpty() || count <= 0) return;
 
         try {
@@ -69,12 +67,7 @@ public record AEExtractPacket(ItemStack template, int count) implements CustomPa
         }
     }
 
-    public static void handle(final AEExtractPacket packet, final IPayloadContext context) {
-        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static void handle(AEExtractPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        PacketHelper.handleServerBound(ctx, () -> msg.handleInServer(ctx.get().getSender()));
     }
 }

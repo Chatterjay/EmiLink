@@ -11,20 +11,19 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.multiplayer.ServerData;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.util.ModLogger;
-import net.neoforged.bus.api.SubscribeEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -111,16 +110,15 @@ public final class AENetworkCache {
         if (!cacheDirty) return;
         var level = Minecraft.getInstance().level;
         if (level == null) return;
-        RegistryAccess ra = level.registryAccess();
 
-        var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), ra);
+        var buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(serverStates.size());
         for (var entry : serverStates.entrySet()) {
             buf.writeUtf(entry.getKey());
             var cache = entry.getValue().cache;
             buf.writeVarInt(cache.size());
             for (var mapEntry : cache.entrySet()) {
-                ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, mapEntry.getKey());
+                buf.writeItem(mapEntry.getKey());
                 buf.writeVarLong(mapEntry.getValue().count());
                 buf.writeBoolean(mapEntry.getValue().craftable());
                 buf.writeVarLong(mapEntry.getValue().timestamp());
@@ -140,10 +138,9 @@ public final class AENetworkCache {
 
         var level = Minecraft.getInstance().level;
         if (level == null) return;
-        RegistryAccess ra = level.registryAccess();
 
         try {
-            var buf = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(data), ra);
+            var buf = new FriendlyByteBuf(Unpooled.wrappedBuffer(data));
             int serverCount = buf.readVarInt();
             int totalEntries = 0;
             for (int i = 0; i < serverCount; i++) {
@@ -152,7 +149,7 @@ public final class AENetworkCache {
                 var state = new ServerState();
                 for (int j = 0; j < entryCount; j++) {
                     try {
-                        ItemStack stack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buf);
+                        ItemStack stack = buf.readItem();
                         long count = buf.readVarLong();
                         boolean craftable = buf.readBoolean();
                         long timestamp = buf.readVarLong();
@@ -335,7 +332,7 @@ public final class AENetworkCache {
         }
 
         try {
-            PacketDistributor.sendToServer(new AEBatchQueryPacket(toQuery));
+            EmiLinkNetwork.sendToServer(new AEBatchQueryPacket(toQuery));
             ModLogger.debug("Batch: flushed {} items ({} unique since last flush)", toQuery.size(), toQuery.size());
         } catch (Exception e) {
             ModLogger.warn("AEQuery: server doesn't have EmiLink, disabling cache");
@@ -355,7 +352,7 @@ public final class AENetworkCache {
         for (var stack : stacks) {
             if (stack == null || stack.isEmpty()) continue;
             current.cache.entrySet().removeIf(entry ->
-                    ItemStack.isSameItemSameComponents(entry.getKey(), stack));
+                    ItemStack.isSameItemSameTags(entry.getKey(), stack));
         }
         cacheDirty = true;
     }
@@ -455,7 +452,7 @@ public final class AENetworkCache {
         if (direct != null) return direct;
         // Fallback: linear scan for hash-colliding or component-mismatched entries
         for (var entry : current.cache.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+            if (ItemStack.isSameItemSameTags(entry.getKey(), stack)) {
                 return entry.getValue();
             }
         }

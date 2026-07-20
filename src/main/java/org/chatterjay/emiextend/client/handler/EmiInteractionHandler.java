@@ -21,10 +21,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.world.item.crafting.Recipe;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
@@ -187,15 +187,15 @@ public final class EmiInteractionHandler {
                     if (space != null) {
                         boolean matchAll = matchesDepositBatchModifier();
                         if (matchAll) {
-                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            EmiLinkNetwork.sendToServer(new AEDepositPacket(carried.copy(), -1));
                             for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
                                 var s = mc.player.getInventory().getItem(i);
-                                if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, carried)) {
-                                    PacketDistributor.sendToServer(new AEDepositPacket(s.copy(), i));
+                                if (!s.isEmpty() && ItemStack.isSameItemSameTags(s, carried)) {
+                                    EmiLinkNetwork.sendToServer(new AEDepositPacket(s.copy(), i));
                                 }
                             }
                         } else {
-                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            EmiLinkNetwork.sendToServer(new AEDepositPacket(carried.copy(), -1));
                         }
                         cs.getMenu().setCarried(ItemStack.EMPTY);
                         return true;
@@ -280,7 +280,7 @@ public final class EmiInteractionHandler {
         }
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || cached.count() <= 0) return false;
-        PacketDistributor.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1));
+        EmiLinkNetwork.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1));
         org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover extract item={} stored={} craftable={}",
                 stack.getHoverName().getString(), cached.count(), cached.craftable());
@@ -293,7 +293,7 @@ public final class EmiInteractionHandler {
         }
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || !cached.craftable()) return false;
-        PacketDistributor.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1));
+        EmiLinkNetwork.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1));
         org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover autocraft item={} amount=1",
                 stack.getHoverName().getString());
@@ -328,7 +328,7 @@ public final class EmiInteractionHandler {
     private static long countReserved(List<ItemStack> reserved, ItemStack template) {
         long count = 0;
         for (var stack : reserved) {
-            if (ItemStack.isSameItemSameComponents(stack, template)) {
+            if (ItemStack.isSameItemSameTags(stack, template)) {
                 count++;
             }
         }
@@ -352,8 +352,8 @@ public final class EmiInteractionHandler {
         if (stacks.isEmpty()) {
             return null;
         }
-        var recipes = EmiApi.getRecipeManager().getRecipesByOutput(stacks.getFirst());
-        return recipes == null || recipes.isEmpty() ? null : recipes.getFirst();
+        var recipes = EmiApi.getRecipeManager().getRecipesByOutput(stacks.get(0));
+        return recipes == null || recipes.isEmpty() ? null : recipes.get(0);
     }
 
     private static boolean tryAeCraftingTransferFallback(EmiRecipe emiRecipe, Object menu) {
@@ -362,15 +362,16 @@ public final class EmiInteractionHandler {
             return false;
         }
 
-        RecipeHolder<?> holder = emiRecipe.getBackingRecipe();
-        if (holder == null && emiRecipe.getId() != null) {
-            holder = mc.level.getRecipeManager().byKey(emiRecipe.getId()).orElse(null);
+        // 1.20.1: recipes are Recipe<?> directly (no RecipeHolder wrapper)
+        Recipe<?> recipe = emiRecipe.getBackingRecipe();
+        if (recipe == null && emiRecipe.getId() != null) {
+            recipe = mc.level.getRecipeManager().byKey(emiRecipe.getId()).orElse(null);
         }
-        if (holder == null || !(holder.value() instanceof CraftingRecipe)) {
+        if (recipe == null || !(recipe instanceof CraftingRecipe)) {
             org.chatterjay.emiextend.util.ModLogger.debug(
-                    "AE_EMI_CTRL_CRAFT direct-fill-fallback skip recipe={} reason=not_crafting_recipe holder={}",
+                    "AE_EMI_CTRL_CRAFT direct-fill-fallback skip recipe={} reason=not_crafting_recipe recipe={}",
                     emiRecipe.getId(),
-                    holder == null ? "null" : holder.value().getClass().getName());
+                    recipe == null ? "null" : recipe.getClass().getName());
             return false;
         }
 
@@ -384,11 +385,11 @@ public final class EmiInteractionHandler {
                     net.minecraft.world.item.crafting.Recipe.class,
                     boolean.class
             );
-            method.invoke(null, menu, holder.id(), holder.value(), true);
+            method.invoke(null, menu, recipe.getId(), recipe, true);
             org.chatterjay.emiextend.util.ModLogger.debug(
-                    "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} holder={} menu={}",
+                    "AE_EMI_CTRL_CRAFT direct-fill-fallback sent recipe={} recipeId={} menu={}",
                     emiRecipe.getId(),
-                    holder.id(),
+                    recipe.getId(),
                     menu.getClass().getName());
             return true;
         } catch (ReflectiveOperationException e) {

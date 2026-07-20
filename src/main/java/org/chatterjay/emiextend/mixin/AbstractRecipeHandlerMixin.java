@@ -12,6 +12,7 @@ import org.chatterjay.emiextend.client.AENetworkCache;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.stack.EmiStack;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftAmountOverridePacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.util.EmiCraftHelper;
@@ -20,9 +21,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -150,7 +149,7 @@ public class AbstractRecipeHandlerMixin {
                         bulkRequest.stack().getDisplayName().getString(),
                         bulkRequest.amount(),
                         EmiCraftHelper.getAeAutocraftRequestedAmount());
-                PacketDistributor.sendToServer(new AEAutocraftRequestPacket(bulkRequest.stack(), bulkRequest.amount()));
+                EmiLinkNetwork.sendToServer(new AEAutocraftRequestPacket(bulkRequest.stack(), bulkRequest.amount()));
                 EmiCraftHelper.markAeAutocraftHandoff();
                 return;
             }
@@ -167,7 +166,7 @@ public class AbstractRecipeHandlerMixin {
             }
             ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
                     action, slotIndex, recipe.getId());
-            PacketDistributor.sendToServer(new InventoryActionPacket(action, slotIndex, 0));
+            EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(action, slotIndex, 0));
         } else if (dest == EmiCraftContext.Destination.INVENTORY) {
             if (ctrl) {
                 AEQuickCraftDelayHandler.schedule(InventoryAction.CRAFT_SHIFT, slotIndex, SINGLE_CRAFT_SIGNAL,
@@ -176,11 +175,11 @@ public class AbstractRecipeHandlerMixin {
             }
             ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=SINGLE_CRAFT_SIGNAL recipe={}",
                     InventoryAction.CRAFT_SHIFT, slotIndex, recipe.getId());
-            PacketDistributor.sendToServer(new InventoryActionPacket(InventoryAction.CRAFT_SHIFT, slotIndex, SINGLE_CRAFT_SIGNAL));
+            EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(InventoryAction.CRAFT_SHIFT, slotIndex, SINGLE_CRAFT_SIGNAL));
         } else {
             ModLogger.debug("AE_EMI_CTRL_CRAFT send action={} slot={} id=0 recipe={}",
                     InventoryAction.CRAFT_ITEM, slotIndex, recipe.getId());
-            PacketDistributor.sendToServer(new InventoryActionPacket(InventoryAction.CRAFT_ITEM, slotIndex, 0));
+            EmiLinkNetwork.sendAEPacketToServer(new InventoryActionPacket(InventoryAction.CRAFT_ITEM, slotIndex, 0));
         }
     }
 
@@ -200,25 +199,25 @@ public class AbstractRecipeHandlerMixin {
     @Unique
     private static void sendMissingAutocraftTransferOrFallback(EmiRecipe recipe, EmiCraftContext<?> context,
                                                                CraftingTermMenu ctm, int slotIndex) {
-        RecipeHolder<?> holder = getRecipeHolder(ctm.getPlayer().level(), recipe);
-        if (holder != null && holder.value() instanceof CraftingRecipe craftingRecipe) {
+        Recipe<?> recipeObj = getRecipe(ctm.getPlayer().level(), recipe);
+        if (recipeObj instanceof CraftingRecipe craftingRecipe) {
             if (EmiCraftHelper.checkAeAutocraftFromQuickCraft()) {
                 BulkAutocraftRequest overrideAmount = computeFirstMissingAutocraftRequest(recipe,
                         EmiCraftHelper.getAeAutocraftRequestedAmount(), ctm);
                 if (overrideAmount.amount() > 0) {
-                    PacketDistributor.sendToServer(new AEAutocraftAmountOverridePacket(overrideAmount.amount()));
+                    EmiLinkNetwork.sendToServer(new AEAutocraftAmountOverridePacket(overrideAmount.amount()));
                     ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft amount-override send recipe={} amount={} batches={}",
                             recipe.getId(), overrideAmount.amount(), EmiCraftHelper.getAeAutocraftRequestedAmount());
                 }
             }
-            CraftingHelper.performTransfer(ctm, holder.id(), craftingRecipe, true);
-            ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer sent recipe={} holder={} craftMissing=true",
-                    recipe.getId(), holder.id());
+            CraftingHelper.performTransfer(ctm, recipeObj.getId(), craftingRecipe, true);
+            ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer sent recipe={} recipeId={} craftMissing=true",
+                    recipe.getId(), recipeObj.getId());
             return;
         }
 
-        ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer fallback-delayed-click recipe={} holder={}",
-                recipe.getId(), holder == null ? "null" : holder.value().getClass().getName());
+        ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft-transfer fallback-delayed-click recipe={} recipe={}",
+                recipe.getId(), recipeObj == null ? "null" : recipeObj.getClass().getName());
         if (context.getAmount() > 1) {
             AEQuickCraftDelayHandler.schedule(InventoryAction.CRAFT_ALL, slotIndex, 0,
                     ctm.containerId, context.getScreen(), ctm, recipe.getId());
@@ -259,7 +258,7 @@ public class AbstractRecipeHandlerMixin {
             boolean merged = false;
             for (int i = 0; i < needs.size(); i++) {
                 BulkAutocraftNeed existing = needs.get(i);
-                if (ItemStack.isSameItemSameComponents(existing.stack(), craftableStack)) {
+                if (ItemStack.isSameItemSameTags(existing.stack(), craftableStack)) {
                     needs.set(i, new BulkAutocraftNeed(existing.stack(), existing.needed() + needForSlot));
                     merged = true;
                     break;
@@ -301,12 +300,12 @@ public class AbstractRecipeHandlerMixin {
                 continue;
             }
             var stack = inv.getItem(i);
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, template)) {
+            if (!stack.isEmpty() && ItemStack.isSameItemSameTags(stack, template)) {
                 count += stack.getCount();
             }
         }
         var carried = menu.getCarried();
-        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, template)) {
+        if (!carried.isEmpty() && ItemStack.isSameItemSameTags(carried, template)) {
             count += carried.getCount();
         }
         return count;
@@ -395,7 +394,7 @@ public class AbstractRecipeHandlerMixin {
     @Unique
     private static long getReserved(IdentityHashMap<ItemStack, Long> reserved, ItemStack stack) {
         for (var entry : reserved.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+            if (ItemStack.isSameItemSameTags(entry.getKey(), stack)) {
                 return entry.getValue();
             }
         }
@@ -405,7 +404,7 @@ public class AbstractRecipeHandlerMixin {
     @Unique
     private static void addReserved(IdentityHashMap<ItemStack, Long> reserved, ItemStack stack, long amount) {
         for (var entry : reserved.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+            if (ItemStack.isSameItemSameTags(entry.getKey(), stack)) {
                 entry.setValue(entry.getValue() + amount);
                 return;
             }
@@ -415,8 +414,7 @@ public class AbstractRecipeHandlerMixin {
 
     @Unique
     private static Map<Integer, Ingredient> getGuiSlotToIngredientMap(EmiRecipe emiRecipe, Level level) {
-        RecipeHolder<?> holder = getRecipeHolder(level, emiRecipe);
-        Recipe<?> recipe = holder != null ? holder.value() : null;
+        Recipe<?> recipe = getRecipe(level, emiRecipe);
         if (recipe != null) {
             return EmiUseCraftingRecipeHandler.getGuiSlotToIngredientMap(recipe);
         }
@@ -437,7 +435,7 @@ public class AbstractRecipeHandlerMixin {
     }
 
     @Unique
-    private static RecipeHolder<?> getRecipeHolder(Level level, EmiRecipe recipe) {
+    private static Recipe<?> getRecipe(Level level, EmiRecipe recipe) {
         if (recipe.getBackingRecipe() != null) {
             return recipe.getBackingRecipe();
         }

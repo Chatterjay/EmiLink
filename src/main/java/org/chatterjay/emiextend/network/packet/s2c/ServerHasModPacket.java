@@ -1,29 +1,23 @@
 package org.chatterjay.emiextend.network.packet.s2c;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.client.BDShortcutHandler;
 
-public record ServerHasModPacket() implements CustomPacketPayload {
-    public static final Type<ServerHasModPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "server_has_mod"));
+import java.util.function.Supplier;
 
-    public static final StreamCodec<FriendlyByteBuf, ServerHasModPacket> STREAM_CODEC =
-            StreamCodec.of(
-                    (buf, packet) -> {},
-                    buf -> new ServerHasModPacket()
-            );
+public record ServerHasModPacket() {
 
-    public static void handle(final ServerHasModPacket packet, final IPayloadContext context) {
-        context.enqueueWork(() -> BDShortcutHandler.serverHasMod = true);
+    public static void encode(ServerHasModPacket msg, FriendlyByteBuf buf) {
+        // no payload
     }
 
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static ServerHasModPacket decode(FriendlyByteBuf buf) {
+        return new ServerHasModPacket();
+    }
+
+    public static void handle(ServerHasModPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        ctx.get().enqueueWork(() -> BDShortcutHandler.serverHasMod = true);
+        ctx.get().setPacketHandled(true);
     }
 }

@@ -2,35 +2,32 @@ package org.chatterjay.emiextend.network.packet.c2s;
 
 import appeng.api.stacks.AEItemKey;
 import appeng.helpers.ICraftingGridMenu;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.network.PacketHelper;
 import org.chatterjay.emiextend.util.AeAutocraftAmountOverride;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.List;
+import java.util.function.Supplier;
 
-public record AEAutocraftRequestPacket(ItemStack template, int amount) implements CustomPacketPayload {
-    public static final Type<AEAutocraftRequestPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_autocraft_request"));
+public record AEAutocraftRequestPacket(ItemStack template, int amount) {
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, AEAutocraftRequestPacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ItemStack.OPTIONAL_STREAM_CODEC, AEAutocraftRequestPacket::template,
-                    ByteBufCodecs.VAR_INT, AEAutocraftRequestPacket::amount,
-                    AEAutocraftRequestPacket::new
-            );
+    public static void encode(AEAutocraftRequestPacket msg, FriendlyByteBuf buf) {
+        buf.writeItem(msg.template);
+        buf.writeVarInt(msg.amount);
+    }
 
-    void handleInServer(final IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)
-                || template == null || template.isEmpty() || amount <= 0) {
+    public static AEAutocraftRequestPacket decode(FriendlyByteBuf buf) {
+        ItemStack template = buf.readItem();
+        int amount = buf.readVarInt();
+        return new AEAutocraftRequestPacket(template, amount);
+    }
+
+    void handleInServer(ServerPlayer player) {
+        if (template == null || template.isEmpty() || amount <= 0) {
             return;
         }
         if (!(player.containerMenu instanceof ICraftingGridMenu menu)) {
@@ -50,12 +47,11 @@ public record AEAutocraftRequestPacket(ItemStack template, int amount) implement
                 template.getHoverName().getString(), amount);
     }
 
-    public static void handle(final AEAutocraftRequestPacket packet, final IPayloadContext context) {
-        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static void handle(AEAutocraftRequestPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        PacketHelper.handleServerBound(ctx, () -> {
+            if (ctx.get().getSender() instanceof ServerPlayer sp) {
+                msg.handleInServer(sp);
+            }
+        });
     }
 }

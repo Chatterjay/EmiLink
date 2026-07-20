@@ -7,7 +7,7 @@ import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.runtime.EmiFavorites;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.HashSet;
@@ -161,7 +161,7 @@ public final class BookmarkPriorityHandler {
         if (amount > 1) {
             copy.setCount((int) Math.min(amount, 64));
         }
-        PacketDistributor.sendToServer(
+        EmiLinkNetwork.sendAEPacketToServer(
                 new InventoryActionPacket(
                         InventoryAction.SET_FILTER,
                         slot.index,

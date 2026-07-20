@@ -10,17 +10,17 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.mixin.AbstractContainerScreenAccessor;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
@@ -43,12 +43,12 @@ public class BDShortcutHandler {
     /**
      * Safely send a packet to the server, catching the case where the server doesn't have EmiLink.
      */
-    private static void sendToServerSafe(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
+    private static <T> void sendToServerSafe(T packet) {
         if (!serverHasMod) return;
         try {
-            PacketDistributor.sendToServer(packet);
+            EmiLinkNetwork.sendToServer(packet);
         } catch (Exception e) {
-            ModLogger.warn("Server doesn't have EmiLink, dropping packet: {}", packet.type().id());
+            ModLogger.warn("Server doesn't have EmiLink, dropping packet: {}", packet.getClass().getSimpleName());
         }
     }
 
@@ -139,7 +139,7 @@ public class BDShortcutHandler {
             if (!isBDScreen) {
                 if (EmiLinkConfig.ENABLE_BULK_TRANSFER.get()) {
                     // If IE is installed, let it handle regular containers (our screens already in its ignore list)
-                    if (!net.neoforged.fml.ModList.get().isLoaded("inventoryessentials")) {
+                    if (!net.minecraftforge.fml.ModList.get().isLoaded("inventoryessentials")) {
                         bulkTransferAll(containerScreen, slot);
                     }
                 }
@@ -225,7 +225,7 @@ public class BDShortcutHandler {
 
         if (serverHasMod) {
             int[] locked = getLockedIndices(mode);
-            PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
+            EmiLinkNetwork.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
         } else {
             boolean dirToStorage = mode != 0;
             BDProxy.sendBatchTransfer(clickedItem, dirToStorage);
@@ -261,7 +261,7 @@ public class BDShortcutHandler {
             if (!slot.hasItem()) continue;
             if (!canPlayerAccessSlot(slot)) continue;
             if (!isSameInventory(slot, hoverSlot)) continue;
-            if (!ItemStack.isSameItemSameComponents(slot.getItem(), targetStack)) continue;
+            if (!ItemStack.isSameItemSameTags(slot.getItem(), targetStack)) continue;
             if (slot.container instanceof Inventory) {
                 int idx = slot.getContainerSlot();
                 if (idx >= 0 && idx < 36 && locked.contains(idx)) continue;
@@ -288,7 +288,7 @@ public class BDShortcutHandler {
         for (int i = 0; i < menu.slots.size(); i++) {
             Slot slot = menu.slots.get(i);
             if (!slot.hasItem()) continue;
-            if (!ItemStack.isSameItemSameComponents(slot.getItem(), carried)) continue;
+            if (!ItemStack.isSameItemSameTags(slot.getItem(), carried)) continue;
             // Respect pickup source: container pickup → skip player slots; player pickup → skip container slots
             if (sourceFromContainer != null) {
                 if (sourceFromContainer && slot.container instanceof Inventory) continue;
@@ -380,7 +380,7 @@ public class BDShortcutHandler {
             if (!isUnlockedPlayerInventorySlot(targetSlot, locked)) continue;
             if (!targetSlot.hasItem()) continue;
             ItemStack targetStack = targetSlot.getItem();
-            if (!ItemStack.isSameItemSameComponents(targetStack, carried)) continue;
+            if (!ItemStack.isSameItemSameTags(targetStack, carried)) continue;
             if (targetStack.getCount() >= getSlotStackLimit(targetSlot, targetStack)) continue;
             click(menu, containerId, targetSlot.index, 0, net.minecraft.world.inventory.ClickType.PICKUP);
         }

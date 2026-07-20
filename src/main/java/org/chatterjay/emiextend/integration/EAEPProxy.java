@@ -1,11 +1,11 @@
 package org.chatterjay.emiextend.integration;
 
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.fml.ModList;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 public class EAEPProxy {
     private static Boolean loaded;
@@ -31,6 +31,10 @@ public class EAEPProxy {
         return gsCtor.newInstance(aeKey, 1L);
     }
 
+    /**
+     * Forge 1.20.1: EAEP's packets must be sent through EAEP's own SimpleChannel.
+     * We attempt to find the channel by common names and reflectively call sendToServer.
+     */
     private static boolean sendPacket(ItemStack stack, String packetClassName) {
         if (!isLoaded() || stack == null || stack.isEmpty()) return false;
         try {
@@ -38,9 +42,39 @@ public class EAEPProxy {
             if (genericStack == null) return false;
             var clazz = Class.forName(packetClassName);
             var ctor = clazz.getConstructor(genericStack.getClass());
-            var packet = ctor.newInstance(genericStack);
-            PacketDistributor.sendToServer((CustomPacketPayload) packet);
-            return true;
+            Object packet = ctor.newInstance(genericStack);
+
+            // Try common EAEP network channel class/field names
+            String[] candidateClasses = {
+                    "com.extendedae_plus.network.EAEPNetwork",
+                    "com.extendedae_plus.network.NetworkHandler",
+                    "com.extendedae_plus.network.EAEPNetworking",
+                    "com.extendedae_plus.ExtendedAEPlus$Network"
+            };
+            String[] candidateFields = {"CHANNEL", "INSTANCE", "channel", "instance"};
+
+            for (String clsName : candidateClasses) {
+                try {
+                    Class<?> cls = Class.forName(clsName);
+                    for (String fieldName : candidateFields) {
+                        try {
+                            Field f = cls.getDeclaredField(fieldName);
+                            f.setAccessible(true);
+                            Object channel = f.get(null);
+                            if (channel != null) {
+                                try {
+                                    Method send = channel.getClass().getMethod("sendToServer", Object.class);
+                                    send.invoke(channel, packet);
+                                    return true;
+                                } catch (NoSuchMethodException nsme) {
+                                    // try alternative signature
+                                }
+                            }
+                        } catch (NoSuchFieldException ignored) {}
+                    }
+                } catch (ClassNotFoundException ignored) {}
+            }
+            return false;
         } catch (Exception e) {
             return false;
         }

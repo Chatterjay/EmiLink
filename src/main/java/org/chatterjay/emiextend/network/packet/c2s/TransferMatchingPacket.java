@@ -1,52 +1,34 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import io.netty.buffer.ByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.network.PacketHelper;
 
-public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] lockedSlots) implements CustomPacketPayload {
+import java.util.function.Supplier;
+
+public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] lockedSlots) {
     // mode: 0 = network→player (matching items), 1 = main inventory→network, 2 = hotbar→network
 
-    public static final Type<TransferMatchingPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "transfer_matching"));
+    public static void encode(TransferMatchingPacket msg, FriendlyByteBuf buf) {
+        buf.writeItem(msg.clickedStack);
+        buf.writeByte(msg.mode);
+        buf.writeVarInt(msg.lockedSlots.length);
+        for (int v : msg.lockedSlots) buf.writeVarInt(v);
+    }
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, TransferMatchingPacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ItemStack.OPTIONAL_STREAM_CODEC,
-                    TransferMatchingPacket::clickedStack,
-                    ByteBufCodecs.BYTE.map(b -> (int) b, i -> (byte) (int) i),
-                    TransferMatchingPacket::mode,
-                    new StreamCodec<RegistryFriendlyByteBuf, int[]>() {
-                        @Override
-                        public int[] decode(RegistryFriendlyByteBuf buf) {
-                            int len = buf.readVarInt();
-                            int[] arr = new int[len];
-                            for (int i = 0; i < len; i++) arr[i] = buf.readVarInt();
-                            return arr;
-                        }
+    public static TransferMatchingPacket decode(FriendlyByteBuf buf) {
+        ItemStack stack = buf.readItem();
+        int mode = buf.readByte();
+        int len = buf.readVarInt();
+        int[] arr = new int[len];
+        for (int i = 0; i < len; i++) arr[i] = buf.readVarInt();
+        return new TransferMatchingPacket(stack, mode, arr);
+    }
 
-                        @Override
-                        public void encode(RegistryFriendlyByteBuf buf, int[] arr) {
-                            buf.writeVarInt(arr.length);
-                            for (int v : arr) buf.writeVarInt(v);
-                        }
-                    },
-                    TransferMatchingPacket::lockedSlots,
-                    TransferMatchingPacket::new
-            );
-
-    private void handleInServer(final IPayloadContext context) {
-        Player player = context.player();
+    private void handleInServer(Player player) {
         if (player == null || clickedStack == null || clickedStack.isEmpty()) return;
 
         if (mode == 0) {
@@ -56,12 +38,7 @@ public record TransferMatchingPacket(ItemStack clickedStack, int mode, int[] loc
         }
     }
 
-    public static void handle(final TransferMatchingPacket packet, final IPayloadContext context) {
-        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    public static void handle(TransferMatchingPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        PacketHelper.handleServerBound(ctx, () -> msg.handleInServer(ctx.get().getSender()));
     }
 }

@@ -1,54 +1,43 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.network.AE2GridQueryUtil;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Batch AE network query — client sends multiple items at once, server responds
  * with count & craftability for each. Delegates query logic to AE2GridQueryUtil.
  */
-public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacketPayload {
-    public static final Type<AEBatchQueryPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_batch_query"));
+public record AEBatchQueryPacket(List<ItemStack> stacks) {
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, AEBatchQueryPacket> STREAM_CODEC =
-            new StreamCodec<>() {
-                @Override
-                public void encode(RegistryFriendlyByteBuf buf, AEBatchQueryPacket packet) {
-                    buf.writeVarInt(packet.stacks().size());
-                    for (var stack : packet.stacks()) {
-                        ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, stack);
-                    }
-                }
+    public static void encode(AEBatchQueryPacket msg, FriendlyByteBuf buf) {
+        buf.writeVarInt(msg.stacks.size());
+        for (var stack : msg.stacks) {
+            buf.writeItem(stack);
+        }
+    }
 
-                @Override
-                public AEBatchQueryPacket decode(RegistryFriendlyByteBuf buf) {
-                    int size = buf.readVarInt();
-                    var stacks = new ArrayList<ItemStack>(size);
-                    for (int i = 0; i < size; i++) {
-                        stacks.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
-                    }
-                    return new AEBatchQueryPacket(stacks);
-                }
-            };
+    public static AEBatchQueryPacket decode(FriendlyByteBuf buf) {
+        int size = buf.readVarInt();
+        var stacks = new ArrayList<ItemStack>(size);
+        for (int i = 0; i < size; i++) {
+            stacks.add(buf.readItem());
+        }
+        return new AEBatchQueryPacket(stacks);
+    }
 
-    private void handleInServer(final IPayloadContext context) {
-        Player player = context.player();
+    private void handleInServer(Player player) {
         if (player == null || stacks == null || stacks.isEmpty()) return;
         if (!AE2Proxy.isLoaded()) return;
 
@@ -86,19 +75,16 @@ public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacket
             ModLogger.debug("AEBatchQuery: error resolving grid: {}", e.getMessage());
         }
 
-        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
-            PacketDistributor.sendToPlayer(sp, new AEBatchQueryResponsePacket(results));
+        if (player instanceof ServerPlayer sp) {
+            EmiLinkNetwork.sendTo(new AEBatchQueryResponsePacket(results), sp);
         }
     }
 
-    public static void handle(final AEBatchQueryPacket packet, final IPayloadContext context) {
-        if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
-            context.enqueueWork(() -> packet.handleInServer(context));
+    public static void handle(AEBatchQueryPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        NetworkEvent.Context context = ctx.get();
+        if (context.getDirection().getReceptionSide().isServer()) {
+            context.enqueueWork(() -> msg.handleInServer(context.getSender()));
         }
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+        context.setPacketHandled(true);
     }
 }

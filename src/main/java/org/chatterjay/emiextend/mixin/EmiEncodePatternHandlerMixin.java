@@ -4,7 +4,6 @@ import appeng.integration.modules.emi.EmiEncodePatternHandler;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import org.chatterjay.emiextend.client.handler.BookmarkPriorityHandler;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
@@ -25,18 +24,17 @@ public class EmiEncodePatternHandlerMixin {
      * EAEP always shows ProviderSelect even when a mapping was previously saved.
      */
     @Inject(method = "transferRecipe", at = @At("HEAD"), require = 0)
-    private void emilink$beforeTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<Boolean> cir) {
+    private void emilink$beforeTransfer(PatternEncodingTermMenu menu, Recipe<?> recipe, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<Boolean> cir) {
         try {
             if (!doTransfer) return;
 
-            if (holder == null || holder.value() == null) {
+            if (recipe == null) {
                 if (emiRecipe != null) {
                     ProviderSearchHelper.setFromEmiRecipe(emiRecipe);
                 }
                 return;
             }
 
-            Recipe<?> recipe = holder.value();
             String rawKey = ProviderSearchHelper.mapRecipeTypeToSearchKey(recipe);
             if (rawKey != null && !rawKey.isBlank()) {
                 // Resolve through EAEP's CUSTOM_ALIASES so the search box gets the
@@ -45,7 +43,7 @@ public class EmiEncodePatternHandlerMixin {
                 String resolved = ProviderSearchHelper.resolveKeyToAlias(rawKey);
                 ProviderSearchHelper.setLastProcessingName(resolved);
                 ModLogger.debug("HEAD: set processing name '{}' (raw '{}') for recipe {}",
-                        resolved, rawKey, holder.id());
+                        resolved, rawKey, recipe.getId());
             }
         } catch (Throwable t) {
             ModLogger.warn("EmiEncodePatternHandlerMixin HEAD error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
@@ -53,13 +51,13 @@ public class EmiEncodePatternHandlerMixin {
     }
 
     @Inject(method = "transferRecipe", at = @At("RETURN"), require = 0)
-    private void emilink$afterTransfer(PatternEncodingTermMenu menu, RecipeHolder<?> holder, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<?> cir) {
+    private void emilink$afterTransfer(PatternEncodingTermMenu menu, Recipe<?> recipe, EmiRecipe emiRecipe, boolean doTransfer, CallbackInfoReturnable<?> cir) {
         try {
             if (!doTransfer) return;
 
-            // For custom EMI recipes (e.g. forge rituals) there is no Vanilla RecipeHolder.
+            // For custom EMI recipes (e.g. forge rituals) there is no Vanilla Recipe.
             // Still set the recipe tree search key and apply bookmark priority.
-            if (holder == null || holder.value() == null) {
+            if (recipe == null) {
                 if (emiRecipe != null) {
                     ModLogger.debug("Pattern written (custom): category={} id={}",
                             emiRecipe.getCategory().getId(), emiRecipe.getId());
@@ -72,8 +70,7 @@ public class EmiEncodePatternHandlerMixin {
                 return;
             }
 
-            Recipe<?> recipe = holder.value();
-            ModLogger.debug("Pattern written: recipe={} id={}", recipe.getClass().getName(), holder.id());
+            ModLogger.debug("Pattern written: recipe={} id={}", recipe.getClass().getName(), recipe.getId());
 
             if (recipe.getType() == RecipeType.CRAFTING) {
                 ProviderSearchHelper.presetCraftingProviderSearchKey();

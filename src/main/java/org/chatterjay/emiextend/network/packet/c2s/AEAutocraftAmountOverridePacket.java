@@ -1,38 +1,32 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.network.PacketHelper;
 import org.chatterjay.emiextend.util.AeAutocraftAmountOverride;
 
-public record AEAutocraftAmountOverridePacket(int amount) implements CustomPacketPayload {
-    public static final Type<AEAutocraftAmountOverridePacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_autocraft_amount_override"));
+import java.util.function.Supplier;
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, AEAutocraftAmountOverridePacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ByteBufCodecs.VAR_INT, AEAutocraftAmountOverridePacket::amount,
-                    AEAutocraftAmountOverridePacket::new
-            );
+public record AEAutocraftAmountOverridePacket(int amount) {
 
-    void handleInServer(final IPayloadContext context) {
-        if (context.player() instanceof ServerPlayer serverPlayer) {
-            AeAutocraftAmountOverride.set(serverPlayer, amount);
-        }
+    public static void encode(AEAutocraftAmountOverridePacket msg, FriendlyByteBuf buf) {
+        buf.writeVarInt(msg.amount);
     }
 
-    public static void handle(final AEAutocraftAmountOverridePacket packet, final IPayloadContext context) {
-        PacketHelper.handleServerBound(context, () -> packet.handleInServer(context));
+    public static AEAutocraftAmountOverridePacket decode(FriendlyByteBuf buf) {
+        return new AEAutocraftAmountOverridePacket(buf.readVarInt());
     }
 
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+    void handleInServer(ServerPlayer serverPlayer) {
+        AeAutocraftAmountOverride.set(serverPlayer, amount);
+    }
+
+    public static void handle(AEAutocraftAmountOverridePacket msg, Supplier<NetworkEvent.Context> ctx) {
+        PacketHelper.handleServerBound(ctx, () -> {
+            if (ctx.get().getSender() instanceof ServerPlayer sp) {
+                msg.handleInServer(sp);
+            }
+        });
     }
 }

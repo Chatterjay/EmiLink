@@ -1,10 +1,11 @@
 package org.chatterjay.emiextend.network;
 
-import net.minecraft.network.protocol.PacketFlow;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.network.NetworkEvent;
+
+import java.util.function.Supplier;
 
 /**
- * Utility for reducing boilerplate in CustomPacketPayload handle() methods.
+ * Utility for reducing boilerplate in Forge 1.20.1 SimpleChannel message handlers.
  */
 public final class PacketHelper {
 
@@ -13,18 +14,22 @@ public final class PacketHelper {
     /**
      * Standard server-bound handler: verify flow, enqueue on main thread.
      */
-    public static void handleServerBound(IPayloadContext context, Runnable handler) {
-        if (context.flow() == PacketFlow.SERVERBOUND) {
-            context.enqueueWork(handler);
+    public static void handleServerBound(Supplier<NetworkEvent.Context> contextSupplier, Runnable handler) {
+        NetworkEvent.Context ctx = contextSupplier.get();
+        if (ctx.getDirection().getReceptionSide().isServer()) {
+            ctx.enqueueWork(handler);
         }
+        ctx.setPacketHandled(true);
     }
 
     /**
      * Standard client-bound handler.
      */
-    public static void handleClientBound(IPayloadContext context, Runnable handler) {
-        if (context.flow() == PacketFlow.CLIENTBOUND) {
-            context.enqueueWork(handler);
+    public static void handleClientBound(Supplier<NetworkEvent.Context> contextSupplier, Runnable handler) {
+        NetworkEvent.Context ctx = contextSupplier.get();
+        if (ctx.getDirection().getReceptionSide().isClient()) {
+            ctx.enqueueWork(handler);
         }
+        ctx.setPacketHandled(true);
     }
 }

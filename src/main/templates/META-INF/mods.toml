@@ -14,8 +14,9 @@ logoFile = "emilink.png"
 config = "${mod_id}.mixins.json"
 
 [[dependencies."${mod_id}"]]
-modId = "neoforge"
+modId = "forge"
 type = "required"
+versionRange = "${forge_version_range}"
 ordering = "NONE"
 side = "BOTH"
 

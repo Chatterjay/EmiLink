@@ -1,34 +1,30 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import org.chatterjay.emiextend.EmiAE2;
+import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.network.AE2GridQueryUtil;
+import org.chatterjay.emiextend.network.EmiLinkNetwork;
 import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
-public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
-    public static final Type<AEQueryPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_query"));
+import java.util.function.Supplier;
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, AEQueryPacket> STREAM_CODEC =
-            StreamCodec.composite(
-                    ItemStack.OPTIONAL_STREAM_CODEC,
-                    AEQueryPacket::stack,
-                    AEQueryPacket::new
-            );
+public record AEQueryPacket(ItemStack stack) {
 
-    private void handleInServer(final IPayloadContext context) {
-        Player player = context.player();
+    public static void encode(AEQueryPacket msg, FriendlyByteBuf buf) {
+        buf.writeItem(msg.stack);
+    }
+
+    public static AEQueryPacket decode(FriendlyByteBuf buf) {
+        return new AEQueryPacket(buf.readItem());
+    }
+
+    private void handleInServer(Player player) {
         if (player == null || stack == null || stack.isEmpty()) return;
         if (!AE2Proxy.isLoaded()) {
             sendResponse(player, 0, false);
@@ -63,29 +59,28 @@ public record AEQueryPacket(ItemStack stack) implements CustomPacketPayload {
             craftable = AE2GridQueryUtil.queryCraftability(grid, aeKey);
 
         } catch (Exception e) {
+            // ignore
         }
 
         sendResponse(player, count, craftable);
     }
 
     private void sendResponse(Player player, long count, boolean craftable) {
-        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
-            PacketDistributor.sendToPlayer(sp, new AEQueryResponsePacket(stack, count, craftable));
+        if (player instanceof ServerPlayer sp) {
+            EmiLinkNetwork.sendTo(new AEQueryResponsePacket(stack, count, craftable), sp);
         }
     }
 
-    public static void handle(final AEQueryPacket packet, final IPayloadContext context) {
-        if (packet != null && context.flow() == PacketFlow.SERVERBOUND) {
+    public static void handle(AEQueryPacket msg, Supplier<NetworkEvent.Context> ctx) {
+        NetworkEvent.Context context = ctx.get();
+        if (context.getDirection().getReceptionSide().isServer()) {
             if (!PacketRateLimiter.allowDebugPacket()) {
                 ModLogger.debug("AEQuery rate limited (dropped)");
+                context.setPacketHandled(true);
                 return;
             }
-            context.enqueueWork(() -> packet.handleInServer(context));
+            context.enqueueWork(() -> msg.handleInServer(context.getSender()));
         }
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+        context.setPacketHandled(true);
     }
 }

@@ -1,10 +1,10 @@
 package org.chatterjay.emiextend.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 import org.chatterjay.emiextend.util.ModLogger;
 
 public final class EmiLinkConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     public enum ExtractTrigger {
         SHIFT,
@@ -14,40 +14,40 @@ public final class EmiLinkConfig {
     }
 
     // ---- General ----
-    public static final ModConfigSpec.BooleanValue DEBUG_MODE;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
 
     // ---- Cache ----
-    public static final ModConfigSpec.LongValue CACHE_TTL_MS;
-    public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
-    public static final ModConfigSpec.LongValue DEBOUNCE_MS;
-    public static final ModConfigSpec.LongValue BATCH_FLUSH_MS;
+    public static final ForgeConfigSpec.LongValue CACHE_TTL_MS;
+    public static final ForgeConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
+    public static final ForgeConfigSpec.LongValue DEBOUNCE_MS;
+    public static final ForgeConfigSpec.LongValue BATCH_FLUSH_MS;
 
     // ---- EMI UI ----
-    public static final ModConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
-    public static final ModConfigSpec.BooleanValue WB_FILL_INPUT_GRID;
-    public static final ModConfigSpec.BooleanValue ENABLE_DRAG_FILL;
-    public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
-    public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
+    public static final ForgeConfigSpec.BooleanValue WB_FILL_INPUT_GRID;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_DRAG_FILL;
+    public static final ForgeConfigSpec.BooleanValue BOOKMARK_PRIORITY;
+    public static final ForgeConfigSpec.IntValue FAVORITE_PAGE_COUNT;
 
     // ---- AE / Network Storage ----
-    public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
-    public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
-    public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
-    public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
+    public static final ForgeConfigSpec.IntValue NETWORK_BADGE_STYLE;
+    public static final ForgeConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
+    public static final ForgeConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
 
     // ---- Quick Craft ----
-    public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> QUICK_CRAFT_MODIFIER;
-    public static final ModConfigSpec.ConfigValue<String> QUICK_CRAFT_KEY;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
+    public static final ForgeConfigSpec.EnumValue<ExtractTrigger> QUICK_CRAFT_MODIFIER;
+    public static final ForgeConfigSpec.ConfigValue<String> QUICK_CRAFT_KEY;
 
     // ---- Inventory ----
-    public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
-    public static final ModConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
 
     // ---- Network ----
-    public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
     static {
         BUILDER.push("general");
@@ -187,7 +187,7 @@ public final class EmiLinkConfig {
         BUILDER.pop();
     }
 
-    public static final ModConfigSpec SPEC = BUILDER.build();
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     private static boolean validated = false;
 
@@ -209,7 +209,7 @@ public final class EmiLinkConfig {
         validateInt(NETWORK_BADGE_STYLE, "ae_network.networkBadgeStyle", 1, 1, 2);
     }
 
-    private static void validateLong(ModConfigSpec.LongValue value, String path, long fallback, long min, long max) {
+    private static void validateLong(ForgeConfigSpec.LongValue value, String path, long fallback, long min, long max) {
         long v = value.get();
         if (v < min || v > max) {
             ModLogger.warn("Config '{}' = {} is out of range [{}, {}], falling back to default {}",
@@ -218,7 +218,7 @@ public final class EmiLinkConfig {
         }
     }
 
-    private static void validateInt(ModConfigSpec.IntValue value, String path, int fallback, int min, int max) {
+    private static void validateInt(ForgeConfigSpec.IntValue value, String path, int fallback, int min, int max) {
         int v = value.get();
         if (v < min || v > max) {
             ModLogger.warn("Config '{}' = {} is out of range [{}, {}], falling back to default {}",
