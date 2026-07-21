@@ -2,7 +2,7 @@ package org.chatterjay.emiextend.client.handler;
 
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.GenericStack;
-import appeng.core.network.serverbound.InventoryActionPacket;
+import appeng.core.sync.packets.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import net.minecraft.client.Minecraft;

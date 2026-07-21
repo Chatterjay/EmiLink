@@ -1,6 +1,6 @@
 package org.chatterjay.emiextend.client.handler;
 
-import appeng.core.network.serverbound.InventoryActionPacket;
+import appeng.core.sync.packets.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import appeng.menu.slot.FakeSlot;
 import dev.emi.emi.api.stack.EmiIngredient;

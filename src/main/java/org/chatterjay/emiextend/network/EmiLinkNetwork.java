@@ -70,11 +70,11 @@ public final class EmiLinkNetwork {
     }
 
     private static <T> void registerMessage(Class<T> clazz,
-                                            net.minecraftforge.network.simple.MessageEncoder<T> encoder,
-                                            net.minecraftforge.network.simple.MessageDecoder<T> decoder,
-                                            net.minecraftforge.network.simple.MessageConsumer<T> handler,
+                                            java.util.function.BiConsumer<T, net.minecraft.network.FriendlyByteBuf> encoder,
+                                            java.util.function.Function<net.minecraft.network.FriendlyByteBuf, T> decoder,
+                                            java.util.function.BiConsumer<T, java.util.function.Supplier<net.minecraftforge.network.NetworkEvent.Context>> handler,
                                             NetworkDirection direction) {
-        CHANNEL.registerMessage(nextId++, clazz, encoder, decoder, handler, direction);
+        CHANNEL.registerMessage(nextId++, clazz, encoder, decoder, handler, java.util.Optional.of(direction));
     }
 
     /** Send a packet from client to server. */

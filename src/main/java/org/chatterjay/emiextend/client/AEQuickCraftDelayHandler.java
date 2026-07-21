@@ -1,7 +1,7 @@
 
 package org.chatterjay.emiextend.client;
 
-import appeng.core.network.serverbound.InventoryActionPacket;
+import appeng.core.sync.packets.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -19,7 +19,7 @@ public final class AEQuickCraftDelayHandler {
                                 Object sourceMenu, Object recipeId) {
         pending = new PendingResultClick(action, slotIndex, id, containerId, sourceScreen, sourceMenu, String.valueOf(recipeId), 3);
         ModLogger.debug("AE_EMI_CTRL_CRAFT delayed-click scheduled action={} slot={} id={} container={} recipe={} screen={} menu={}",
-                action, slotIndex, id, container, recipeId,
+                action, slotIndex, id, containerId, recipeId,
                 sourceScreen == null ? "null" : sourceScreen.getClass().getName(),
                 sourceMenu == null ? "null" : sourceMenu.getClass().getName());
     }

@@ -1,7 +1,7 @@
 package org.chatterjay.emiextend.network.packet.c2s;
 
 import appeng.api.stacks.AEItemKey;
-import appeng.helpers.ICraftingGridMenu;
+import appeng.helpers.IMenuCraftingPacket;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -30,7 +30,7 @@ public record AEAutocraftRequestPacket(ItemStack template, int amount) {
         if (template == null || template.isEmpty() || amount <= 0) {
             return;
         }
-        if (!(player.containerMenu instanceof ICraftingGridMenu menu)) {
+        if (!(player.containerMenu instanceof IMenuCraftingPacket menu)) {
             ModLogger.debug("AE_EMI_CTRL_CRAFT direct-autocraft skip reason=not_crafting_terminal menu={}",
                     player.containerMenu == null ? "null" : player.containerMenu.getClass().getName());
             return;
@@ -42,14 +42,14 @@ public record AEAutocraftRequestPacket(ItemStack template, int amount) {
         }
 
         AeAutocraftAmountOverride.set(player, amount);
-        menu.startAutoCrafting(List.of(new ICraftingGridMenu.AutoCraftEntry(key, List.of(0))));
+        menu.startAutoCrafting(List.of(new IMenuCraftingPacket.AutoCraftEntry(key, List.of(0))));
         ModLogger.debug("AE_EMI_CTRL_CRAFT direct-autocraft open item={} amount={}",
                 template.getHoverName().getString(), amount);
     }
 
     public static void handle(AEAutocraftRequestPacket msg, Supplier<NetworkEvent.Context> ctx) {
         PacketHelper.handleServerBound(ctx, () -> {
-            if (ctx.get().getSender() instanceof ServerPlayer sp) {
+            ServerPlayer sp = ctx.get().getSender(); if (sp != null) {
                 msg.handleInServer(sp);
             }
         });

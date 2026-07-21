@@ -24,7 +24,7 @@ public record AEAutocraftAmountOverridePacket(int amount) {
 
     public static void handle(AEAutocraftAmountOverridePacket msg, Supplier<NetworkEvent.Context> ctx) {
         PacketHelper.handleServerBound(ctx, () -> {
-            if (ctx.get().getSender() instanceof ServerPlayer sp) {
+            ServerPlayer sp = ctx.get().getSender(); if (sp != null) {
                 msg.handleInServer(sp);
             }
         });

@@ -29,9 +29,8 @@ import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import appeng.api.stacks.GenericStack;
-import appeng.core.network.serverbound.InventoryActionPacket;
+import appeng.core.sync.packets.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
-import appeng.integration.modules.emi.EmiStackHelper;
 import appeng.menu.slot.FakeSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
@@ -920,10 +919,7 @@ public final class InputEvents {
             if (slot instanceof FakeSlot fakeSlot) {
                 var itemStack = emiStack.getItemStack();
                 if (itemStack.isEmpty()) {
-                    var genericStack = EmiStackHelper.toGenericStack(emiStack);
-                    if (genericStack == null) continue;
-                    itemStack = GenericStack.wrapInItemStack(genericStack);
-                    if (itemStack.isEmpty()) continue;
+                    continue;
                 }
                 EmiLinkNetwork.sendAEPacketToServer(
                         new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
@@ -2001,8 +1997,7 @@ public final class InputEvents {
         if (space == null) return;
         if (mc.player == null || !org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(mc.player)) return;
         // Don't show hint when EMI would delete the item (cheat mode on)
-        boolean emiWouldDelete = dev.emi.emi.config.EmiConfig.cheatMode == dev.emi.emi.config.CheatMode.TRUE
-                || (dev.emi.emi.config.EmiConfig.cheatMode == dev.emi.emi.config.CheatMode.CREATIVE && mc.player.isCreative());
+        boolean emiWouldDelete = dev.emi.emi.config.EmiConfig.cheatMode;
         if (emiWouldDelete) return;
 
         var text = Component.translatable(

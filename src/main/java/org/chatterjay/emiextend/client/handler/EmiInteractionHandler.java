@@ -1,7 +1,6 @@
 package org.chatterjay.emiextend.client.handler;
 
 import dev.emi.emi.api.render.EmiTooltipComponents;
-import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
@@ -180,8 +179,7 @@ public final class EmiInteractionHandler {
             var mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
-                boolean emiWouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
-                        || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
+                boolean emiWouldDelete = EmiConfig.cheatMode;
                 if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !emiWouldDelete) {
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
                     if (space != null) {

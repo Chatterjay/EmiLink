@@ -1,10 +1,23 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://maven.aliyun.com/repository/public/' }
+        maven { url = 'https://maven.aliyun.com/repository/gradle-plugin/' }
+        mavenLocal()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.27'
+    }
+}
+
 plugins {
     id 'java-library'
     id 'maven-publish'
     id 'idea'
-    id 'net.minecraftforge.gradle' version '6.0.42'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
+
+apply plugin: 'net.minecraftforge.gradle'
 
 version = mod_version
 group = mod_group_id
@@ -56,7 +69,7 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 minecraft {
-    mappings channel: 'parchment', version: "${parchment_minecraft_version}-${parchment_mappings_version}-${minecraft_version}"
+    mappings channel: 'official', version: minecraft_version
     copyIdeResources = true
 
     runs {
@@ -91,12 +104,17 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // EMI for Forge 1.20.1
-    compileOnly "dev.emi:emi-forge:${emi_version}:api"
-    runtimeOnly "dev.emi:emi-forge:${emi_version}"
+    // EMI for Forge 1.20.1 (local jar)
+    compileOnly files('libs/emi-forge-1.1.22.jar')
+    runtimeOnly files('libs/emi-forge-1.1.22.jar')
 
-    // AE2 (Forge/NeoForge unified jar for 1.20.1)
-    compileOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
+    // AE2 (local jar)
+    compileOnly files('libs/appliedenergistics2-15.2.15-api.jar')
+    compileOnly files('libs/appliedenergistics2-15.2.15.jar')
+    runtimeOnly files('libs/appliedenergistics2-15.2.15.jar')
+
+    // LZ4 compression for disk cache
+    implementation 'org.lz4:lz4-java:1.8.0'
 
     // Optional integrations: provided via local libs (drop into libs/)
     // BeyondDimensions, ExtendedAE+, Ars Nouveau are loaded reflectively at runtime,
