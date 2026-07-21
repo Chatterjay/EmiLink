@@ -104,14 +104,14 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // EMI for Forge 1.20.1 (local jar)
-    compileOnly files('libs/emi-forge-1.1.22.jar')
-    runtimeOnly files('libs/emi-forge-1.1.22.jar')
+    // EMI for Forge 1.20.1
+    compileOnly fg.deobf("dev.emi:emi:${emi_version}:api")
+    runtimeOnly fg.deobf("dev.emi:emi:${emi_version}")
 
-    // AE2 (local jar)
-    compileOnly files('libs/appliedenergistics2-15.2.15-api.jar')
-    compileOnly files('libs/appliedenergistics2-15.2.15.jar')
-    runtimeOnly files('libs/appliedenergistics2-15.2.15.jar')
+    // AE2
+    compileOnly fg.deobf("appeng:appliedenergistics2:${ae2_version}:api")
+    compileOnly fg.deobf("appeng:appliedenergistics2:${ae2_version}")
+    runtimeOnly fg.deobf("appeng:appliedenergistics2:${ae2_version}")
 
     // LZ4 compression for disk cache
     implementation 'org.lz4:lz4-java:1.8.0'
