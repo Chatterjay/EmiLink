@@ -20,11 +20,15 @@ import java.util.List;
 
 /**
  * Batch AE network query — client sends multiple items at once, server responds
- * with count & craftability for each. Delegates query logic to AE2GridQueryUtil.
+ * with count and optionally craftability for each. Delegates query logic to AE2GridQueryUtil.
  */
-public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacketPayload {
+public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftability) implements CustomPacketPayload {
     public static final Type<AEBatchQueryPacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_batch_query"));
+
+    public AEBatchQueryPacket(List<ItemStack> stacks) {
+        this(stacks, true);
+    }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AEBatchQueryPacket> STREAM_CODEC =
             new StreamCodec<>() {
@@ -34,6 +38,7 @@ public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacket
                     for (var stack : packet.stacks()) {
                         ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, stack);
                     }
+                    buf.writeBoolean(packet.queryCraftability());
                 }
 
                 @Override
@@ -43,7 +48,8 @@ public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacket
                     for (int i = 0; i < size; i++) {
                         stacks.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
                     }
-                    return new AEBatchQueryPacket(stacks);
+                    boolean queryCraftability = buf.readBoolean();
+                    return new AEBatchQueryPacket(stacks, queryCraftability);
                 }
             };
 
@@ -74,13 +80,13 @@ public record AEBatchQueryPacket(List<ItemStack> stacks) implements CustomPacket
                     Object aeKey = aeItemKeyClass.getMethod("of", ItemStack.class).invoke(null, stack);
                     if (aeKey != null) {
                         count = AE2GridQueryUtil.queryItemCount(grid, aeKey);
-                        craftable = AE2GridQueryUtil.queryCraftability(grid, aeKey);
+                        craftable = queryCraftability && AE2GridQueryUtil.queryCraftability(grid, aeKey);
                     }
                 } catch (Exception e) {
                     // skip item
                 }
 
-                results.add(new AEBatchQueryResponsePacket.Entry(stack, count, craftable));
+                results.add(new AEBatchQueryResponsePacket.Entry(stack, count, craftable, queryCraftability));
             }
         } catch (Exception e) {
             ModLogger.debug("AEBatchQuery: error resolving grid: {}", e.getMessage());

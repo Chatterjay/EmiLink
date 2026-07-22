@@ -22,10 +22,14 @@ import java.util.Set;
 public class MobSeparator {
     private static final Set<EmiStack> MOB_ITEMS = new ObjectOpenCustomHashSet<>(new EmiStackList.StrictHashStrategy());
     private static boolean initialized = false;
+    private static List<? extends EmiIngredient> cachedInput = null;
+    private static int cachedPageWidth = -1;
+    private static List<? extends EmiIngredient> cachedSeparated = null;
 
     /** Called after EmiStackList.reload() to capture mob creative tab items. */
     public static void init() {
         MOB_ITEMS.clear();
+        clearSeparateCache();
         var allTabs = CreativeModeTabs.allTabs();
         ModLogger.debug("MobSeparator: scanning {} creative tabs", allTabs.size());
         for (CreativeModeTab tab : allTabs) {
@@ -51,6 +55,12 @@ public class MobSeparator {
 
     public static boolean hasMobItems() {
         return initialized && !MOB_ITEMS.isEmpty();
+    }
+
+    private static void clearSeparateCache() {
+        cachedInput = null;
+        cachedPageWidth = -1;
+        cachedSeparated = null;
     }
 
     public static boolean isMobStack(EmiStack stack) {
@@ -86,6 +96,9 @@ public class MobSeparator {
     @SuppressWarnings("unchecked")
     public static List<? extends EmiIngredient> separateStacks(List<? extends EmiIngredient> stacks, int pageWidth) {
         if (!initialized || pageWidth <= 0 || stacks.isEmpty() || MOB_ITEMS.isEmpty()) return stacks;
+        if (stacks == cachedInput && pageWidth == cachedPageWidth && cachedSeparated != null) {
+            return cachedSeparated;
+        }
 
         List<EmiIngredient> nonMob = new ArrayList<>();
         List<EmiIngredient> mob = new ArrayList<>();
@@ -95,7 +108,12 @@ public class MobSeparator {
             else nonMob.add(stack);
         }
 
-        if (mob.isEmpty()) return stacks;
+        if (mob.isEmpty()) {
+            cachedInput = stacks;
+            cachedPageWidth = pageWidth;
+            cachedSeparated = stacks;
+            return cachedSeparated;
+        }
 
         // Pad non-mob items to fill the last row so mob items start fresh
         int remainder = nonMob.size() % pageWidth;
@@ -106,6 +124,9 @@ public class MobSeparator {
         }
 
         nonMob.addAll(mob);
-        return nonMob;
+        cachedInput = stacks;
+        cachedPageWidth = pageWidth;
+        cachedSeparated = nonMob;
+        return cachedSeparated;
     }
 }

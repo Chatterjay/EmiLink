@@ -13,14 +13,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Response to AEBatchQueryPacket — returns count & craftability for each
+ * Response to AEBatchQueryPacket — returns count and optional craftability for each
  * queried item in the same order the batch was sent.
  */
 public record AEBatchQueryResponsePacket(List<Entry> entries) implements CustomPacketPayload {
     public static final Type<AEBatchQueryResponsePacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_batch_query_response"));
 
-    public record Entry(ItemStack stack, long count, boolean craftable) {}
+    public record Entry(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {}
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AEBatchQueryResponsePacket> STREAM_CODEC =
             new StreamCodec<>() {
@@ -31,6 +31,7 @@ public record AEBatchQueryResponsePacket(List<Entry> entries) implements CustomP
                         ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, entry.stack());
                         buf.writeVarLong(entry.count());
                         buf.writeBoolean(entry.craftable());
+                        buf.writeBoolean(entry.craftabilityKnown());
                     }
                 }
 
@@ -42,7 +43,8 @@ public record AEBatchQueryResponsePacket(List<Entry> entries) implements CustomP
                         var stack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buf);
                         long count = buf.readVarLong();
                         boolean craftable = buf.readBoolean();
-                        entries.add(new Entry(stack, count, craftable));
+                        boolean craftabilityKnown = buf.readBoolean();
+                        entries.add(new Entry(stack, count, craftable, craftabilityKnown));
                     }
                     return new AEBatchQueryResponsePacket(entries);
                 }
@@ -53,7 +55,7 @@ public record AEBatchQueryResponsePacket(List<Entry> entries) implements CustomP
             if (packet.entries() == null) return;
             for (var entry : packet.entries()) {
                 if (entry.stack() != null && !entry.stack().isEmpty()) {
-                    AENetworkCache.receiveResponse(entry.stack(), entry.count(), entry.craftable());
+                    AENetworkCache.receiveResponse(entry.stack(), entry.count(), entry.craftable(), entry.craftabilityKnown());
                 }
             }
         });

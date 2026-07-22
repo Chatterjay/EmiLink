@@ -29,10 +29,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public final class AENetworkCache {
 
@@ -44,8 +42,8 @@ public final class AENetworkCache {
     private static String currentServerId = "local";
     private static ServerState current = new ServerState();
 
-    /** Items the player hovered since last batch flush, pending server query. */
-    private static final Set<ItemStack> pendingBatch = new HashSet<>();
+    /** Items pending server query. Value is true when craftability should be queried too. */
+    private static final Map<ItemStack, Boolean> pendingBatch = new HashMap<>();
     private static long lastBatchFlushTime = 0;
 
     /** Tracks terminal open/close state for initial scan detection. */
@@ -71,9 +69,15 @@ public final class AENetworkCache {
 
     /** Queue a single item for the next batch query. */
     public static void submitForBatch(ItemStack stack) {
+        submitForBatch(stack, true);
+    }
+
+    /** Queue a single item, optionally skipping expensive AE craftability checks. */
+    public static void submitForBatch(ItemStack stack, boolean queryCraftability) {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
         if (stack == null || stack.isEmpty()) return;
-        pendingBatch.add(stack.copyWithCount(1));
+        var key = stack.copyWithCount(1);
+        pendingBatch.put(key, pendingBatch.getOrDefault(key, false) || queryCraftability);
     }
 
     /** Returns true once per terminal open, signalling the mixin to scan visible items. */
@@ -114,6 +118,7 @@ public final class AENetworkCache {
         RegistryAccess ra = level.registryAccess();
 
         var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), ra);
+        buf.writeVarInt(-1);
         buf.writeVarInt(serverStates.size());
         for (var entry : serverStates.entrySet()) {
             buf.writeUtf(entry.getKey());
@@ -123,6 +128,7 @@ public final class AENetworkCache {
                 ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, mapEntry.getKey());
                 buf.writeVarLong(mapEntry.getValue().count());
                 buf.writeBoolean(mapEntry.getValue().craftable());
+                buf.writeBoolean(mapEntry.getValue().craftabilityKnown());
                 buf.writeVarLong(mapEntry.getValue().timestamp());
             }
         }
@@ -144,7 +150,9 @@ public final class AENetworkCache {
 
         try {
             var buf = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(data), ra);
-            int serverCount = buf.readVarInt();
+            int header = buf.readVarInt();
+            boolean hasVersion = header == -1;
+            int serverCount = hasVersion ? buf.readVarInt() : header;
             int totalEntries = 0;
             for (int i = 0; i < serverCount; i++) {
                 String sid = buf.readUtf();
@@ -155,8 +163,9 @@ public final class AENetworkCache {
                         ItemStack stack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buf);
                         long count = buf.readVarLong();
                         boolean craftable = buf.readBoolean();
+                        boolean craftabilityKnown = hasVersion ? buf.readBoolean() : true;
                         long timestamp = buf.readVarLong();
-                        state.cache.put(stack, new CachedInfo(count, craftable, timestamp));
+                        state.cache.put(stack, new CachedInfo(count, craftable, craftabilityKnown, timestamp));
                     } catch (Exception e) {
                         // Item no longer in registry (mod removed) — skip silently
                     }
@@ -237,7 +246,7 @@ public final class AENetworkCache {
         return "local";
     }
 
-    private record CachedInfo(long count, boolean craftable, long timestamp) {
+    private record CachedInfo(long count, boolean craftable, boolean craftabilityKnown, long timestamp) {
         boolean isExpired(boolean negative) {
             long ttl = negative ? EmiLinkConfig.NEGATIVE_CACHE_TTL_MS.get() : EmiLinkConfig.CACHE_TTL_MS.get();
             return System.currentTimeMillis() - timestamp > ttl;
@@ -259,6 +268,16 @@ public final class AENetworkCache {
     public static void tick() {
         var mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen == null) return;
+        if (!BDShortcutHandler.serverHasMod) {
+            if (wasInTerminal || !pendingBatch.isEmpty() || current.cache.size() > 0) {
+                wasInTerminal = false;
+                needsInitialScan = false;
+                pendingBatch.clear();
+                current.cache.clear();
+                accessCheckScreen = null;
+            }
+            return;
+        }
 
         // Only send queries when actually in an AE2 terminal
         if (!canQueryNetwork(mc)) {
@@ -280,12 +299,6 @@ public final class AENetworkCache {
             lastBatchFlushTime = 0;
         }
 
-        if (!BDShortcutHandler.serverHasMod) {
-            current.cache.clear();
-            pendingBatch.clear();
-            return;
-        }
-
         // Collect hovered item into the pending batch — throttled to reduce per-frame EMI overhead
         if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
             var hovered = EmiApi.getHoveredStack(true);
@@ -296,7 +309,7 @@ public final class AENetworkCache {
                         .findFirst()
                         .orElse(ItemStack.EMPTY);
                 if (!stack.isEmpty()) {
-                    pendingBatch.add(stack);
+                    submitForBatch(stack, true);
                 }
             }
         }
@@ -320,23 +333,38 @@ public final class AENetworkCache {
      * then send the batch query to the server.
      */
     private static void flushBatch() {
-        var toQuery = new ArrayList<ItemStack>();
-        for (var it : pendingBatch) {
+        var countOnly = new ArrayList<ItemStack>();
+        var withCraftability = new ArrayList<ItemStack>();
+        for (var entry : pendingBatch.entrySet()) {
+            var it = entry.getKey();
+            boolean queryCraftability = entry.getValue();
             var cached = findCached(it);
-            if (cached == null || cached.isExpired(cached.count() == 0 && !cached.craftable())) {
-                toQuery.add(it);
+            if (cached == null
+                    || cached.isExpired(cached.count() == 0 && (!cached.craftabilityKnown() || !cached.craftable()))
+                    || (queryCraftability && !cached.craftabilityKnown())) {
+                if (queryCraftability) {
+                    withCraftability.add(it);
+                } else {
+                    countOnly.add(it);
+                }
             }
         }
         pendingBatch.clear();
 
-        if (toQuery.isEmpty()) {
+        if (countOnly.isEmpty() && withCraftability.isEmpty()) {
             ModLogger.debug("Batch: flush skipped (all items already cached)");
             return;
         }
 
         try {
-            PacketDistributor.sendToServer(new AEBatchQueryPacket(toQuery));
-            ModLogger.debug("Batch: flushed {} items ({} unique since last flush)", toQuery.size(), toQuery.size());
+            if (!countOnly.isEmpty()) {
+                PacketDistributor.sendToServer(new AEBatchQueryPacket(countOnly, false));
+            }
+            if (!withCraftability.isEmpty()) {
+                PacketDistributor.sendToServer(new AEBatchQueryPacket(withCraftability, true));
+            }
+            ModLogger.debug("Batch: flushed {} count-only items and {} craftability items",
+                    countOnly.size(), withCraftability.size());
         } catch (Exception e) {
             ModLogger.warn("AEQuery: server doesn't have EmiLink, disabling cache");
             current.cache.clear();
@@ -344,9 +372,13 @@ public final class AENetworkCache {
     }
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable) {
+        receiveResponse(stack, count, craftable, true);
+    }
+
+    public static void receiveResponse(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {
         if (stack == null || stack.isEmpty()) return;
         var key = stack.copyWithCount(1);
-        current.cache.put(key, new CachedInfo(count, craftable, System.currentTimeMillis()));
+        current.cache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
         cacheDirty = true;
     }
 
@@ -371,7 +403,7 @@ public final class AENetworkCache {
                     Component.translatable("ae_tooltip.count", formatNetworkAmount(cached.count()))
                             .withStyle(ChatFormatting.GRAY)));
         }
-        if (cached.craftable()) {
+        if (cached.craftabilityKnown() && cached.craftable()) {
             list.add(EmiTooltipComponents.of(
                     Component.translatable("ae_tooltip.craftable")
                             .withStyle(ChatFormatting.GREEN)));
@@ -425,7 +457,7 @@ public final class AENetworkCache {
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
         var cached = findCached(stack);
         if (cached != null) {
-            return new CachedResult(cached.count(), cached.craftable(), true);
+            return new CachedResult(cached.count(), cached.craftabilityKnown() && cached.craftable(), true);
         }
         return new CachedResult(0, false, false);
     }
@@ -440,7 +472,7 @@ public final class AENetworkCache {
         if (stack == null || stack.isEmpty()) return new CachedResult(0, false, false);
         var cached = findCached(stack);
         if (cached != null && cached.timestamp() >= minTimestamp) {
-            return new CachedResult(cached.count(), cached.craftable(), true);
+            return new CachedResult(cached.count(), cached.craftabilityKnown() && cached.craftable(), true);
         }
         return new CachedResult(0, false, false);
     }
@@ -470,6 +502,7 @@ public final class AENetworkCache {
 
     public static boolean hasAEAccess() {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return false;
+        if (!BDShortcutHandler.serverHasMod) return false;
         var mc = Minecraft.getInstance();
         if (mc.screen == accessCheckScreen) return accessCheckResult;
         accessCheckScreen = mc.screen;

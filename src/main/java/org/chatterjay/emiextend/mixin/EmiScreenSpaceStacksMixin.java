@@ -5,6 +5,7 @@ import dev.emi.emi.config.SidebarType;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.bookmark.MobSeparator;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,7 +30,10 @@ public abstract class EmiScreenSpaceStacksMixin {
     private void emilink$separateStacks(CallbackInfoReturnable<List<? extends EmiIngredient>> cir) {
         try {
             var type = getType();
-            if (type == SidebarType.INDEX && MobSeparator.hasMobItems() && tw > 0) {
+            if (type == SidebarType.INDEX
+                    && EmiLinkConfig.ENABLE_MOB_SEPARATOR.get()
+                    && MobSeparator.hasMobItems()
+                    && tw > 0) {
                 var original = cir.getReturnValue();
                 if (original != null && !original.isEmpty()) {
                     cir.setReturnValue(MobSeparator.separateStacks(original, tw));

@@ -56,6 +56,10 @@ public abstract class EmiScreenSpaceMixin {
         if (!AENetworkCache.hasAEAccess()) return;
         if (!AENetworkCache.consumeInitialScanFlag()) return;
 
+        int scanLimit = EmiLinkConfig.INITIAL_BADGE_SCAN_LIMIT.get();
+        if (scanLimit <= 0) return;
+        boolean queryCraftability = EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get();
+
         var stacks = getStacks();
         int index = scrollOffset;
 
@@ -75,8 +79,13 @@ public abstract class EmiScreenSpaceMixin {
                 ItemStack itemStack = resolveItemStack(ingredient);
                 if (itemStack == null) continue;
                 if (!AENetworkCache.getCachedResult(itemStack).found()) {
-                    AENetworkCache.submitForBatch(itemStack);
+                    AENetworkCache.submitForBatch(itemStack, queryCraftability);
                     submitted++;
+                    if (submitted >= scanLimit) {
+                        AENetworkCache.flushBatchNow();
+                        ModLogger.debug("Initial scan: submitted {} uncached items (limited)", submitted);
+                        return;
+                    }
                 }
             }
         }
