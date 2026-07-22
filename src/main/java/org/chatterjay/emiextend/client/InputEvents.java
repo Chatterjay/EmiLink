@@ -1124,6 +1124,7 @@ public final class InputEvents {
                 preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
                 preflightQueryStartedAt = 0;
                 preflightRunId = 0;
+                AENetworkCache.clearEphemeralQuery();
             }
         } else if (lastPlanSignature == null) {
             lastPlanSignature = planSignature;
@@ -1244,6 +1245,7 @@ public final class InputEvents {
         preflightQueryStartedAt = System.currentTimeMillis();
         if (!queryItems.isEmpty()) {
             AENetworkCache.invalidateEntries(queryItems);
+            AENetworkCache.beginEphemeralQuery(queryItems);
             PacketDistributor.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)));
             qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
         }
@@ -1445,6 +1447,7 @@ public final class InputEvents {
                 lastGoalRecipeId = null;
                 lastBoMBatches = -1;
                 lastPlanSignature = null;
+                AENetworkCache.clearEphemeralQuery();
                 return;
             }
 
@@ -1478,6 +1481,7 @@ public final class InputEvents {
                     preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
                     preflightQueryStartedAt = 0;
                     preflightRunId = 0;
+                    AENetworkCache.clearEphemeralQuery();
                     return;
                 }
             }
@@ -1770,6 +1774,7 @@ public final class InputEvents {
             lastPlanSignature = null;
         }
         currentJob = null;
+        AENetworkCache.clearEphemeralQuery();
     }
 
     private static void removeCompletedBomTree(long runId, MaterialNode goalNode, String reason) {
@@ -1815,6 +1820,7 @@ public final class InputEvents {
         }
         savePartialNodeProgress(reason);
         currentJob = null;
+        AENetworkCache.clearEphemeralQuery();
     }
 
     private static void clearPreflightState() {
@@ -1825,6 +1831,7 @@ public final class InputEvents {
         preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
         preflightQueryStartedAt = 0;
         preflightRunId = 0;
+        AENetworkCache.clearEphemeralQuery();
     }
 
     private static void savePartialNodeProgress(String reason) {

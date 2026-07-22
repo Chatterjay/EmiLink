@@ -28,9 +28,12 @@ import net.neoforged.bus.api.SubscribeEvent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class AENetworkCache {
 
@@ -41,6 +44,13 @@ public final class AENetworkCache {
     private static final Map<String, ServerState> serverStates = new HashMap<>();
     private static String currentServerId = "local";
     private static ServerState current = new ServerState();
+
+    /**
+     * One-shot AE query state for quick-craft preflight. Results are visible to
+     * normal cache readers while the scope is active, but are never persisted.
+     */
+    private static final Set<ItemStack> ephemeralKeys = new HashSet<>();
+    private static final Map<ItemStack, CachedInfo> ephemeralCache = new HashMap<>();
 
     /** Items pending server query. Value is true when craftability should be queried too. */
     private static final Map<ItemStack, Boolean> pendingBatch = new HashMap<>();
@@ -76,8 +86,24 @@ public final class AENetworkCache {
     public static void submitForBatch(ItemStack stack, boolean queryCraftability) {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
         if (stack == null || stack.isEmpty()) return;
-        var key = stack.copyWithCount(1);
+        var key = normalizeKey(stack);
         pendingBatch.put(key, pendingBatch.getOrDefault(key, false) || queryCraftability);
+    }
+
+    /** Begin a temporary query scope whose results should be discarded after use. */
+    public static void beginEphemeralQuery(Collection<ItemStack> stacks) {
+        clearEphemeralQuery();
+        if (stacks == null || stacks.isEmpty()) return;
+        for (var stack : stacks) {
+            if (stack == null || stack.isEmpty()) continue;
+            ephemeralKeys.add(normalizeKey(stack));
+        }
+    }
+
+    /** Discard temporary query results so they cannot affect later rendering or tooltip state. */
+    public static void clearEphemeralQuery() {
+        ephemeralKeys.clear();
+        ephemeralCache.clear();
     }
 
     /** Returns true once per terminal open, signalling the mixin to scan visible items. */
@@ -193,6 +219,7 @@ public final class AENetworkCache {
         serverStates.remove(currentServerId);
         current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
         pendingBatch.clear();
+        clearEphemeralQuery();
         lastBatchFlushTime = 0;
         wasInTerminal = false;
         needsInitialScan = false;
@@ -206,6 +233,7 @@ public final class AENetworkCache {
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         saveToDisk();
         pendingBatch.clear();
+        clearEphemeralQuery();
         accessCheckScreen = null;
     }
 
@@ -213,6 +241,7 @@ public final class AENetworkCache {
     public static void clear() {
         current.cache.clear();
         pendingBatch.clear();
+        clearEphemeralQuery();
         lastBatchFlushTime = 0;
         wasInTerminal = false;
         needsInitialScan = false;
@@ -227,6 +256,7 @@ public final class AENetworkCache {
         current = new ServerState();
         currentServerId = "local";
         pendingBatch.clear();
+        clearEphemeralQuery();
         lastBatchFlushTime = 0;
         wasInTerminal = false;
         needsInitialScan = false;
@@ -274,6 +304,7 @@ public final class AENetworkCache {
                 needsInitialScan = false;
                 pendingBatch.clear();
                 current.cache.clear();
+                clearEphemeralQuery();
                 accessCheckScreen = null;
             }
             return;
@@ -377,7 +408,12 @@ public final class AENetworkCache {
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {
         if (stack == null || stack.isEmpty()) return;
-        var key = stack.copyWithCount(1);
+        var key = normalizeKey(stack);
+        if (containsMatching(ephemeralKeys, key)) {
+            removeMatching(ephemeralCache, key);
+            ephemeralCache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
+            return;
+        }
         current.cache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
         cacheDirty = true;
     }
@@ -386,6 +422,9 @@ public final class AENetworkCache {
     public static void invalidateEntries(java.util.Collection<ItemStack> stacks) {
         for (var stack : stacks) {
             if (stack == null || stack.isEmpty()) continue;
+            ephemeralKeys.removeIf(entry -> ItemStack.isSameItemSameComponents(entry, stack));
+            ephemeralCache.entrySet().removeIf(entry ->
+                    ItemStack.isSameItemSameComponents(entry.getKey(), stack));
             current.cache.entrySet().removeIf(entry ->
                     ItemStack.isSameItemSameComponents(entry.getKey(), stack));
         }
@@ -483,6 +522,14 @@ public final class AENetworkCache {
      * Falls back to linear scan for collision/component edge cases.
      */
     private static CachedInfo findCached(ItemStack stack) {
+        var ephemeral = ephemeralCache.get(stack);
+        if (ephemeral != null) return ephemeral;
+        for (var entry : ephemeralCache.entrySet()) {
+            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+                return entry.getValue();
+            }
+        }
+
         var direct = current.cache.get(stack);
         if (direct != null) return direct;
         // Fallback: linear scan for hash-colliding or component-mismatched entries
@@ -497,7 +544,25 @@ public final class AENetworkCache {
     /** Quick check if the cache has any entries (avoids iterating visible items). */
     public static boolean hasAnyCached() {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return false;
-        return !current.cache.isEmpty();
+        return !ephemeralCache.isEmpty() || !current.cache.isEmpty();
+    }
+
+    private static ItemStack normalizeKey(ItemStack stack) {
+        return stack.copyWithCount(1);
+    }
+
+    private static boolean containsMatching(Set<ItemStack> stacks, ItemStack target) {
+        if (stacks.contains(target)) return true;
+        for (var stack : stacks) {
+            if (ItemStack.isSameItemSameComponents(stack, target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void removeMatching(Map<ItemStack, CachedInfo> cache, ItemStack target) {
+        cache.entrySet().removeIf(entry -> ItemStack.isSameItemSameComponents(entry.getKey(), target));
     }
 
     public static boolean hasAEAccess() {
