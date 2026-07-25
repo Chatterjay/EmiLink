@@ -17,6 +17,7 @@
     "EmiPlayerInventoryMixin",
     "BoMMixin",
     "BoMScreenMixin",
+    "BDNetRecipeHandlerMixin",
     "CraftConfirmMenuMixin",
     "EmiFavoritesMixin",
     "EmiScreenSpaceMixin",

@@ -1581,6 +1581,15 @@ public final class InputEvents {
                 abortCurrentJob("crafted output was not observed");
                 return;
             } else {
+                if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL
+                        && (currentJob.pendingVerifyTicks == 2 || currentJob.pendingVerifyTicks == 4)) {
+                    boolean bdIntermediate = node != currentJob.goalNode;
+                    PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
+                    qcLog(currentJob.runId, "BD_CRAFT_RESULT_RETRY {} destination={} beforeTotal={} afterTotal={} ticks={}",
+                            recipeId(node), bdIntermediate ? "NETWORK" : "INVENTORY",
+                            currentJob.pendingVerifyBeforeTotal, availability.total(),
+                            currentJob.pendingVerifyTicks);
+                }
                 return;
             }
         }

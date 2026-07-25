@@ -720,8 +720,12 @@ public class BDProxy {
 
     private static boolean craftOneResult(Player player, AbstractContainerMenu menu, int resultSlotIndex, boolean ejectRemaining) {
         var inventory = player.getInventory();
+        refreshCraftingResult(menu);
         var resultSlot = menu.slots.get(resultSlotIndex);
-        if (!resultSlot.hasItem()) return false;
+        if (!resultSlot.hasItem()) {
+            ModLogger.debug("BD_QUICKCRAFT single craft skipped: empty result slot after refresh");
+            return false;
+        }
 
         menu.clicked(resultSlotIndex, 0, ClickType.PICKUP, player);
         ItemStack carried = menu.getCarried();
@@ -785,8 +789,12 @@ public class BDProxy {
             int resultSlotIndex = (int) craftMenuClass.getField("resultSlotIndex").get(menu);
             if (resultSlotIndex < 0 || resultSlotIndex >= menu.slots.size()) return false;
 
+            refreshCraftingResult(menu);
             var resultSlot = menu.slots.get(resultSlotIndex);
-            if (!resultSlot.hasItem()) return false;
+            if (!resultSlot.hasItem()) {
+                ModLogger.debug("BD_QUICKCRAFT single craft to network skipped: empty result slot after refresh");
+                return false;
+            }
 
             ItemStack resultStack = resultSlot.getItem().copy();
             if (resultStack.isEmpty()) return false;
@@ -826,6 +834,26 @@ public class BDProxy {
         } catch (Exception e) {
             ModLogger.warn("BDProxy singleCraftToNetwork failed: {}", e.getMessage());
             return false;
+        }
+    }
+
+    private static void refreshCraftingResult(AbstractContainerMenu menu) {
+        if (menu == null || !craftMenuClass.isInstance(menu)) {
+            return;
+        }
+        try {
+            Field craftSlotsField = findField(menu.getClass(), "craftSlots");
+            if (craftSlotsField == null) {
+                return;
+            }
+            craftSlotsField.setAccessible(true);
+            Object craftSlotsObj = craftSlotsField.get(menu);
+            if (craftSlotsObj instanceof Container craftSlots) {
+                menu.slotsChanged(craftSlots);
+                menu.broadcastChanges();
+            }
+        } catch (Exception e) {
+            ModLogger.warn("BD_QUICKCRAFT refresh crafting result failed: {}", e.getMessage());
         }
     }
 
