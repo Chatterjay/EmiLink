@@ -24,6 +24,7 @@ import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
+import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
 import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -770,7 +771,24 @@ public final class InputEvents {
         if (screen == null) return;
         if (screen instanceof ChatScreen) return;
 
-        // 1. Focused EditBox (most precise, works universally)
+        // 1. AE terminals keep EMI sync one-way unless the AE search box is focused.
+        // Set both sides explicitly so F-search updates the terminal and EMI together.
+        if (AE2Proxy.isMEStorageScreen(screen) && screen instanceof MEStorageScreenAccessor aeSearch) {
+            try {
+                var searchField = aeSearch.emilink$getSearchField();
+                if (searchField != null) {
+                    searchField.setValue(text);
+                    searchField.setCursorPosition(text.length());
+                }
+                aeSearch.emilink$setSearchText(text);
+                EmiApi.setSearchText(text);
+                fillSearchHandled = true;
+                event.setCanceled(true);
+                return;
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Focused EditBox (most precise, works universally)
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox focusedEb) {
             focusedEb.setValue(text);
             focusedEb.setCursorPosition(text.length());
@@ -779,14 +797,14 @@ public final class InputEvents {
             return;
         }
 
-        // 2. BD-specific (non-standard search API)
+        // 3. BD-specific (non-standard search API)
         if (BDProxy.isBDNetGUI(screen) && BDProxy.setSearchText(screen, text)) {
             fillSearchHandled = true;
             event.setCanceled(true);
             return;
         }
 
-        // 3. Any EditBox child (catches most mod search fields)
+        // 4. Any EditBox child (catches most mod search fields)
         for (var child : screen.children()) {
             if (child instanceof net.minecraft.client.gui.components.EditBox eb) {
                 eb.setValue(text);
@@ -797,7 +815,7 @@ public final class InputEvents {
             }
         }
 
-        // 4. Common search field field names via reflection
+        // 5. Common search field field names via reflection
         // Catches mods whose search widget isn't in screen.children() (e.g. Sophisticated Storage)
         for (var fieldName : new String[]{"searchBox", "searchField", "search"}) {
             var field = findScreenField(screen, fieldName);
@@ -814,7 +832,7 @@ public final class InputEvents {
             } catch (Exception ignored) {}
         }
 
-        // 5. EMI search fallback
+        // 6. EMI search fallback
         EmiApi.setSearchText(text);
         fillSearchHandled = true;
         event.setCanceled(true);
