@@ -13,6 +13,14 @@ public final class EmiLinkConfig {
         OFF
     }
 
+    public enum SearchHistoryPosition {
+        OFF,
+        AUTO,
+        ABOVE,
+        LEFT,
+        RIGHT
+    }
+
     // ---- General ----
     public static final ModConfigSpec.BooleanValue DEBUG_MODE;
 
@@ -29,6 +37,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_MOB_SEPARATOR;
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
     public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
+    public static final ModConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
 
     // ---- AE / Network Storage ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
@@ -118,6 +127,13 @@ public final class EmiLinkConfig {
                 .comment("Minimum number of EMI favorites pages kept available")
                 .translation("emilink.config.emi_ui.favoritePageCount")
                 .defineInRange("favoritePageCount", 5, 1, 50);
+
+        SEARCH_HISTORY_POSITION = BUILDER
+                .comment("EMI search history overlay position. " +
+                         "OFF disables it; AUTO keeps the adaptive default; " +
+                         "ABOVE, LEFT, and RIGHT force a side of the search box.")
+                .translation("emilink.config.emi_ui.searchHistoryPosition")
+                .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
         BUILDER.pop();
         BUILDER.push("ae_network");

@@ -53,6 +53,8 @@
   "emilink.config.emi_ui.bookmarkPriority.tooltip": "编码处理样板时：\n优先使用 EMI 收藏栏物品。",
   "emilink.config.emi_ui.favoritePageCount": "收藏页数量",
   "emilink.config.emi_ui.favoritePageCount.tooltip": "收藏栏默认保留的页面数量。\nMOB 树过长时仍会临时增加页面。",
+  "emilink.config.emi_ui.searchHistoryPosition": "搜索历史位置",
+  "emilink.config.emi_ui.searchHistoryPosition.tooltip": "OFF 关闭搜索历史。\nAUTO 保持自适应默认位置。\nABOVE、LEFT、RIGHT 会固定到 EMI 搜索栏上方、左侧或右侧。",
 
   "emilink.config.ae_network.enableAeNetworkLookup": "读取 AE 库存",
   "emilink.config.ae_network.enableAeNetworkLookup.tooltip": "读取 AE 网络库存和可合成状态。\n用于提示、角标和快速合成。",

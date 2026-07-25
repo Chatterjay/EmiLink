@@ -53,6 +53,8 @@
   "emilink.config.emi_ui.bookmarkPriority.tooltip": "When encoding processing patterns:\nprefer items from EMI favorites.",
   "emilink.config.emi_ui.favoritePageCount": "Favorite Page Count",
   "emilink.config.emi_ui.favoritePageCount.tooltip": "Minimum favorite pages kept available.\nLong MOB trees may still add temporary pages.",
+  "emilink.config.emi_ui.searchHistoryPosition": "Search History Position",
+  "emilink.config.emi_ui.searchHistoryPosition.tooltip": "OFF disables search history.\nAUTO keeps the adaptive default.\nABOVE, LEFT, and RIGHT force the history beside the EMI search box.",
 
   "emilink.config.ae_network.enableAeNetworkLookup": "Read AE Inventory",
   "emilink.config.ae_network.enableAeNetworkLookup.tooltip": "Read AE stored and craftable states.\nUsed by tooltips, badges, and quick craft.",

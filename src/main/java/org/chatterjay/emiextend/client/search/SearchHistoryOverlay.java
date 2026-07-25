@@ -14,6 +14,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.fml.loading.FMLPaths;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
@@ -37,6 +38,8 @@ public final class SearchHistoryOverlay {
     private static String observedSearch = "";
     private static String lastRememberedSearch = "";
     private static long observedSince = 0;
+    private static Bounds lastRenderedBounds = null;
+    private static boolean suppressUnderlyingHover = false;
 
     private SearchHistoryOverlay() {
     }
@@ -46,6 +49,9 @@ public final class SearchHistoryOverlay {
     }
 
     public static void remember(String text, ItemStack icon) {
+        if (!isEnabled()) {
+            return;
+        }
         load();
         text = normalize(text);
         if (text.isEmpty()) {
@@ -57,11 +63,9 @@ public final class SearchHistoryOverlay {
             normalizedIcon = old.icon();
         }
         HISTORY.add(0, new Entry(text, normalizedIcon));
+        scrollOffset = 0;
         while (HISTORY.size() > MAX_HISTORY) {
             HISTORY.remove(HISTORY.size() - 1);
-        }
-        if (scrollOffset > maxScroll()) {
-            scrollOffset = maxScroll();
         }
         lastRememberedSearch = text;
         save();
@@ -72,6 +76,9 @@ public final class SearchHistoryOverlay {
     }
 
     public static void applySearch(String text, ItemStack icon) {
+        if (!isEnabled()) {
+            return;
+        }
         load();
         text = normalize(text);
         if (text.isEmpty()) {
@@ -138,17 +145,27 @@ public final class SearchHistoryOverlay {
     }
 
     public static void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        if (!isEnabled()) {
+            expanded = false;
+            lastRenderedBounds = null;
+            return;
+        }
         load();
         observeExternalSearch();
         if (HISTORY.isEmpty() || EmiScreenManager.isDisabled()) {
             expanded = false;
+            lastRenderedBounds = null;
             return;
         }
         Bounds bounds = bounds(mouseX, mouseY);
         if (bounds == null) {
+            lastRenderedBounds = null;
             return;
         }
+        lastRenderedBounds = bounds;
 
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 500);
         var font = Minecraft.getInstance().font;
         int rows = bounds.expanded() ? Math.min(visibleExpandedRows(), HISTORY.size()) : 1;
         int bg = bounds.expanded() ? 0xee101014 : 0xcc101014;
@@ -182,9 +199,13 @@ public final class SearchHistoryOverlay {
             String text = font.plainSubstrByWidth(entry.text(), bounds.x() + bounds.w() - textX - PADDING);
             guiGraphics.drawString(font, text, textX, y + 1, 0xfff4f4f4, false);
         }
+        guiGraphics.pose().popPose();
     }
 
     public static boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!isEnabled()) {
+            return false;
+        }
         load();
         if (EmiScreenManager.isDisabled() || (button != 0 && button != 1 && button != 2)) {
             return false;
@@ -194,7 +215,12 @@ public final class SearchHistoryOverlay {
             return false;
         }
         if (!bounds.expanded()) {
-            applySearch(HISTORY.get(0).text());
+            if (button == 1 || button == 2) {
+                HISTORY.remove(0);
+                save();
+            } else {
+                applySearch(HISTORY.get(0).text());
+            }
             return true;
         }
 
@@ -216,6 +242,9 @@ public final class SearchHistoryOverlay {
     }
 
     public static boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (!isEnabled()) {
+            return false;
+        }
         load();
         if (EmiScreenManager.isDisabled()) {
             return false;
@@ -230,6 +259,29 @@ public final class SearchHistoryOverlay {
             scrollOffset = Math.min(maxScroll(), scrollOffset + 1);
         }
         return true;
+    }
+
+    public static boolean isMouseOver(double mouseX, double mouseY) {
+        if (!isEnabled()) {
+            return false;
+        }
+        load();
+        if (HISTORY.isEmpty() || EmiScreenManager.isDisabled()) {
+            return false;
+        }
+        if (lastRenderedBounds != null && lastRenderedBounds.contains(mouseX, mouseY)) {
+            return true;
+        }
+        Bounds bounds = bounds((int) mouseX, (int) mouseY);
+        return bounds != null && bounds.contains(mouseX, mouseY);
+    }
+
+    public static void setSuppressUnderlyingHover(boolean suppress) {
+        suppressUnderlyingHover = suppress;
+    }
+
+    public static boolean shouldSuppressUnderlyingHover() {
+        return suppressUnderlyingHover;
     }
 
     private static void load() {
@@ -354,22 +406,44 @@ public final class SearchHistoryOverlay {
 
     private static Bounds rawBounds(EmiSearchWidget search, int width, int rows, boolean expanded) {
         int height = PADDING * 2 + rows * ENTRY_HEIGHT;
+        return switch (searchHistoryPosition()) {
+            case ABOVE -> boundsAbove(search, width, height, expanded);
+            case LEFT -> boundsBeside(search, width, height, expanded, true);
+            case RIGHT -> boundsBeside(search, width, height, expanded, false);
+            case AUTO, OFF -> boundsAuto(search, width, height, expanded);
+        };
+    }
+
+    private static Bounds boundsAuto(EmiSearchWidget search, int width, int height, boolean expanded) {
         int x = xPosition(search, width);
-        int y;
+        int y = search.getY() - height - 3;
         if (isHorizontalDock(search)) {
-            Screen screen = Minecraft.getInstance().screen;
-            int screenHeight = screen == null ? search.getY() + search.getHeight() : screen.height;
-            y = search.getY();
-            if (y + height > screenHeight - 4) {
-                y = Math.max(4, screenHeight - height - 4);
-            }
-        } else {
-            y = search.getY() - height - 3;
-            if (y < 4) {
-                y = search.getY() + search.getHeight() + 3;
-            }
+            y = clampY(search.getY(), height);
+        } else if (y < 4) {
+            y = search.getY() + search.getHeight() + 3;
         }
         return new Bounds(x, y, width, height, expanded);
+    }
+
+    private static Bounds boundsAbove(EmiSearchWidget search, int width, int height, boolean expanded) {
+        int x = clampX(search.getX(), width);
+        int y = search.getY() - height - 3;
+        if (y < 4) {
+            y = search.getY() + search.getHeight() + 3;
+        }
+        return new Bounds(x, clampY(y, height), width, height, expanded);
+    }
+
+    private static Bounds boundsBeside(EmiSearchWidget search, int width, int height, boolean expanded, boolean left) {
+        Screen screen = Minecraft.getInstance().screen;
+        int screenWidth = screen == null ? search.getX() + search.getWidth() : screen.width;
+        int preferred = left ? search.getX() - width - 4 : search.getX() + search.getWidth() + 4;
+        int fallback = left ? search.getX() + search.getWidth() + 4 : search.getX() - width - 4;
+        int x = preferred;
+        if (x < 4 || x + width > screenWidth - 4) {
+            x = fallback;
+        }
+        return new Bounds(clampX(x, width), clampY(search.getY(), height), width, height, expanded);
     }
 
     private static int xPosition(EmiSearchWidget search, int width) {
@@ -407,6 +481,30 @@ public final class SearchHistoryOverlay {
 
     private static boolean isSideSearch(EmiSearchWidget search) {
         return search.getWidth() > 180;
+    }
+
+    private static EmiLinkConfig.SearchHistoryPosition searchHistoryPosition() {
+        try {
+            return EmiLinkConfig.SEARCH_HISTORY_POSITION.get();
+        } catch (Exception ignored) {
+            return EmiLinkConfig.SearchHistoryPosition.AUTO;
+        }
+    }
+
+    private static boolean isEnabled() {
+        return searchHistoryPosition() != EmiLinkConfig.SearchHistoryPosition.OFF;
+    }
+
+    private static int clampX(int x, int width) {
+        Screen screen = Minecraft.getInstance().screen;
+        int screenWidth = screen == null ? x + width : screen.width;
+        return Math.max(4, Math.min(screenWidth - width - 4, x));
+    }
+
+    private static int clampY(int y, int height) {
+        Screen screen = Minecraft.getInstance().screen;
+        int screenHeight = screen == null ? y + height : screen.height;
+        return Math.max(4, Math.min(screenHeight - height - 4, y));
     }
 
     private static int maxScroll() {

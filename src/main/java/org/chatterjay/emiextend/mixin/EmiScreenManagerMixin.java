@@ -11,6 +11,7 @@ import dev.emi.emi.network.EmiNetwork;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.runtime.EmiDrawContext;
+import dev.emi.emi.screen.EmiScreenBase;
 import dev.emi.emi.screen.EmiScreenManager;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
@@ -116,6 +117,11 @@ public class EmiScreenManagerMixin {
                     "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
         }
 
+        if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
         if (EmiApi.isCheatMode() && EmiConfig.deleteCursorStack.matchesMouse(button)
                 && emilink$deleteCursorOnFavoriteSidebar((int) mouseX, (int) mouseY)) {
             cir.setReturnValue(true);
@@ -189,9 +195,21 @@ public class EmiScreenManagerMixin {
     private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean notClick,
                                                             boolean ignoreLastHoveredCraftable,
                                                             CallbackInfoReturnable<EmiStackInteraction> cir) {
+        if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
+            cir.setReturnValue(EmiStackInteraction.EMPTY);
+            return;
+        }
         var hovered = emilink$getFavoriteSidebarStack(mouseX, mouseY);
         if (hovered != null) {
             cir.setReturnValue(hovered);
+        }
+    }
+
+    @Inject(method = "renderCurrentTooltip", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$hideTooltipBehindSearchHistory(EmiDrawContext context, int mouseX, int mouseY,
+                                                               float delta, EmiScreenBase base, CallbackInfo ci) {
+        if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
+            ci.cancel();
         }
     }
 
