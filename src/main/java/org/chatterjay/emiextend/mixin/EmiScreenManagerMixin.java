@@ -13,6 +13,7 @@ import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.screen.EmiScreenManager;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
@@ -28,6 +29,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
+import java.util.ArrayList;
 
 @Mixin(value = EmiScreenManager.class, remap = false)
 public class EmiScreenManagerMixin {
@@ -41,15 +43,18 @@ public class EmiScreenManagerMixin {
     public static dev.emi.emi.api.stack.EmiIngredient draggedStack;
     @Shadow
     public static dev.emi.emi.screen.widget.EmiSearchWidget search;
+    @Shadow
+    public static boolean isDisabled() {
+        throw new AssertionError();
+    }
+    @Shadow
+    private static boolean hasFocusedTextField(ContainerEventHandler parent, int depthBail) {
+        throw new AssertionError();
+    }
 
     @Inject(method = "keyPressed", at = @At("RETURN"), cancellable = true, require = 0)
     private static void emilink$onKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         if (cir.getReturnValueZ()) return;
-        if (EmiApi.isCheatMode() && EmiConfig.deleteCursorStack.matchesKey(keyCode, scanCode)
-                && emilink$deleteCursorOnFavoriteSidebar(lastMouseX, lastMouseY)) {
-            cir.setReturnValue(true);
-            return;
-        }
         if (EmiInteractionHandler.onKeyPressed(keyCode, scanCode, modifiers, lastMouseX, lastMouseY)) {
             cir.setReturnValue(true);
         }
@@ -63,6 +68,35 @@ public class EmiScreenManagerMixin {
         }
         if (InputEvents.tryHandleBomKeyFromEmi(keyCode, scanCode)) {
             cir.setReturnValue(true);
+            return;
+        }
+        if (EmiApi.isCheatMode() && EmiConfig.deleteCursorStack.matchesKey(keyCode, scanCode)
+                && !emilink$shouldSkipFavoriteDeleteKey()
+                && emilink$deleteCursorOnFavoriteSidebar(lastMouseX, lastMouseY)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "getSearchSource", at = @At("RETURN"), cancellable = true, require = 0)
+    private static void emilink$filterNullSearchSource(CallbackInfoReturnable<List<? extends EmiIngredient>> cir) {
+        var source = cir.getReturnValue();
+        if (source == null || source.isEmpty()) return;
+        List<EmiIngredient> filtered = null;
+        for (int i = 0; i < source.size(); i++) {
+            EmiIngredient ingredient = source.get(i);
+            if (ingredient == null) {
+                if (filtered == null) {
+                    filtered = new ArrayList<>(source.size());
+                    for (int j = 0; j < i; j++) {
+                        filtered.add(source.get(j));
+                    }
+                }
+            } else if (filtered != null) {
+                filtered.add(ingredient);
+            }
+        }
+        if (filtered != null) {
+            cir.setReturnValue(List.copyOf(filtered));
         }
     }
 
@@ -122,16 +156,6 @@ public class EmiScreenManagerMixin {
         }
     }
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
-    private static void emilink$blockBlankFavoriteClicks(double mouseX, double mouseY, int button,
-                                                         CallbackInfoReturnable<Boolean> cir) {
-        if (emilink$isBlankFavoriteSlot((int) mouseX, (int) mouseY)) {
-            pressedStack = EmiStack.EMPTY;
-            draggedStack = EmiStack.EMPTY;
-            cir.setReturnValue(true);
-        }
-    }
-
     @Inject(method = "getHoveredStack(IIZZ)Ldev/emi/emi/api/stack/EmiStackInteraction;",
             at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean notClick,
@@ -183,6 +207,13 @@ public class EmiScreenManagerMixin {
         return first.getName().getString();
     }
 
+    private static boolean emilink$shouldSkipFavoriteDeleteKey() {
+        var mc = Minecraft.getInstance();
+        if (mc.screen == null || isDisabled()) return true;
+        if (search != null && search.canConsumeInput()) return true;
+        return hasFocusedTextField(mc.screen, 10);
+    }
+
     private static boolean emilink$deleteCursorOnFavoriteSidebar(int mouseX, int mouseY) {
         var mc = Minecraft.getInstance();
         if (!(mc.screen instanceof AbstractContainerScreen<?> handled)) return false;
@@ -191,15 +222,12 @@ public class EmiScreenManagerMixin {
 
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
         if (space == null || space.pageSize <= 0 || space.getType() != SidebarType.FAVORITES) return false;
+        var hovered = emilink$getFavoriteSidebarStack(mouseX, mouseY);
+        if (hovered == null || hovered.isEmpty()) return false;
 
         handled.getMenu().setCarried(ItemStack.EMPTY);
         EmiNetwork.sendToServer(new CreateItemC2SPacket(1, ItemStack.EMPTY));
         return true;
-    }
-
-    private static boolean emilink$isBlankFavoriteSlot(int mouseX, int mouseY) {
-        var hovered = emilink$getFavoriteSidebarStack(mouseX, mouseY);
-        return hovered != null && hovered.isEmpty();
     }
 
     private static EmiStackInteraction emilink$getFavoriteSidebarStack(int mouseX, int mouseY) {

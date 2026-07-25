@@ -51,7 +51,6 @@ public class SFMTextEditorScreenMixin {
 
     private static void emilink$resetRenderStateForEmi(GuiGraphics guiGraphics) {
         guiGraphics.flush();
-        guiGraphics.disableScissor();
         guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.colorMask(true, true, true, true);
