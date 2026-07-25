@@ -36,8 +36,6 @@
   "emilink.config.cache.cacheTTLMs.tooltip": "How long AE query results are kept.\nUnit: milliseconds.",
   "emilink.config.cache.negativeCacheTTLMs": "Empty Result Cache Time",
   "emilink.config.cache.negativeCacheTTLMs.tooltip": "How long missing-item results are kept.\nUnit: milliseconds.",
-  "emilink.config.cache.debounceMs": "Hover Debounce",
-  "emilink.config.cache.debounceMs.tooltip": "How long to hover before querying.\nUnit: milliseconds.",
   "emilink.config.cache.batchFlushMs": "Batch Query Interval",
   "emilink.config.cache.batchFlushMs.tooltip": "How often AE batch queries are sent.\nUnit: milliseconds.",
 

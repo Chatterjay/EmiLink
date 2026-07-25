@@ -27,7 +27,6 @@ public final class EmiLinkConfig {
     // ---- Cache ----
     public static final ModConfigSpec.LongValue CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
-    public static final ModConfigSpec.LongValue DEBOUNCE_MS;
     public static final ModConfigSpec.LongValue BATCH_FLUSH_MS;
 
     // ---- EMI UI ----
@@ -82,11 +81,6 @@ public final class EmiLinkConfig {
                 .translation("emilink.config.cache.negativeCacheTTLMs")
                 .defineInRange("negativeCacheTTLMs", 10_000L, 100L, 120_000L);
 
-        DEBOUNCE_MS = BUILDER
-                .comment("Hover debounce time in milliseconds (50-5000)")
-                .translation("emilink.config.cache.debounceMs")
-                .defineInRange("debounceMs", 250L, 50L, 5_000L);
-
         BATCH_FLUSH_MS = BUILDER
                 .comment("Batch query flush interval in milliseconds (200-10000). " +
                          "How often pending AE queries are batched and sent to the server.")
@@ -99,7 +93,7 @@ public final class EmiLinkConfig {
         ENABLE_WRAP_BOOK = BUILDER
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
                 .translation("emilink.config.emi_ui.enableWrapBook")
-                .define("enableWrapBook", false);
+                .define("enableWrapBook", true);
 
         WB_FILL_INPUT_GRID = BUILDER
                 .comment("When wrap book is enabled, also place the original output item into an empty input slot")
@@ -240,7 +234,6 @@ public final class EmiLinkConfig {
 
         validateLong(CACHE_TTL_MS, "cache.cacheTTLMs", 5_000L, 100L, 60_000L);
         validateLong(NEGATIVE_CACHE_TTL_MS, "cache.negativeCacheTTLMs", 10_000L, 100L, 120_000L);
-        validateLong(DEBOUNCE_MS, "cache.debounceMs", 250L, 50L, 5_000L);
         validateLong(BATCH_FLUSH_MS, "cache.batchFlushMs", 5_000L, 200L, 10_000L);
         validateInt(FAVORITE_PAGE_COUNT, "emi_ui.favoritePageCount", 5, 1, 50);
         validateInt(INITIAL_BADGE_SCAN_LIMIT, "ae_network.initialBadgeScanLimit", 24, 0, 512);

@@ -76,10 +76,6 @@ public final class SearchHistoryOverlay {
     }
 
     public static void applySearch(String text, ItemStack icon) {
-        if (!isEnabled()) {
-            return;
-        }
-        load();
         text = normalize(text);
         if (text.isEmpty()) {
             return;

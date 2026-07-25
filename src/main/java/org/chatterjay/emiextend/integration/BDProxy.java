@@ -9,6 +9,7 @@ import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.client.ClientPacketHelper;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -129,7 +130,7 @@ public class BDProxy {
 
     public static void pullFromNetwork(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) return;
-        PacketDistributor.sendToServer(new BDActionPacket(stack, 0));
+        ClientPacketHelper.sendToServer(new BDActionPacket(stack, 0));
     }
 
     public static boolean extractFromNetwork(Player player, ItemStack targetStack) {

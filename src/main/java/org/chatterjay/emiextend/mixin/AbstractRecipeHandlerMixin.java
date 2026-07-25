@@ -9,6 +9,7 @@ import appeng.menu.SlotSemantics;
 import appeng.menu.me.items.CraftingTermMenu;
 import org.chatterjay.emiextend.client.AEQuickCraftDelayHandler;
 import org.chatterjay.emiextend.client.AENetworkCache;
+import org.chatterjay.emiextend.client.ClientPacketHelper;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.stack.EmiStack;
@@ -150,7 +151,7 @@ public class AbstractRecipeHandlerMixin {
                         bulkRequest.stack().getDisplayName().getString(),
                         bulkRequest.amount(),
                         EmiCraftHelper.getAeAutocraftRequestedAmount());
-                PacketDistributor.sendToServer(new AEAutocraftRequestPacket(bulkRequest.stack(), bulkRequest.amount()));
+                ClientPacketHelper.sendToServer(new AEAutocraftRequestPacket(bulkRequest.stack(), bulkRequest.amount()));
                 EmiCraftHelper.markAeAutocraftHandoff();
                 return;
             }
@@ -206,7 +207,7 @@ public class AbstractRecipeHandlerMixin {
                 BulkAutocraftRequest overrideAmount = computeFirstMissingAutocraftRequest(recipe,
                         EmiCraftHelper.getAeAutocraftRequestedAmount(), ctm);
                 if (overrideAmount.amount() > 0) {
-                    PacketDistributor.sendToServer(new AEAutocraftAmountOverridePacket(overrideAmount.amount()));
+                    ClientPacketHelper.sendToServer(new AEAutocraftAmountOverridePacket(overrideAmount.amount()));
                     ModLogger.debug("AE_EMI_CTRL_CRAFT missing-autocraft amount-override send recipe={} amount={} batches={}",
                             recipe.getId(), overrideAmount.amount(), EmiCraftHelper.getAeAutocraftRequestedAmount());
                 }

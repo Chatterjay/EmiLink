@@ -18,7 +18,6 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
@@ -215,6 +214,7 @@ public final class AENetworkCache {
 
     @SubscribeEvent
     public static void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        BDShortcutHandler.serverHasMod = false;
         currentServerId = resolveServerId();
         serverStates.remove(currentServerId);
         current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
@@ -226,15 +226,18 @@ public final class AENetworkCache {
         cacheDirty = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
+        ModLogger.debug("Client network login: reset EmiLink server capability state");
         loadFromDisk();
     }
 
     @SubscribeEvent
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        BDShortcutHandler.serverHasMod = false;
         saveToDisk();
         pendingBatch.clear();
         clearEphemeralQuery();
         accessCheckScreen = null;
+        ModLogger.debug("Client network logout: reset EmiLink server capability state");
     }
 
     /** Clear cache & pending batch for the current server only. */
@@ -389,10 +392,10 @@ public final class AENetworkCache {
 
         try {
             if (!countOnly.isEmpty()) {
-                PacketDistributor.sendToServer(new AEBatchQueryPacket(countOnly, false));
+                ClientPacketHelper.sendToServer(new AEBatchQueryPacket(countOnly, false));
             }
             if (!withCraftability.isEmpty()) {
-                PacketDistributor.sendToServer(new AEBatchQueryPacket(withCraftability, true));
+                ClientPacketHelper.sendToServer(new AEBatchQueryPacket(withCraftability, true));
             }
             ModLogger.debug("Batch: flushed {} count-only items and {} craftability items",
                     countOnly.size(), withCraftability.size());

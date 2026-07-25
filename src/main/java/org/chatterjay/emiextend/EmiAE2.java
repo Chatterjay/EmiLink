@@ -42,6 +42,7 @@ public class EmiAE2 {
 
     public EmiAE2(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
+        logIntegrationState();
         if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             registerConfigScreenReflectively(container);
             registerAeClientHandlersIfLoaded();
@@ -49,11 +50,13 @@ public class EmiAE2 {
         modBus.addListener((ModConfigEvent.Loading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
                 EmiLinkConfig.validate();
+                logIntegrationState();
             }
         });
         modBus.addListener((ModConfigEvent.Reloading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
                 EmiLinkConfig.onReload();
+                logIntegrationState();
             }
         });
 
@@ -114,7 +117,10 @@ public class EmiAE2 {
     private void registerPackets(final RegisterPayloadHandlersEvent event) {
         final PayloadRegistrar registrar = event.registrar("1").optional();
         if (isModLoaded("ae2")) {
+            ModLogger.debug("Registering optional AE2 network payloads");
             registerAePackets(registrar);
+        } else {
+            ModLogger.debug("Skipping AE2 network payloads because AE2 is not loaded");
         }
         registrar.playToServer(
                 BDActionPacket.TYPE,
@@ -193,8 +199,10 @@ public class EmiAE2 {
 
     private static void registerAeClientHandlersIfLoaded() {
         if (!isModLoaded("ae2")) {
+            ModLogger.debug("Skipping AE2 client handlers because AE2 is not loaded");
             return;
         }
+        ModLogger.debug("Registering AE2 client handlers");
         registerStaticEventHandler("org.chatterjay.emiextend.client.AEQuickCraftDelayHandler");
         registerStaticEventHandler("org.chatterjay.emiextend.client.AENetworkCache");
         registerStaticEventHandler("org.chatterjay.emiextend.client.InputEvents");
@@ -211,6 +219,17 @@ public class EmiAE2 {
     private static boolean isModLoaded(String modId) {
         var modList = ModList.get();
         return modList != null && modList.isLoaded(modId);
+    }
+
+    private static void logIntegrationState() {
+        ModLogger.debug("Optional integrations: side={} ae2={} bd={} extendedae_plus={} ars_nouveau={} curios={} inventoryessentials={}",
+                FMLEnvironment.dist,
+                isModLoaded("ae2"),
+                isModLoaded("beyonddimensions"),
+                isModLoaded("extendedae_plus"),
+                isModLoaded("ars_nouveau"),
+                isModLoaded("curios"),
+                isModLoaded("inventoryessentials"));
     }
 
     /** Client-only: register NeoForge built-in config screen via reflection. */
@@ -262,7 +281,12 @@ public class EmiAE2 {
                             .requires(src -> src.hasPermission(0))
                             .executes(ctx -> {
                                 var player = ctx.getSource().getPlayerOrException();
-                                PacketDistributor.sendToPlayer(player, new ClearCachePacket());
+                                try {
+                                    PacketDistributor.sendToPlayer(player, new ClearCachePacket());
+                                } catch (Exception e) {
+                                    ModLogger.debug("Skipping clear-cache packet for player without EmiLink client: {}",
+                                            player.getGameProfile().getName());
+                                }
                                 ctx.getSource().sendSuccess(
                                         () -> net.minecraft.network.chat.Component.translatable("emilink.command.clear_cache"),
                                         false

@@ -36,8 +36,6 @@
   "emilink.config.cache.cacheTTLMs.tooltip": "AE 查询结果保留多久。\n单位：毫秒。",
   "emilink.config.cache.negativeCacheTTLMs": "空结果缓存时间",
   "emilink.config.cache.negativeCacheTTLMs.tooltip": "未找到物品时保留多久。\n单位：毫秒。",
-  "emilink.config.cache.debounceMs": "悬停防抖",
-  "emilink.config.cache.debounceMs.tooltip": "悬停多久后开始查询。\n单位：毫秒。",
   "emilink.config.cache.batchFlushMs": "批量查询间隔",
   "emilink.config.cache.batchFlushMs.tooltip": "多久发送一次 AE 批量查询。\n单位：毫秒。",
 

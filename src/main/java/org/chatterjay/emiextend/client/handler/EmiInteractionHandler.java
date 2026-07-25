@@ -22,8 +22,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.client.BDShortcutHandler;
+import org.chatterjay.emiextend.client.ClientPacketHelper;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
@@ -187,19 +187,22 @@ public final class EmiInteractionHandler {
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
                     if (space != null) {
                         boolean matchAll = matchesDepositBatchModifier();
+                        boolean sent = false;
                         if (matchAll) {
-                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            sent |= ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1));
                             for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
                                 var s = mc.player.getInventory().getItem(i);
                                 if (!s.isEmpty() && ItemStack.isSameItemSameComponents(s, carried)) {
-                                    PacketDistributor.sendToServer(new AEDepositPacket(s.copy(), i));
+                                    sent |= ClientPacketHelper.sendToServer(new AEDepositPacket(s.copy(), i));
                                 }
                             }
                         } else {
-                            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            sent = ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1));
                         }
-                        cs.getMenu().setCarried(ItemStack.EMPTY);
-                        return true;
+                        if (sent) {
+                            cs.getMenu().setCarried(ItemStack.EMPTY);
+                        }
+                        return sent;
                     }
                 }
             }
@@ -281,7 +284,9 @@ public final class EmiInteractionHandler {
         }
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || cached.count() <= 0) return false;
-        PacketDistributor.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1));
+        if (!ClientPacketHelper.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1))) {
+            return false;
+        }
         org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover extract item={} stored={} craftable={}",
                 stack.getHoverName().getString(), cached.count(), cached.craftable());
@@ -294,7 +299,9 @@ public final class EmiInteractionHandler {
         }
         var cached = AENetworkCache.getCachedResult(stack);
         if (!cached.found() || !cached.craftable()) return false;
-        PacketDistributor.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1));
+        if (!ClientPacketHelper.sendToServer(new AEAutocraftRequestPacket(stack.copyWithCount(1), 1))) {
+            return false;
+        }
         org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover autocraft item={} amount=1",
                 stack.getHoverName().getString());

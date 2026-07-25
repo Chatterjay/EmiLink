@@ -29,12 +29,6 @@ import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
 import org.chatterjay.emiextend.util.IPNProxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
-import appeng.api.stacks.GenericStack;
-import appeng.core.network.serverbound.InventoryActionPacket;
-import appeng.helpers.InventoryAction;
-import appeng.integration.modules.emi.EmiStackHelper;
-import appeng.menu.slot.FakeSlot;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
@@ -788,7 +782,7 @@ public final class InputEvents {
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox focusedEb) {
             focusedEb.setValue(text);
             focusedEb.setCursorPosition(text.length());
-            SearchHistoryOverlay.remember(text, icon);
+            SearchHistoryOverlay.applySearch(text, icon);
             fillSearchHandled = true;
             event.setCanceled(true);
             return;
@@ -796,7 +790,7 @@ public final class InputEvents {
 
         // 3. BD-specific (non-standard search API)
         if (BDProxy.isBDNetGUI(screen) && BDProxy.setSearchText(screen, text)) {
-            SearchHistoryOverlay.remember(text, icon);
+            SearchHistoryOverlay.applySearch(text, icon);
             fillSearchHandled = true;
             event.setCanceled(true);
             return;
@@ -807,7 +801,7 @@ public final class InputEvents {
             if (child instanceof net.minecraft.client.gui.components.EditBox eb) {
                 eb.setValue(text);
                 eb.setCursorPosition(text.length());
-                SearchHistoryOverlay.remember(text, icon);
+                SearchHistoryOverlay.applySearch(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
@@ -825,7 +819,7 @@ public final class InputEvents {
                 if (widget == null) continue;
                 var setValue = widget.getClass().getMethod("setValue", String.class);
                 setValue.invoke(widget, text);
-                SearchHistoryOverlay.remember(text, icon);
+                SearchHistoryOverlay.applySearch(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
@@ -863,9 +857,10 @@ public final class InputEvents {
 
         // BD Craft GUI → single craft to inventory
         if (BDProxy.isBDCraftGUI(handled)) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
-            event.setCanceled(true);
-            ModLogger.debug("B key: BD single craft triggered");
+            if (ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2))) {
+                event.setCanceled(true);
+                ModLogger.debug("B key: BD single craft triggered");
+            }
             return;
         }
 
@@ -935,21 +930,9 @@ public final class InputEvents {
         for (var slot : containerScreen.getMenu().slots) {
             if (!slot.getItem().isEmpty()) continue;
 
-            // AE2 FakeSlot: try ItemStack first, then wrap fluids/chemicals as GenericStack.
-            if (slot instanceof FakeSlot fakeSlot) {
-                var itemStack = emiStack.getItemStack();
-                if (itemStack.isEmpty()) {
-                    var genericStack = EmiStackHelper.toGenericStack(emiStack);
-                    if (genericStack == null) continue;
-                    itemStack = GenericStack.wrapInItemStack(genericStack);
-                    if (itemStack.isEmpty()) continue;
-                }
-                PacketDistributor.sendToServer(
-                        new InventoryActionPacket(InventoryAction.SET_FILTER, fakeSlot.index, itemStack.copy()));
-                ModLogger.debug("QuickFillSlot: set slot {} with {}", fakeSlot.index, emiStack.getId());
+            if (AE2Proxy.isLoaded() && AEQuickFillHelper.tryFillFakeSlot(slot, emiStack)) {
                 return true;
             }
-
         }
         return false;
     }
@@ -1169,9 +1152,10 @@ public final class InputEvents {
                     if (stack.isEmpty()) continue;
                     if (matchesOutput(stack, allOutputs)) {
                         appendStackAmount(detail, stack, stack.getCount());
-                        PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
-                        inv.setItem(i, ItemStack.EMPTY);
-                        total += stack.getCount();
+                        if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
+                            inv.setItem(i, ItemStack.EMPTY);
+                            total += stack.getCount();
+                        }
                     }
                 }
                 if (total > 0) qcLog(runId, "swept {} intermediate items to AE at start: {}", total, detail);
@@ -1228,15 +1212,15 @@ public final class InputEvents {
                                 stack.getDisplayName().getString(), stack.getCount());
                         continue;
                     }
-                    if (storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-                        PacketDistributor.sendToServer(new BDDepositSlotPacket(i));
-                    } else {
-                        PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
+                    boolean deposited = storageMode == QuickCraftStorageMode.BD_EXTERNAL
+                            ? ClientPacketHelper.sendToServer(new BDDepositSlotPacket(i))
+                            : ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i));
+                    if (deposited) {
+                        inv.setItem(i, ItemStack.EMPTY);
+                        qcLog(runId, "row-clear deposited slot {} to {}: {} x{}", i,
+                                storageMode == QuickCraftStorageMode.BD_EXTERNAL ? "BD" : "AE",
+                                stack.getDisplayName().getString(), stack.getCount());
                     }
-                    inv.setItem(i, ItemStack.EMPTY);
-                    qcLog(runId, "row-clear deposited slot {} to {}: {} x{}", i,
-                            storageMode == QuickCraftStorageMode.BD_EXTERNAL ? "BD" : "AE",
-                            stack.getDisplayName().getString(), stack.getCount());
                 }
             }
         }
@@ -1266,8 +1250,9 @@ public final class InputEvents {
         if (!queryItems.isEmpty()) {
             AENetworkCache.invalidateEntries(queryItems);
             AENetworkCache.beginEphemeralQuery(queryItems);
-            PacketDistributor.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)));
-            qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
+            if (ClientPacketHelper.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)))) {
+                qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
+            }
         }
 
         preflightNodes = nodes;
@@ -1278,8 +1263,9 @@ public final class InputEvents {
         preflightStartTime = System.currentTimeMillis();
         preflightRunId = runId;
         if (storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
-            qcLog(runId, "BD_QUICKCRAFT_RETURN_MODE network-first enabled");
+            if (ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3))) {
+                qcLog(runId, "BD_QUICKCRAFT_RETURN_MODE network-first enabled");
+            }
         }
         event.setCanceled(true);
         qcLog(runId, "preflight started ({} nodes, {} target batches), waiting for AE cache...",
@@ -1339,9 +1325,10 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputsToDeposit)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
-                inv.setItem(i, ItemStack.EMPTY);
-                total += stack.getCount();
+                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
+                    inv.setItem(i, ItemStack.EMPTY);
+                    total += stack.getCount();
+                }
             }
         }
 
@@ -1349,9 +1336,10 @@ public final class InputEvents {
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputsToDeposit)) {
             appendStackAmount(detail, carried, carried.getCount());
-            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
-            player.containerMenu.setCarried(ItemStack.EMPTY);
-            total += carried.getCount();
+            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1))) {
+                player.containerMenu.setCarried(ItemStack.EMPTY);
+                total += carried.getCount();
+            }
         }
 
         if (total > 0) qcLog(runId, "deposited {} intermediate items to AE: {}", total, detail);
@@ -1375,20 +1363,22 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputs)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                PacketDistributor.sendToServer(new AEDepositPacket(stack.copy(), i));
-                inv.setItem(i, ItemStack.EMPTY);
-                total += stack.getCount();
-                invalidation.add(stack.copyWithCount(1));
+                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
+                    inv.setItem(i, ItemStack.EMPTY);
+                    total += stack.getCount();
+                    invalidation.add(stack.copyWithCount(1));
+                }
             }
         }
 
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputs)) {
             appendStackAmount(detail, carried, carried.getCount());
-            PacketDistributor.sendToServer(new AEDepositPacket(carried.copy(), -1));
-            player.containerMenu.setCarried(ItemStack.EMPTY);
-            total += carried.getCount();
-            invalidation.add(carried.copyWithCount(1));
+            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1))) {
+                player.containerMenu.setCarried(ItemStack.EMPTY);
+                total += carried.getCount();
+                invalidation.add(carried.copyWithCount(1));
+            }
         }
 
         if (total > 0) {
@@ -1486,7 +1476,7 @@ public final class InputEvents {
                 AeCraftableShortage directAeRequest = findTopDownAeCraftableOutputShortage(
                         preflightGoalNode, jobNeededAmounts, mc.player, preflightGoalNode, goalOutputDeduction);
                 if (directAeRequest != null) {
-                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                    ClientPacketHelper.sendToServer(new AEAutocraftRequestPacket(
                             directAeRequest.stack().copyWithCount(1), directAeRequest.missing()));
                     qcLog(runId, "AE_QUICKCRAFT direct top-down ME autocraft recipe={} item={} needed={} available={} missing={}; quick craft job paused before manual chain",
                             recipeId(directAeRequest.node()),
@@ -1549,7 +1539,7 @@ public final class InputEvents {
 
             boolean bdIntermediate = currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL
                     && node != currentJob.goalNode;
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
+            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
             currentJob.pendingVerifyNode = node;
             currentJob.pendingVerifyTicks = 0;
             currentJob.pendingVerifyBeforeTotal = currentJob.pendingBdCraftBeforeTotal;
@@ -1602,7 +1592,7 @@ public final class InputEvents {
                 if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL
                         && (currentJob.pendingVerifyTicks == 2 || currentJob.pendingVerifyTicks == 4)) {
                     boolean bdIntermediate = node != currentJob.goalNode;
-                    PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
+                    ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
                     qcLog(currentJob.runId, "BD_CRAFT_RESULT_RETRY {} destination={} beforeTotal={} afterTotal={} ticks={}",
                             recipeId(node), bdIntermediate ? "NETWORK" : "INVENTORY",
                             currentJob.pendingVerifyBeforeTotal, availability.total(),
@@ -1708,7 +1698,7 @@ public final class InputEvents {
                     qcLog(currentJob.runId, "AE_QUICKCRAFT prefill direct request recipe={} item={} needed={} available={} missing={}",
                             node.recipe.getId(), aeInputNeed.stack().getHoverName().getString(),
                             aeInputNeed.needed(), available, missing);
-                    PacketDistributor.sendToServer(new AEAutocraftRequestPacket(
+                    ClientPacketHelper.sendToServer(new AEAutocraftRequestPacket(
                             aeInputNeed.stack().copyWithCount(1), (int) Math.min(Integer.MAX_VALUE, missing)));
                     abortCurrentJob("prefill AE autocraft request");
                     return;
@@ -1727,7 +1717,7 @@ public final class InputEvents {
                     ? 0
                     : getNodeAvailability(node, mc.player, currentJob.storageMode).total();
             if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-                PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
+                ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
             }
             if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
                 qcLog(currentJob.runId, "AE_QUICKCRAFT performFill without post-fill ME handoff for {}; prefill request already checked",
@@ -1788,8 +1778,8 @@ public final class InputEvents {
         depositAllIntermediates(currentJob.runId, mc.player, currentJob);
         logInventorySnapshot(currentJob.runId, mc.player, "after-sweep");
         if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
+            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
+            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
         }
         if (currentJob.hadFailures) {
             qcLog(currentJob.runId, "finished with failures; keeping completedBatches for resume ({} entries): {}",
@@ -1844,8 +1834,8 @@ public final class InputEvents {
     private static void abortCurrentJob(String reason) {
         if (currentJob == null) return;
         if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
-            PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
+            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 6));
+            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 4));
         }
         savePartialNodeProgress(reason);
         currentJob = null;

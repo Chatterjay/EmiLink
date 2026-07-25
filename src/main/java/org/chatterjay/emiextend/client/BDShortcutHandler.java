@@ -255,7 +255,7 @@ public class BDShortcutHandler {
 
         if (serverHasMod) {
             int[] locked = getLockedIndices(mode);
-            PacketDistributor.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
+            ClientPacketHelper.sendToServer(new TransferMatchingPacket(clickedItem, mode, locked));
         } else {
             boolean dirToStorage = mode != 0;
             BDProxy.sendBatchTransfer(clickedItem, dirToStorage);

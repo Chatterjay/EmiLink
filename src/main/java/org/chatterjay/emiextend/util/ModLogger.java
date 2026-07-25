@@ -24,19 +24,27 @@ public final class ModLogger {
     }
 
     public static void debug(String msg, Object... args) {
-        if (EmiLinkConfig.DEBUG_MODE.get()) {
+        if (debugEnabled()) {
             LOG.info("[DEBUG] " + msg, args);
         }
     }
 
     public static boolean isDebugEnabled() {
-        return EmiLinkConfig.DEBUG_MODE.get();
+        return debugEnabled();
     }
 
     public static void debugChat(ServerPlayer player, String msg, Object... args) {
-        if (EmiLinkConfig.DEBUG_MODE.get() && player != null) {
+        if (debugEnabled() && player != null) {
             var text = String.format("[EmiLink] " + msg, args);
             player.sendSystemMessage(Component.literal(text), true);
+        }
+    }
+
+    private static boolean debugEnabled() {
+        try {
+            return EmiLinkConfig.DEBUG_MODE.get();
+        } catch (IllegalStateException ignored) {
+            return false;
         }
     }
 }

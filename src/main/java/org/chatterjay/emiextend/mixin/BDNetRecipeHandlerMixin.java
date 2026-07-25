@@ -4,7 +4,7 @@ import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.client.ClientPacketHelper;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
@@ -29,8 +29,9 @@ public class BDNetRecipeHandlerMixin {
             return;
         }
 
-        PacketDistributor.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2));
-        ModLogger.debug("BD_QUICKCRAFT ctrl-fill craft-result sent recipe={} amount={}",
-                recipe == null ? "null" : recipe.getId(), context.getAmount());
+        if (ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 2))) {
+            ModLogger.debug("BD_QUICKCRAFT ctrl-fill craft-result sent recipe={} amount={}",
+                    recipe == null ? "null" : recipe.getId(), context.getAmount());
+        }
     }
 }
