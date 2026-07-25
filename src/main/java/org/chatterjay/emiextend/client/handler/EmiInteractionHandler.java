@@ -23,6 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.emiextend.client.BDShortcutHandler;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
@@ -460,6 +461,7 @@ public final class EmiInteractionHandler {
             if (handleShiftClickBD(itemStack)) return true;
             return handleShiftClickAE2(itemStack);
         } else {
+            if (BDShortcutHandler.tryExtractMatchingFromCurrentContainer(itemStack)) return true;
             if (handleShiftClickAE2(itemStack)) return true;
             return handleShiftClickBD(itemStack);
         }

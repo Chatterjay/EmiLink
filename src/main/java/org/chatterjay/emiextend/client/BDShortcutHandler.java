@@ -198,6 +198,36 @@ public class BDShortcutHandler {
         return batchDropByType(containerScreen, slot);
     }
 
+    public static boolean tryExtractMatchingFromCurrentContainer(ItemStack targetStack) {
+        if (targetStack == null || targetStack.isEmpty()) return false;
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return false;
+        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
+        if (mc.screen.getFocused() instanceof EditBox) return false;
+        if (AE2Proxy.isMEStorageScreen(mc.screen) || BDProxy.isBDNetGUI(mc.screen) || BDProxy.isBDCraftGUI(mc.screen)) {
+            return false;
+        }
+
+        var menu = containerScreen.getMenu();
+        if (!menu.getCarried().isEmpty()) return false;
+
+        for (Slot slot : menu.slots) {
+            if (slot.container instanceof Inventory) continue;
+            if (!slot.hasItem()) continue;
+            if (!canPlayerAccessSlot(slot)) continue;
+            if (!ItemStack.isSameItemSameComponents(slot.getItem(), targetStack)) continue;
+
+            var locked = IPNProxy.getLockedSlots();
+            if (locked.isEmpty()) {
+                click(menu, menu.containerId, slot.index, 0, net.minecraft.world.inventory.ClickType.QUICK_MOVE);
+            } else {
+                safeTransferContainerSlotToUnlockedPlayerSlots(menu, menu.containerId, slot, locked);
+            }
+            return true;
+        }
+        return false;
+    }
+
 
     private static void handleSpaceClick(Screen screen, Slot slot, ItemStack clickedItem,
                                           AbstractContainerMenu menu, int inventoryStart, int inventoryEnd,

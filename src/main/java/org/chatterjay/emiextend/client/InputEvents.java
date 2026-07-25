@@ -13,6 +13,7 @@ import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -767,6 +768,7 @@ public final class InputEvents {
 
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
+        if (screen instanceof ChatScreen) return;
 
         // 1. Focused EditBox (most precise, works universally)
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox focusedEb) {
