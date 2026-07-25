@@ -1,5 +1,6 @@
 package org.chatterjay.emiextend.mixin;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import dev.emi.emi.EmiPort;
 import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.EmiScreenManager;
@@ -34,13 +35,31 @@ public class SFMTextEditorScreenMixin {
         Screen screen = (Screen) (Object) this;
         if (!emilink$isSfmTextEditor(screen)) return;
 
+        emilink$resetRenderStateForEmi(guiGraphics);
         var context = EmiDrawContext.wrap(guiGraphics);
         context.push();
+        try {
+            EmiPort.setPositionTexShader();
+            EmiScreenManager.drawBackground(context, mouseX, mouseY, partialTick);
+            EmiScreenManager.render(context, mouseX, mouseY, partialTick);
+            EmiScreenManager.drawForeground(context, mouseX, mouseY, partialTick);
+        } finally {
+            context.pop();
+            emilink$resetRenderStateForEmi(guiGraphics);
+        }
+    }
+
+    private static void emilink$resetRenderStateForEmi(GuiGraphics guiGraphics) {
+        guiGraphics.flush();
+        guiGraphics.disableScissor();
+        guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.colorMask(true, true, true, true);
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
         EmiPort.setPositionTexShader();
-        EmiScreenManager.drawBackground(context, mouseX, mouseY, partialTick);
-        EmiScreenManager.render(context, mouseX, mouseY, partialTick);
-        EmiScreenManager.drawForeground(context, mouseX, mouseY, partialTick);
-        context.pop();
     }
 
     private static boolean emilink$isSfmTextEditor(Screen screen) {

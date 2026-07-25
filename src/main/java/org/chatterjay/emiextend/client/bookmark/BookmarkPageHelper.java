@@ -171,10 +171,16 @@ public final class BookmarkPageHelper {
     }
 
     public static int compactLocalInsertIndex(int page, int pageSize, int localIndex) {
-        return countRealItemsInPage(page, pageSize);
+        int realCount = countRealItemsInPage(page, pageSize);
+        return Math.max(0, Math.min(localIndex, realCount));
     }
 
     public static boolean addOrMoveFavoriteToPage(EmiIngredient stack, EmiRecipe context, int page, int pageSize) {
+        return addOrMoveFavoriteToPage(stack, context, page, pageSize, Integer.MAX_VALUE);
+    }
+
+    public static boolean addOrMoveFavoriteToPage(EmiIngredient stack, EmiRecipe context, int page, int pageSize,
+                                                  int preferredLocalIndex) {
         if (pageSize <= 0 || stack == null) {
             return false;
         }
@@ -198,9 +204,12 @@ public final class BookmarkPageHelper {
 
         int pageStart = page * pageSize;
         ensureSize(pageStart + pageSize);
-        int localIndex = countRealItemsInPage(page, pageSize);
-        int offset = pageStart + Math.min(localIndex, pageSize - 1);
-        if (localIndex >= pageSize) {
+        int localIndex = compactLocalInsertIndex(page, pageSize, preferredLocalIndex);
+        int realCount = countRealItemsInPage(page, pageSize);
+        int offset = pageStart + localIndex;
+        if (localIndex < realCount) {
+            EmiFavorites.favorites.add(offset, favorite);
+        } else if (localIndex >= pageSize) {
             EmiFavorites.favorites.add(pageStart + pageSize, favorite);
         } else {
             EmiFavorites.favorites.set(offset, favorite);
