@@ -21,6 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
+import org.chatterjay.emiextend.client.search.SearchHistoryOverlay;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
@@ -762,6 +763,7 @@ public final class InputEvents {
         if (emiStacks.isEmpty()) return;
 
         var first = emiStacks.getFirst();
+        var icon = first.getItemStack();
 
         boolean alt = Screen.hasAltDown();
         var text = alt ? "@" + first.getId().getNamespace() : first.getName().getString();
@@ -775,13 +777,7 @@ public final class InputEvents {
         // Set both sides explicitly so F-search updates the terminal and EMI together.
         if (AE2Proxy.isMEStorageScreen(screen) && screen instanceof MEStorageScreenAccessor aeSearch) {
             try {
-                var searchField = aeSearch.emilink$getSearchField();
-                if (searchField != null) {
-                    searchField.setValue(text);
-                    searchField.setCursorPosition(text.length());
-                }
-                aeSearch.emilink$setSearchText(text);
-                EmiApi.setSearchText(text);
+                SearchHistoryOverlay.applySearch(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
@@ -792,6 +788,7 @@ public final class InputEvents {
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox focusedEb) {
             focusedEb.setValue(text);
             focusedEb.setCursorPosition(text.length());
+            SearchHistoryOverlay.remember(text, icon);
             fillSearchHandled = true;
             event.setCanceled(true);
             return;
@@ -799,6 +796,7 @@ public final class InputEvents {
 
         // 3. BD-specific (non-standard search API)
         if (BDProxy.isBDNetGUI(screen) && BDProxy.setSearchText(screen, text)) {
+            SearchHistoryOverlay.remember(text, icon);
             fillSearchHandled = true;
             event.setCanceled(true);
             return;
@@ -809,6 +807,7 @@ public final class InputEvents {
             if (child instanceof net.minecraft.client.gui.components.EditBox eb) {
                 eb.setValue(text);
                 eb.setCursorPosition(text.length());
+                SearchHistoryOverlay.remember(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
@@ -826,6 +825,7 @@ public final class InputEvents {
                 if (widget == null) continue;
                 var setValue = widget.getClass().getMethod("setValue", String.class);
                 setValue.invoke(widget, text);
+                SearchHistoryOverlay.remember(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
@@ -833,7 +833,7 @@ public final class InputEvents {
         }
 
         // 6. EMI search fallback
-        EmiApi.setSearchText(text);
+        SearchHistoryOverlay.applySearch(text, icon);
         fillSearchHandled = true;
         event.setCanceled(true);
     }

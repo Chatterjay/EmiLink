@@ -10,6 +10,7 @@ import dev.emi.emi.network.CreateItemC2SPacket;
 import dev.emi.emi.network.EmiNetwork;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
+import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.EmiScreenManager;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
@@ -21,11 +22,13 @@ import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
+import org.chatterjay.emiextend.client.search.SearchHistoryOverlay;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
@@ -50,6 +53,12 @@ public class EmiScreenManagerMixin {
     @Shadow
     private static boolean hasFocusedTextField(ContainerEventHandler parent, int depthBail) {
         throw new AssertionError();
+    }
+
+    @Inject(method = "render", at = @At("TAIL"), require = 0)
+    private static void emilink$renderSearchHistory(EmiDrawContext context, int mouseX, int mouseY, float delta,
+                                                    CallbackInfo ci) {
+        SearchHistoryOverlay.render(context.raw(), mouseX, mouseY);
     }
 
     @Inject(method = "keyPressed", at = @At("RETURN"), cancellable = true, require = 0)
@@ -127,10 +136,12 @@ public class EmiScreenManagerMixin {
             if (mc.screen != null) {
                 var text = getDragFillText(draggedStack);
                 if (text != null) {
+                    ItemStack icon = emilink$getDragFillIcon(draggedStack);
                     // Check EMI's own search widget first (not in screen.children())
                     if (search.isMouseOver(mouseX, mouseY)) {
                         search.setValue(text);
                         search.setCursorPosition(text.length());
+                        SearchHistoryOverlay.remember(text, icon);
                         pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
                         draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
                         cir.setReturnValue(true);
@@ -141,6 +152,7 @@ public class EmiScreenManagerMixin {
                         if (child instanceof EditBox eb && eb.isMouseOver((int) mouseX, (int) mouseY)) {
                             eb.setValue(text);
                             eb.setCursorPosition(text.length());
+                            SearchHistoryOverlay.remember(text, icon);
                             pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
                             draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
                             cir.setReturnValue(true);
@@ -152,6 +164,22 @@ public class EmiScreenManagerMixin {
         }
 
         if (EmiInteractionHandler.onMouseReleased(mouseX, mouseY, button)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$clickSearchHistory(double mouseX, double mouseY, int button,
+                                                   CallbackInfoReturnable<Boolean> cir) {
+        if (SearchHistoryOverlay.mouseClicked(mouseX, mouseY, button)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$scrollSearchHistory(double mouseX, double mouseY, double amount,
+                                                    CallbackInfoReturnable<Boolean> cir) {
+        if (SearchHistoryOverlay.mouseScrolled(mouseX, mouseY, amount)) {
             cir.setReturnValue(true);
         }
     }
@@ -205,6 +233,15 @@ public class EmiScreenManagerMixin {
             return id != null ? "@" + id.getNamespace() : null;
         }
         return first.getName().getString();
+    }
+
+    private static ItemStack emilink$getDragFillIcon(EmiIngredient stack) {
+        if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
+        return stack.getEmiStacks().stream()
+                .map(EmiStack::getItemStack)
+                .filter(itemStack -> !itemStack.isEmpty())
+                .findFirst()
+                .orElse(ItemStack.EMPTY);
     }
 
     private static boolean emilink$shouldSkipFavoriteDeleteKey() {
