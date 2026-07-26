@@ -6,13 +6,13 @@
   "refmap": "emilink.refmap.json",
   "plugin": "org.chatterjay.emilink.mixin.MixinConditionalPlugin",
   "mixins": [
-    "AEBaseMenuMixin",
-    "EncodingHelperMixin"
+    "AEBaseMenuMixin"
   ],
   "client": [
     "CraftConfirmMenuMixin",
     "CraftConfirmScreenMixin",
     "CraftingCPUScreenMixin",
+    "EncodingHelperMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
     "EmiSearchWidgetMixin",

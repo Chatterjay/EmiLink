@@ -2,7 +2,6 @@ package org.chatterjay.emilink.network.packet.s2c;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
-import org.chatterjay.emilink.client.handler.AENetworkCache;
 
 import java.util.function.Supplier;
 
@@ -16,7 +15,16 @@ public class ClearCachePacket {
     }
 
     public static void handle(ClearCachePacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(AENetworkCache::clear);
+        ctx.get().enqueueWork(ClearCachePacket::clearClientCache);
         ctx.get().setPacketHandled(true);
+    }
+
+    private static void clearClientCache() {
+        try {
+            Class.forName("org.chatterjay.emilink.client.handler.AENetworkCache")
+                    .getMethod("clear")
+                    .invoke(null);
+        } catch (Throwable ignored) {
+        }
     }
 }

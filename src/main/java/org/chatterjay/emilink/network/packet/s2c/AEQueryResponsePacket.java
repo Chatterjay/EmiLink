@@ -3,7 +3,6 @@ package org.chatterjay.emilink.network.packet.s2c;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
-import org.chatterjay.emilink.client.handler.AENetworkCache;
 
 import java.util.function.Supplier;
 
@@ -36,8 +35,16 @@ public class AEQueryResponsePacket {
     }
 
     public static void handle(AEQueryResponsePacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() ->
-            AENetworkCache.receiveResponse(msg.stack, msg.count, msg.craftable));
+        ctx.get().enqueueWork(() -> receiveClientResponse(msg.stack, msg.count, msg.craftable));
         ctx.get().setPacketHandled(true);
+    }
+
+    private static void receiveClientResponse(ItemStack stack, long count, boolean craftable) {
+        try {
+            Class.forName("org.chatterjay.emilink.client.handler.AENetworkCache")
+                    .getMethod("receiveResponse", ItemStack.class, long.class, boolean.class)
+                    .invoke(null, stack, count, craftable);
+        } catch (Throwable ignored) {
+        }
     }
 }
