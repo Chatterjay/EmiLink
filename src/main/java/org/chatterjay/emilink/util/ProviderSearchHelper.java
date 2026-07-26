@@ -1,9 +1,6 @@
 package org.chatterjay.emilink.util;
 
-import dev.emi.emi.api.recipe.EmiRecipe;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;
-import org.chatterjay.emilink.util.ModLogger;
 
 import java.lang.reflect.Method;
 
@@ -45,13 +42,13 @@ public final class ProviderSearchHelper {
         init();
         if (available && name != null) {
             try {
-                ModLogger.info("ProviderSearchHelper: setting EAEP RecipeTypeNameConfig to '{}'", name);
+                ModLogger.debug("ProviderSearchHelper: setting EAEP RecipeTypeNameConfig to '{}'", name);
                 setLastProcessingName.invoke(null, name);
             } catch (Throwable e) {
                 ModLogger.warn("ProviderSearchHelper: setLastProcessingName failed: {}", e.getMessage());
             }
         } else {
-            ModLogger.info("ProviderSearchHelper: setLastProcessingName skipped (available={}, name={})", available, name);
+            ModLogger.debug("ProviderSearchHelper: setLastProcessingName skipped (available={}, name={})", available, name);
         }
     }
 
@@ -83,17 +80,17 @@ public final class ProviderSearchHelper {
         init();
 
         if (recipe == null) {
-            ModLogger.info("ProviderSearchHelper: mapRecipeTypeToSearchKey called with null recipe");
+            ModLogger.debug("ProviderSearchHelper: mapRecipeTypeToSearchKey called with null recipe");
             return null;
         }
 
-        ModLogger.info("ProviderSearchHelper: mapping recipe type to search key, recipe={}", recipe.getId());
+        ModLogger.debug("ProviderSearchHelper: mapping recipe type to search key, recipe={}", recipe.getId());
 
         // Try EAEP's mapping first
         if (available) {
             try {
                 String result = (String) mapRecipeTypeToSearchKey.invoke(null, recipe);
-                ModLogger.info("ProviderSearchHelper: EAEP mapRecipeTypeToSearchKey returned '{}' for recipe {}",
+                ModLogger.debug("ProviderSearchHelper: EAEP mapRecipeTypeToSearchKey returned '{}' for recipe {}",
                         result, recipe.getId());
                 if (result != null) return result;
             } catch (Throwable e) {
@@ -103,29 +100,9 @@ public final class ProviderSearchHelper {
 
         // Fallback: derive search key from recipe class name
         String fallback = deriveSearchKey(recipe.getClass());
-        ModLogger.info("ProviderSearchHelper: fallback derived search key '{}' from recipe class {}",
+        ModLogger.debug("ProviderSearchHelper: fallback derived search key '{}' from recipe class {}",
                 fallback, recipe.getClass().getSimpleName());
         return fallback;
-    }
-
-    /**
-     * Set the last processing name (search key) from a custom EMI recipe
-     * that has no corresponding Vanilla RecipeHolder.
-     */
-    public static void setFromEmiRecipe(EmiRecipe emiRecipe) {
-        if (emiRecipe == null) return;
-        init();
-        if (!available) return;
-
-        ResourceLocation categoryId = emiRecipe.getCategory().getId();
-        if (categoryId == null) return;
-
-        String searchKey = categoryId.getPath();
-        if (searchKey != null && !searchKey.isBlank()) {
-            setLastProcessingName(searchKey);
-            ModLogger.info("ProviderSearch: set search key '{}' from EMI recipe category '{}' (recipe {})",
-                    searchKey, categoryId, emiRecipe.getId());
-        }
     }
 
     /**
@@ -135,7 +112,7 @@ public final class ProviderSearchHelper {
      */
     public static void setLastFocusedRecipeCategory(String category) {
         lastRecipeCategory = category;
-        ModLogger.info("ProviderSearchHelper: saved last recipe category '{}'", category);
+        ModLogger.debug("ProviderSearchHelper: saved last recipe category '{}'", category);
     }
 
     /**
@@ -146,7 +123,7 @@ public final class ProviderSearchHelper {
         String val = lastRecipeCategory;
         lastRecipeCategory = null;
         if (val != null) {
-            ModLogger.info("ProviderSearchHelper: consumed last recipe category '{}'", val);
+            ModLogger.debug("ProviderSearchHelper: consumed last recipe category '{}'", val);
         }
         return val;
     }
