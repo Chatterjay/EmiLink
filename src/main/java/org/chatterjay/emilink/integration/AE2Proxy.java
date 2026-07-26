@@ -1,6 +1,5 @@
 package org.chatterjay.emilink.integration;
 
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.ModList;
 
@@ -23,7 +22,7 @@ public class AE2Proxy {
         return loaded;
     }
 
-    public static boolean isCraftConfirmScreen(Screen screen) {
+    public static boolean isCraftConfirmScreen(Object screen) {
         if (!isLoaded() || screen == null) return false;
         try {
             if (craftConfirmScreenClass == null)
@@ -34,7 +33,7 @@ public class AE2Proxy {
         }
     }
 
-    public static boolean isMEStorageScreen(Screen screen) {
+    public static boolean isMEStorageScreen(Object screen) {
         if (!isLoaded() || screen == null) return false;
         try {
             if (meStorageScreenClass == null)
@@ -45,7 +44,7 @@ public class AE2Proxy {
         }
     }
 
-    public static boolean isPatternEncodingTermScreen(Screen screen) {
+    public static boolean isPatternEncodingTermScreen(Object screen) {
         if (!isLoaded() || screen == null) return false;
         try {
             if (patternEncodingTermScreenClass == null)
@@ -66,7 +65,7 @@ public class AE2Proxy {
         }
     }
 
-    public static ItemStack getStackUnderMouse(Screen screen, int mouseX, int mouseY) {
+    public static ItemStack getStackUnderMouse(Object screen, int mouseX, int mouseY) {
         if (!isLoaded() || screen == null) return ItemStack.EMPTY;
         try {
             if (craftConfirmScreenClass == null)

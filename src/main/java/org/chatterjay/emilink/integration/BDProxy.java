@@ -55,11 +55,11 @@ public class BDProxy {
 
     // ---- Screen / Menu type checks ----
 
-    public static boolean isBDNetGUI(net.minecraft.client.gui.screens.Screen screen) {
+    public static boolean isBDNetGUI(Object screen) {
         return isLoaded() && netGUIClass.isInstance(screen);
     }
 
-    public static boolean isBDCraftGUI(net.minecraft.client.gui.screens.Screen screen) {
+    public static boolean isBDCraftGUI(Object screen) {
         return isLoaded() && craftGUIClass.isInstance(screen);
     }
 
