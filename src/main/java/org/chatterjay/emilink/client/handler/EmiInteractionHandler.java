@@ -10,6 +10,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
@@ -22,6 +24,7 @@ import org.chatterjay.emilink.integration.CuriosProxy;
 import org.chatterjay.emilink.integration.EAEPProxy;
 import org.chatterjay.emilink.network.NetworkHandler;
 import org.chatterjay.emilink.network.packet.c2s.AEDepositPacket;
+import org.chatterjay.emilink.network.packet.c2s.TransferFromContainerPacket;
 import org.chatterjay.emilink.util.ModLogger;
 
 public final class EmiInteractionHandler {
@@ -208,6 +211,7 @@ public final class EmiInteractionHandler {
 
         if (button == 0 && isExtractModifierHeld()) {
             if (handleShiftClickBDEmi(itemStack)) return true;
+            if (handleShiftClickContainer(itemStack)) return true;
             return handleShiftClickAE2(itemStack);
         }
 
@@ -282,6 +286,34 @@ public final class EmiInteractionHandler {
         }
         ModLogger.debug("EmiInteractionHandler: handleShiftClickBDEmi extracted {}", itemStack.getHoverName().getString());
         return true;
+    }
+
+    private static boolean handleShiftClickContainer(ItemStack itemStack) {
+        var mc = Minecraft.getInstance();
+        if (!(mc.screen instanceof AbstractContainerScreen<?> screen)) return false;
+        if (AE2Proxy.isMEStorageScreen(screen) || BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen)) {
+            return false;
+        }
+        if (!hasMatchingContainerSlot(screen, itemStack)) return false;
+
+        boolean allMatching = switch (Config.getExtractModifier()) {
+            case CONTROL -> Screen.hasShiftDown();
+            case SHIFT, ALT -> Screen.hasControlDown();
+            case OFF -> false;
+        };
+        boolean sent = NetworkHandler.sendToServer(new TransferFromContainerPacket(itemStack.copy(), allMatching));
+        ModLogger.debug("EmiInteractionHandler: container extract item={} all={} sent={}",
+                itemStack.getHoverName().getString(), allMatching, sent);
+        return sent;
+    }
+
+    private static boolean hasMatchingContainerSlot(AbstractContainerScreen<?> screen, ItemStack template) {
+        for (Slot slot : screen.getMenu().slots) {
+            if (slot == null || !slot.hasItem()) continue;
+            if (slot.container instanceof Inventory) continue;
+            if (ItemStack.isSameItemSameTags(slot.getItem(), template)) return true;
+        }
+        return false;
     }
 
     private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {

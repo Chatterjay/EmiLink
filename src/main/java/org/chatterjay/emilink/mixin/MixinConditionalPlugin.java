@@ -20,7 +20,8 @@ public class MixinConditionalPlugin implements IMixinConfigPlugin {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (targetClassName.startsWith("appeng.")
                 || targetClassName.startsWith("net.blay09.mods.inventoryessentials.")
-                || targetClassName.startsWith("com.hollingsworth.arsnouveau.")) {
+                || targetClassName.startsWith("com.hollingsworth.arsnouveau.")
+                || targetClassName.startsWith("com.wintercogs.beyonddimensions.")) {
             String resource = targetClassName.replace('.', '/') + ".class";
             return getClass().getClassLoader().getResource(resource) != null;
         }

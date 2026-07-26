@@ -21,6 +21,7 @@ import org.chatterjay.emilink.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket;
 import org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket;
 import org.chatterjay.emilink.network.packet.c2s.TransferMatchingPacket;
+import org.chatterjay.emilink.network.packet.c2s.TransferFromContainerPacket;
 import org.chatterjay.emilink.network.packet.s2c.*;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -60,6 +61,8 @@ public class NetworkHandler {
                 AELockedSlotsPacket::encode, AELockedSlotsPacket::decode, AELockedSlotsPacket::handle);
         CHANNEL.registerMessage(packetId++, AEDepositPacket.class,
                 AEDepositPacket::encode, AEDepositPacket::decode, AEDepositPacket::handle);
+        CHANNEL.registerMessage(packetId++, TransferFromContainerPacket.class,
+                TransferFromContainerPacket::encode, TransferFromContainerPacket::decode, TransferFromContainerPacket::handle);
     }
 
     public static boolean sendToPlayer(ServerPlayer player, Object packet) {

@@ -6,15 +6,19 @@
   "refmap": "emilink.refmap.json",
   "plugin": "org.chatterjay.emilink.mixin.MixinConditionalPlugin",
   "mixins": [
-    "AEBaseMenuMixin"
+    "AEBaseMenuMixin",
+    "FillCraftingGridFromRecipePacketMixin"
   ],
   "client": [
     "CraftConfirmMenuMixin",
     "CraftConfirmScreenMixin",
     "CraftingCPUScreenMixin",
+    "BDNetRecipeHandlerMixin",
     "EncodingHelperMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
+    "EmiPlayerInventoryMixin",
+    "EmiRecipeFillerMixin",
     "EmiSearchWidgetMixin",
     "RecipeScreenMixin"
   ],
