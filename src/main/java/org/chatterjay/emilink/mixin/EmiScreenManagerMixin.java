@@ -2,6 +2,9 @@ package org.chatterjay.emilink.mixin;
 
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
+import dev.emi.emi.api.stack.EmiStackInteraction;
+import dev.emi.emi.config.SidebarType;
+import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
@@ -113,6 +116,21 @@ public class EmiScreenManagerMixin {
     }
 
     @Inject(method = "getHoveredStack(IIZZ)Ldev/emi/emi/api/stack/EmiStackInteraction;",
+            at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean checkSidebar,
+                                                             boolean includeBatches,
+                                                             CallbackInfoReturnable<EmiStackInteraction> cir) {
+        if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
+            cir.setReturnValue(EmiStackInteraction.EMPTY);
+            return;
+        }
+        var hovered = emilink$getFavoriteSidebarStack(mouseX, mouseY);
+        if (hovered != null) {
+            cir.setReturnValue(hovered);
+        }
+    }
+
+    @Inject(method = "getHoveredStack(IIZZ)Ldev/emi/emi/api/stack/EmiStackInteraction;",
             at = @At("RETURN"), cancellable = true, require = 0)
     private static void emilink$onGetHoveredStack(int mouseX, int mouseY, boolean checkSidebar, boolean includeBatches, CallbackInfoReturnable<dev.emi.emi.api.stack.EmiStackInteraction> cir) {
         if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
@@ -204,5 +222,32 @@ public class EmiScreenManagerMixin {
                 .filter(itemStack -> !itemStack.isEmpty())
                 .findFirst()
                 .orElse(ItemStack.EMPTY);
+    }
+
+    private static EmiStackInteraction emilink$getFavoriteSidebarStack(int mouseX, int mouseY) {
+        var panel = EmiScreenManager.getHoveredPanel(mouseX, mouseY);
+        if (panel == null || panel.getType() != SidebarType.FAVORITES || !panel.isVisible()) return null;
+        var space = panel.getHoveredSpace(mouseX, mouseY);
+        if (space == null || space.getType() != SidebarType.FAVORITES || space.pageSize <= 0) return null;
+        if (!space.contains(mouseX, mouseY) || mouseX < space.tx || mouseY < space.ty) return null;
+
+        int local = space.getRawOffset((mouseX - space.tx) / 18, (mouseY - space.ty) / 18);
+        if (local < 0) return null;
+        int index = local;
+        if (space == panel.space) {
+            index += space.pageSize * panel.page;
+        }
+        var stacks = space.getStacks();
+        if (index < 0 || index >= stacks.size()) {
+            return EmiStackInteraction.EMPTY;
+        }
+        EmiIngredient hovered = stacks.get(index);
+        if (hovered == null || hovered.isEmpty()) {
+            return EmiStackInteraction.EMPTY;
+        }
+        if (hovered instanceof EmiFavorite favorite) {
+            return new EmiScreenManager.SidebarEmiStackInteraction(hovered, space, favorite.getRecipe(), true);
+        }
+        return new EmiScreenManager.SidebarEmiStackInteraction(hovered, space);
     }
 }
