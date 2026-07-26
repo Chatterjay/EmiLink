@@ -1,7 +1,6 @@
 package org.chatterjay.emilink.network.packet.c2s;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -57,7 +56,6 @@ public class AEDepositPacket {
                 inventory = resolveInventoryFromWirelessTerminal(player);
             }
             if (inventory == null) {
-                player.sendSystemMessage(Component.translatable("message.emilink.deposit.no_ae_access"));
                 ModLogger.debug("AEDeposit: no grid available for player {}", player.getName().getString());
                 return;
             }
@@ -73,26 +71,34 @@ public class AEDepositPacket {
                 if (aeKey == null) return;
 
                 long inserted = (long) insertMethod.invoke(inventory, aeKey, (long) stack.getCount(), modulate, actionSource);
-                if (inserted <= 0) {
-                    player.sendSystemMessage(Component.translatable("message.emilink.deposit.failed", stack.getHoverName()));
-                    return;
-                }
+                if (inserted <= 0) return;
 
                 if (slotIndex == -1) {
-                    player.containerMenu.setCarried(ItemStack.EMPTY);
+                    ItemStack carried = player.containerMenu.getCarried();
+                    if (!carried.isEmpty() && itemsMatch(carried, stack)) {
+                        if (inserted >= carried.getCount()) {
+                            player.containerMenu.setCarried(ItemStack.EMPTY);
+                        } else {
+                            carried.shrink((int) inserted);
+                        }
+                    }
                 } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
-                    player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
+                    ItemStack invStack = player.getInventory().getItem(slotIndex);
+                    if (!invStack.isEmpty() && itemsMatch(invStack, stack)) {
+                        if (inserted >= invStack.getCount()) {
+                            player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
+                        } else {
+                            invStack.shrink((int) inserted);
+                        }
+                    }
                 }
 
-                player.sendSystemMessage(Component.translatable("message.emilink.deposit.success",
-                        stack.getHoverName(), inserted));
                 ModLogger.debug("AEDeposit: deposited {} x{}", stack.getHoverName().getString(), inserted);
             }
 
             player.containerMenu.broadcastChanges();
         } catch (Exception e) {
             ModLogger.warn("AEDeposit error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
-            player.sendSystemMessage(Component.translatable("message.emilink.deposit.error"));
         }
     }
 
@@ -138,17 +144,14 @@ public class AEDepositPacket {
         }
 
         if (totalInserted > 0) {
-            player.sendSystemMessage(Component.translatable("message.emilink.deposit.batch_success",
-                    stack.getHoverName(), totalInserted));
             ModLogger.debug("AEDeposit: batch deposited {} x{}", stack.getHoverName().getString(), totalInserted);
         } else {
-            player.sendSystemMessage(Component.translatable("message.emilink.deposit.batch_none",
-                    stack.getHoverName()));
+            ModLogger.debug("AEDeposit: batch none for {}", stack.getHoverName().getString());
         }
     }
 
     private static boolean itemsMatch(ItemStack a, ItemStack b) {
-        return a.getItem() == b.getItem();
+        return ItemStack.isSameItemSameTags(a, b);
     }
 
     private static Object resolveInventoryFromMenu(Player player) {

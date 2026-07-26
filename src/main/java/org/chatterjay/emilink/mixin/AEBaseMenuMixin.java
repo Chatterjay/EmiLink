@@ -4,6 +4,7 @@ import appeng.helpers.InventoryAction;
 import appeng.menu.AEBaseMenu;
 import net.minecraft.server.level.ServerPlayer;
 import org.chatterjay.emilink.server.IPNLockHandler;
+import org.chatterjay.emilink.util.EmiCraftHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,7 +15,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class AEBaseMenuMixin {
 
     @Unique
+    private static final long SINGLE_CRAFT_SIGNAL = Long.MIN_VALUE;
+
+    @Unique
     private final IPNLockHandler emilink$lockHandler = new IPNLockHandler();
+
+    @Inject(method = "doAction", at = @At(value = "INVOKE", target = "Lappeng/menu/slot/CraftingTermSlot;doClick(Lappeng/helpers/InventoryAction;Lnet/minecraft/world/entity/player/Player;)V"), remap = false)
+    private void emilink$signalSingleCraft(ServerPlayer player, InventoryAction action, int slot, long id, CallbackInfo ci) {
+        if (id == SINGLE_CRAFT_SIGNAL && action == InventoryAction.CRAFT_SHIFT) {
+            EmiCraftHelper.markSingleCraft();
+        }
+    }
 
     @Inject(method = "doAction", at = @At("HEAD"), remap = false)
     private void emilink$beforeDoAction(ServerPlayer player, InventoryAction action, int slot, long id, CallbackInfo ci) {
@@ -28,5 +39,6 @@ public class AEBaseMenuMixin {
         if (emilink$lockHandler.isActive()) {
             emilink$lockHandler.afterMoveRegion(player);
         }
+        EmiCraftHelper.clear();
     }
 }

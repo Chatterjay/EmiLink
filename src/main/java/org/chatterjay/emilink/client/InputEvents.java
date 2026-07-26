@@ -12,8 +12,10 @@ import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.client.handler.AENetworkCache;
+import org.chatterjay.emilink.client.handler.BDShortcutHandler;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -127,6 +129,12 @@ public final class InputEvents {
         boolean quickMatch = ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode);
         ModLogger.debug("InputEvents: FILL_SEARCH_KEY.match={} QUICK_FILL_SLOT_KEY.match={}", fillMatch, quickMatch);
 
+        if (tryHandleDiscardMatchingKey(keyCode, scanCode)) {
+            ModLogger.debug("InputEvents: discard matching handled, canceling event");
+            event.setCanceled(true);
+            return;
+        }
+
         if (fillMatch) {
             onFillSearchKey(event);
             return;
@@ -226,6 +234,20 @@ public final class InputEvents {
         }
         ModLogger.debug("QuickFillSlot: no empty FakeSlot found");
         return false;
+    }
+
+    public static boolean tryHandleDiscardMatchingKey(int keyCode, int scanCode) {
+        if (!Config.ENABLE_DISCARD_MATCHING_KEY.get()) return false;
+        if (!matchesDiscardMatchingKeyCombo(keyCode, scanCode)) return false;
+        return BDShortcutHandler.tryBatchDropMatchingFromCurrentScreen();
+    }
+
+    private static boolean matchesDiscardMatchingKeyCombo(int keyCode, int scanCode) {
+        var mc = Minecraft.getInstance();
+        return mc.options.keyDrop.matches(keyCode, scanCode)
+                && Screen.hasControlDown()
+                && Screen.hasShiftDown()
+                && !Screen.hasAltDown();
     }
 
     @SubscribeEvent

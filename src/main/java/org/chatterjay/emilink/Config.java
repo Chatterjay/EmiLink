@@ -43,6 +43,7 @@ public class Config {
     public static final ForgeConfigSpec.IntValue NETWORK_BADGE_STYLE;
     public static final ForgeConfigSpec.ConfigValue<String> EXTRACT_MODIFIER;
     public static final ForgeConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
     public static final ForgeConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ForgeConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
     public static final ForgeConfigSpec.BooleanValue ENABLE_DRAG_FILL;
@@ -56,6 +57,7 @@ public class Config {
 
         DEBUG_MODE = BUILDER
                 .comment("Enable debug logging and debug chat messages")
+                .translation("emilink.config.general.debugMode")
                 .define("debugMode", false);
 
         BUILDER.pop();
@@ -63,18 +65,22 @@ public class Config {
 
         CACHE_TTL_MS = BUILDER
                 .comment("AE network cache TTL in milliseconds (100-60000)")
+                .translation("emilink.config.cache.cacheTTLMs")
                 .defineInRange("cacheTTLMs", 5_000L, 100L, 60_000L);
 
         NEGATIVE_CACHE_TTL_MS = BUILDER
                 .comment("Negative cache (item not found) TTL in milliseconds (100-120000)")
+                .translation("emilink.config.cache.negativeCacheTTLMs")
                 .defineInRange("negativeCacheTTLMs", 10_000L, 100L, 120_000L);
 
         DEBOUNCE_MS = BUILDER
                 .comment("Hover debounce time in milliseconds (50-5000)")
+                .translation("emilink.config.cache.debounceMs")
                 .defineInRange("debounceMs", 250L, 50L, 5_000L);
 
         BATCH_FLUSH_MS = BUILDER
                 .comment("Batch query flush interval in milliseconds (200-10000)")
+                .translation("emilink.config.cache.batchFlushMs")
                 .defineInRange("batchFlushMs", 5_000L, 200L, 10_000L);
 
         BUILDER.pop();
@@ -83,6 +89,7 @@ public class Config {
         BOOKMARK_PRIORITY = BUILDER
                 .comment("When encoding processing patterns via EMI recipe transfer, " +
                          "prioritize items from the EMI favorites bar")
+                .translation("emilink.config.emi_ui.bookmarkPriority")
                 .define("bookmarkPriority", true);
 
         BUILDER.pop();
@@ -90,42 +97,57 @@ public class Config {
 
         ENABLE_WRAP_BOOK = BUILDER
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
+                .translation("emilink.config.emi_ui.enableWrapBook")
                 .define("enableWrapBook", true);
 
         WB_FILL_INPUT_GRID = BUILDER
                 .comment("When wrap book is enabled, also place the original output item into an empty input slot")
+                .translation("emilink.config.emi_ui.wbFillInputGrid")
                 .define("wbFillInputGrid", false);
 
         ENABLE_NETWORK_BADGES = BUILDER
                 .comment("Show AE network status corner badges on EMI item icons")
+                .translation("emilink.config.ae_network.enableNetworkBadges")
                 .define("enableNetworkBadges", false);
 
         NETWORK_BADGE_STYLE = BUILDER
                 .comment("Badge rendering style: 1 = filled square, 2 = hollow border")
+                .translation("emilink.config.ae_network.networkBadgeStyle")
                 .defineInRange("networkBadgeStyle", 1, 1, 2);
 
         EXTRACT_MODIFIER = BUILDER
                 .comment("Modifier for Click-to-extract. SHIFT, CONTROL, ALT, or OFF")
+                .translation("emilink.config.ae_network.extractModifier")
                 .define("extractModifier", "SHIFT");
 
         ENABLE_BULK_TRANSFER = BUILDER
                 .comment("Enable Space+Click bulk transfer for regular containers")
+                .translation("emilink.config.inventory.enableBulkTransfer")
                 .define("enableBulkTransfer", true);
+
+        ENABLE_DISCARD_MATCHING_KEY = BUILDER
+                .comment("Enable Ctrl+Shift+Drop to discard all stacks matching the hovered slot item")
+                .translation("emilink.config.inventory.enableDiscardMatchingKey")
+                .define("enableDiscardMatchingKey", true);
 
         ENABLE_AE_DEPOSIT = BUILDER
                 .comment("Click EMI sidebar with carried item to deposit into AE")
+                .translation("emilink.config.ae_network.enableAeDeposit")
                 .define("enableAeDeposit", true);
 
         DEPOSIT_BATCH_MODIFIER = BUILDER
                 .comment("Modifier for batch deposit (SHIFT, CONTROL, ALT, or OFF)")
+                .translation("emilink.config.ae_network.depositBatchModifier")
                 .define("depositBatchModifier", "SHIFT");
 
         ENABLE_DRAG_FILL = BUILDER
                 .comment("Drag an EMI item onto a text field to fill it with the item name")
+                .translation("emilink.config.emi_ui.enableDragFill")
                 .define("enableDragFill", true);
 
         SEARCH_HISTORY_POSITION = BUILDER
                 .comment("EMI search history overlay position. OFF disables it; AUTO keeps the adaptive default; ABOVE, LEFT, and RIGHT force a side of the search box.")
+                .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
         BUILDER.pop();
@@ -133,6 +155,7 @@ public class Config {
 
         ENABLE_DEBUG_PACKET_LIMIT = BUILDER
                 .comment("Limit debug-related packets to 1 per tick")
+                .translation("emilink.config.debug.enableDebugPacketLimit")
                 .define("enableDebugPacketLimit", true);
 
         BUILDER.pop();

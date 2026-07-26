@@ -17,6 +17,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.integration.BDProxy;
@@ -107,7 +108,7 @@ public class BDShortcutHandler {
         }
 
         // ---- Regular container Space+click: bulk transfer (non-BD) ----
-        if (isSpace) {
+        if (isSpace && Config.ENABLE_BULK_TRANSFER.get()) {
             boolean isBDScreen = BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen);
             if (!isBDScreen) {
                 bulkTransferAll(containerScreen, slot);
@@ -265,9 +266,26 @@ public class BDShortcutHandler {
         return IPNProxy.getLockedSlotsInRange(start, end);
     }
 
-    private static void batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried) {
+    public static boolean tryBatchDropMatchingFromCurrentScreen() {
         var mc = Minecraft.getInstance();
-        if (mc.gameMode == null || mc.player == null) return;
+        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
+        if (mc.screen.getFocused() instanceof EditBox) return false;
+
+        Slot slot = containerScreen.getSlotUnderMouse();
+        if (slot == null || !slot.hasItem()) return false;
+
+        Boolean previousPickupSource = pickupFromContainer;
+        pickupFromContainer = !(slot.container instanceof Inventory);
+        try {
+            return batchDropByType(containerScreen, slot.getItem());
+        } finally {
+            pickupFromContainer = previousPickupSource;
+        }
+    }
+
+    private static boolean batchDropByType(AbstractContainerScreen<?> screen, ItemStack carried) {
+        var mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return false;
         var menu = screen.getMenu();
         var locked = IPNProxy.getLockedSlots();
         int containerId = menu.containerId;
@@ -287,12 +305,15 @@ public class BDShortcutHandler {
             }
             slots.add(i);
         }
-        if (slots.isEmpty()) return;
+        if (slots.isEmpty()) return false;
 
         click(menu, containerId, -999, 0, ClickType.PICKUP);
         for (int slotIndex : slots) {
             click(menu, containerId, slotIndex, 1, ClickType.THROW);
         }
+        ModLogger.debug("BDShortcutHandler: dropped {} matching stacks for {}",
+                slots.size(), carried.getHoverName().getString());
+        return true;
     }
 
     private static void click(AbstractContainerMenu menu, int containerId, int slotIndex, int button, ClickType clickType) {

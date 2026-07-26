@@ -5,15 +5,33 @@
 
   "emilink.tooltip.wrap_as_book.on": "\u00a7eWrap as Book: ON",
   "emilink.tooltip.wrap_as_book.off": "\u00a77Wrap as Book: OFF",
+  "emilink.tooltip.deposit": "Deposit into network",
+  "emilink.tooltip.deposit_all": "Deposit all matching",
   "emilink.suffix.pattern": " Pattern",
 
   "ae_tooltip.count": "AE: %s",
   "ae_tooltip.craftable": "Craftable",
 
-  "message.emilink.deposit.no_ae_access": "\u00a7cNo AE network access found",
-  "message.emilink.deposit.failed": "\u00a7cFailed to deposit %s into AE",
-  "message.emilink.deposit.success": "\u00a7aDeposited %s x%d into AE",
-  "message.emilink.deposit.batch_success": "\u00a7aDeposited all %s (x%d) into AE",
-  "message.emilink.deposit.batch_none": "\u00a77No %s found to deposit",
-  "message.emilink.deposit.error": "\u00a7cError depositing into AE"
+  "emilink.configuration.title": "EmiLink Config",
+  "emilink.config.value.on": "ON",
+  "emilink.config.value.off": "OFF",
+
+  "emilink.config.general.debugMode": "Debug Mode",
+  "emilink.config.cache.cacheTTLMs": "Cache Time",
+  "emilink.config.cache.negativeCacheTTLMs": "Empty Result Cache Time",
+  "emilink.config.cache.debounceMs": "Hover Debounce",
+  "emilink.config.cache.batchFlushMs": "Batch Query Interval",
+  "emilink.config.emi_ui.enableWrapBook": "Wrap as Book",
+  "emilink.config.emi_ui.wbFillInputGrid": "Fill Input Grid",
+  "emilink.config.emi_ui.enableDragFill": "Drag Fill Search",
+  "emilink.config.emi_ui.bookmarkPriority": "Bookmark Priority",
+  "emilink.config.emi_ui.searchHistoryPosition": "Search History Position",
+  "emilink.config.ae_network.enableNetworkBadges": "Network Badges",
+  "emilink.config.ae_network.networkBadgeStyle": "Badge Style",
+  "emilink.config.ae_network.extractModifier": "Extract Modifier",
+  "emilink.config.ae_network.enableAeDeposit": "Deposit from EMI Sidebar",
+  "emilink.config.ae_network.depositBatchModifier": "Batch Deposit Modifier",
+  "emilink.config.inventory.enableBulkTransfer": "Space+Click Bulk Transfer",
+  "emilink.config.inventory.enableDiscardMatchingKey": "Ctrl+Shift+Drop Matching Items",
+  "emilink.config.debug.enableDebugPacketLimit": "Debug Packet Limit"
 }

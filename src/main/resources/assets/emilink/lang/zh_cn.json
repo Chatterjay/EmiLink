@@ -5,15 +5,33 @@
 
   "emilink.tooltip.wrap_as_book.on": "\u00a7e成书包裹：开",
   "emilink.tooltip.wrap_as_book.off": "\u00a77成书包裹：关",
+  "emilink.tooltip.deposit": "存入网络",
+  "emilink.tooltip.deposit_all": "存入所有匹配",
   "emilink.suffix.pattern": " 样板",
 
   "ae_tooltip.count": "AE：%s",
   "ae_tooltip.craftable": "可合成",
 
-  "message.emilink.deposit.no_ae_access": "\u00a7c未找到 AE 网络连接",
-  "message.emilink.deposit.failed": "\u00a7c存入 %s 到 AE 失败",
-  "message.emilink.deposit.success": "\u00a7a已将 %s x%d 存入 AE",
-  "message.emilink.deposit.batch_success": "\u00a7a已批量存入 %s (x%d) 到 AE",
-  "message.emilink.deposit.batch_none": "\u00a77未找到 %s 可供存入",
-  "message.emilink.deposit.error": "\u00a7c存入 AE 时出错"
+  "emilink.configuration.title": "EmiLink 配置",
+  "emilink.config.value.on": "开",
+  "emilink.config.value.off": "关",
+
+  "emilink.config.general.debugMode": "调试模式",
+  "emilink.config.cache.cacheTTLMs": "缓存时间",
+  "emilink.config.cache.negativeCacheTTLMs": "空结果缓存时间",
+  "emilink.config.cache.debounceMs": "悬停防抖",
+  "emilink.config.cache.batchFlushMs": "批量查询间隔",
+  "emilink.config.emi_ui.enableWrapBook": "成书包裹",
+  "emilink.config.emi_ui.wbFillInputGrid": "填充输入栏",
+  "emilink.config.emi_ui.enableDragFill": "拖拽填入搜索栏",
+  "emilink.config.emi_ui.bookmarkPriority": "书签优先",
+  "emilink.config.emi_ui.searchHistoryPosition": "搜索历史位置",
+  "emilink.config.ae_network.enableNetworkBadges": "网络角标",
+  "emilink.config.ae_network.networkBadgeStyle": "角标样式",
+  "emilink.config.ae_network.extractModifier": "提取修饰键",
+  "emilink.config.ae_network.enableAeDeposit": "从 EMI 侧栏存入",
+  "emilink.config.ae_network.depositBatchModifier": "批量存入修饰键",
+  "emilink.config.inventory.enableBulkTransfer": "Space+Click 批量转移",
+  "emilink.config.inventory.enableDiscardMatchingKey": "Ctrl+Shift+丢弃同类物品",
+  "emilink.config.debug.enableDebugPacketLimit": "调试包限流"
 }

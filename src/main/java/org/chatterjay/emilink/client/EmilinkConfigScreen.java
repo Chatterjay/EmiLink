@@ -20,7 +20,7 @@ public final class EmilinkConfigScreen extends Screen {
     private int scrollOffset = 0;
 
     private EmilinkConfigScreen(Screen parent) {
-        super(Component.literal("EmiLink Config"));
+        super(Component.translatable("emilink.configuration.title"));
         this.parent = parent;
     }
 
@@ -41,40 +41,41 @@ public final class EmilinkConfigScreen extends Screen {
         int spacing = 24;
 
         int idx = 0;
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "Debug Mode", Config.DEBUG_MODE);
-        idx = addLongField(leftCol, rightCol, startY, spacing, idx, "Cache TTL (ms)", Config.CACHE_TTL_MS);
-        idx = addLongField(leftCol, rightCol, startY, spacing, idx, "Batch Flush (ms)", Config.BATCH_FLUSH_MS);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "Wrap Book", Config.ENABLE_WRAP_BOOK);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "WB Fill Input Grid", Config.WB_FILL_INPUT_GRID);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "AE Deposit", Config.ENABLE_AE_DEPOSIT);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "Network Badges", Config.ENABLE_NETWORK_BADGES);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "Bulk Transfer", Config.ENABLE_BULK_TRANSFER);
-        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "Drag Fill", Config.ENABLE_DRAG_FILL);
-        idx = addSearchHistoryPositionCycle(leftCol, rightCol, startY, spacing, idx, "Search History",
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.general.debugMode", Config.DEBUG_MODE);
+        idx = addLongField(leftCol, rightCol, startY, spacing, idx, "emilink.config.cache.cacheTTLMs", Config.CACHE_TTL_MS);
+        idx = addLongField(leftCol, rightCol, startY, spacing, idx, "emilink.config.cache.batchFlushMs", Config.BATCH_FLUSH_MS);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.enableWrapBook", Config.ENABLE_WRAP_BOOK);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.wbFillInputGrid", Config.WB_FILL_INPUT_GRID);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.enableAeDeposit", Config.ENABLE_AE_DEPOSIT);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.enableNetworkBadges", Config.ENABLE_NETWORK_BADGES);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.inventory.enableBulkTransfer", Config.ENABLE_BULK_TRANSFER);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.inventory.enableDiscardMatchingKey", Config.ENABLE_DISCARD_MATCHING_KEY);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.enableDragFill", Config.ENABLE_DRAG_FILL);
+        idx = addSearchHistoryPositionCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.searchHistoryPosition",
                 Config.SEARCH_HISTORY_POSITION);
-        idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "Extract Modifier",
+        idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.extractModifier",
                 Config.EXTRACT_MODIFIER);
-        idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "Deposit Batch Modifier",
+        idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.depositBatchModifier",
                 Config.DEPOSIT_BATCH_MODIFIER);
     }
 
     private int addToggle(int leftCol, int rightCol, int startY, int spacing, int idx,
-                          String label, ForgeConfigSpec.BooleanValue cfg) {
+                          String translationKey, ForgeConfigSpec.BooleanValue cfg) {
         int y = startY + idx * spacing;
         var btn = Button.builder(
-                Component.literal(cfg.get() ? "ON" : "OFF"),
+                onOff(cfg.get()),
                 b -> {
                     cfg.set(!cfg.get());
-                    b.setMessage(Component.literal(cfg.get() ? "ON" : "OFF"));
+                    b.setMessage(onOff(cfg.get()));
                 }
         ).bounds(rightCol, y - scrollOffset, 70, 20).build();
-        rows.add(new ConfigRow(Component.literal(label), btn, y));
+        rows.add(new ConfigRow(Component.translatable(translationKey), btn, y));
         addRenderableWidget(btn);
         return idx + 1;
     }
 
     private int addEnumCycle(int leftCol, int rightCol, int startY, int spacing, int idx,
-                             String label, ForgeConfigSpec.ConfigValue<String> cfg) {
+                             String translationKey, ForgeConfigSpec.ConfigValue<String> cfg) {
         int y = startY + idx * spacing;
         var btn = Button.builder(
                 Component.literal(cfg.get()),
@@ -91,13 +92,13 @@ public final class EmilinkConfigScreen extends Screen {
                     b.setMessage(Component.literal(next));
                 }
         ).bounds(rightCol, y - scrollOffset, 70, 20).build();
-        rows.add(new ConfigRow(Component.literal(label), btn, y));
+        rows.add(new ConfigRow(Component.translatable(translationKey), btn, y));
         addRenderableWidget(btn);
         return idx + 1;
     }
 
     private int addSearchHistoryPositionCycle(int leftCol, int rightCol, int startY, int spacing, int idx,
-                                               String label, ForgeConfigSpec.EnumValue<Config.SearchHistoryPosition> cfg) {
+                                               String translationKey, ForgeConfigSpec.EnumValue<Config.SearchHistoryPosition> cfg) {
         int y = startY + idx * spacing;
         var btn = Button.builder(
                 Component.literal(cfg.get().name()),
@@ -109,18 +110,18 @@ public final class EmilinkConfigScreen extends Screen {
                     b.setMessage(Component.literal(next.name()));
                 }
         ).bounds(rightCol, y - scrollOffset, 90, 20).build();
-        rows.add(new ConfigRow(Component.literal(label), btn, y));
+        rows.add(new ConfigRow(Component.translatable(translationKey), btn, y));
         addRenderableWidget(btn);
         return idx + 1;
     }
 
     private int addLongField(int leftCol, int rightCol, int startY, int spacing, int idx,
-                             String label, ForgeConfigSpec.LongValue cfg) {
+                             String translationKey, ForgeConfigSpec.LongValue cfg) {
         int y = startY + idx * spacing;
-        var editBox = new EditBox(this.font, rightCol, y - scrollOffset, 70, 20, Component.literal(label));
+        var editBox = new EditBox(this.font, rightCol, y - scrollOffset, 70, 20, Component.translatable(translationKey));
         editBox.setValue(String.valueOf(cfg.get()));
         editBox.setFilter(s -> s.matches("-?\\d*"));
-        rows.add(new ConfigRow(Component.literal(label), editBox, y));
+        rows.add(new ConfigRow(Component.translatable(translationKey), editBox, y));
         addRenderableWidget(editBox);
         saveActions.add(new SaveAction(editBox, cfg));
         return idx + 1;
@@ -187,6 +188,10 @@ public final class EmilinkConfigScreen extends Screen {
     }
 
     private record ConfigRow(Component label, AbstractWidget widget, int baseY) {}
+
+    private static Component onOff(boolean value) {
+        return Component.translatable(value ? "emilink.config.value.on" : "emilink.config.value.off");
+    }
 
     private static class SaveAction {
         private final EditBox editBox;

@@ -1,19 +1,32 @@
 package org.chatterjay.emilink.client.handler;
 
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.recipe.EmiRecipe;
+import dev.emi.emi.api.recipe.handler.EmiCraftContext;
+import dev.emi.emi.api.render.EmiTooltipComponents;
+import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
 import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
+import dev.emi.emi.registry.EmiRecipeFiller;
 import dev.emi.emi.screen.EmiScreenManager;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.NonNullList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Recipe;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.InputEvents;
@@ -28,6 +41,7 @@ import org.chatterjay.emilink.network.packet.c2s.TransferFromContainerPacket;
 import org.chatterjay.emilink.util.ModLogger;
 
 public final class EmiInteractionHandler {
+    private static final long SINGLE_CRAFT_SIGNAL = Long.MIN_VALUE;
 
     private EmiInteractionHandler() {}
 
@@ -160,6 +174,17 @@ public final class EmiInteractionHandler {
         ModLogger.debug("EmiInteractionHandler: onMouseReleased button={} at ({},{})", button, mouseX, mouseY);
         if (button != 2 && button != 0) return false;
 
+        var mc = Minecraft.getInstance();
+        boolean carryingItem = mc.screen instanceof AbstractContainerScreen<?> screen
+                && !screen.getMenu().getCarried().isEmpty();
+        if (!carryingItem && AE2Proxy.isLoaded() && button == 0 && Screen.hasControlDown() && tryCtrlLeftQuickCraft(mouseX, mouseY)) {
+            return true;
+        }
+
+        if (button == 0 && handleAeDepositFromEmiSpace(mc, mouseX, mouseY)) {
+            return true;
+        }
+
         EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
         ModLogger.debug("EmiInteractionHandler: hovered={} empty={}",
                 hovered == null ? "null" : "found",
@@ -172,38 +197,6 @@ public final class EmiInteractionHandler {
                 .findFirst()
                 .orElse(null);
         if (itemStack == null) return false;
-
-        // Deposit: cursor item → AE network (matching 1.21.1 behavior)
-        if (button == 0 && Config.ENABLE_AE_DEPOSIT.get()) {
-            var mc = Minecraft.getInstance();
-            if (mc.player != null && mc.screen instanceof AbstractContainerScreen<?> cs) {
-                var carried = cs.getMenu().getCarried();
-                if (!carried.isEmpty() && hasNetworkAccess(mc.player)) {
-                    boolean wouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
-                            || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
-                    if (!wouldDelete) {
-                        var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
-                        if (space != null) {
-                            boolean batch = isDepositBatchModifierHeld();
-                            if (batch) {
-                                NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
-                                for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
-                                    var s = mc.player.getInventory().getItem(i);
-                                    if (!s.isEmpty() && ItemStack.isSameItemSameTags(s, carried)) {
-                                        NetworkHandler.sendToServer(new AEDepositPacket(s.copy(), i));
-                                    }
-                                }
-                            } else {
-                                NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
-                            }
-                            cs.getMenu().setCarried(ItemStack.EMPTY);
-                            ModLogger.debug("EmiInteractionHandler: deposited {} from cursor", carried.getHoverName().getString());
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
 
         if (button == 2) {
             return handleMiddleClick(itemStack);
@@ -314,6 +307,198 @@ public final class EmiInteractionHandler {
             if (ItemStack.isSameItemSameTags(slot.getItem(), template)) return true;
         }
         return false;
+    }
+
+    private static boolean handleAeDepositFromEmiSpace(Minecraft mc, double mouseX, double mouseY) {
+        if (!Config.ENABLE_AE_DEPOSIT.get()) return false;
+        if (mc.player == null || !(mc.screen instanceof AbstractContainerScreen<?> screen)) return false;
+
+        ItemStack carried = screen.getMenu().getCarried();
+        if (carried.isEmpty() || !hasNetworkAccess(mc.player)) return false;
+
+        boolean wouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
+                || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
+        if (wouldDelete) return false;
+
+        var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
+        if (space == null) return false;
+
+        boolean batch = isDepositBatchModifierHeld();
+        boolean sent = false;
+        if (batch) {
+            sent |= NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
+            for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
+                ItemStack stack = mc.player.getInventory().getItem(i);
+                if (!stack.isEmpty() && ItemStack.isSameItemSameTags(stack, carried)) {
+                    sent |= NetworkHandler.sendToServer(new AEDepositPacket(stack.copy(), i));
+                }
+            }
+        } else {
+            sent = NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
+        }
+
+        if (sent) {
+            screen.getMenu().setCarried(ItemStack.EMPTY);
+            ModLogger.debug("EmiInteractionHandler: deposited {} from cursor batch={}",
+                    carried.getHoverName().getString(), batch);
+        }
+        return sent;
+    }
+
+    public static List<ClientTooltipComponent> addAeTooltipInfo(
+            EmiIngredient hovered, int mouseX, int mouseY, List<ClientTooltipComponent> original) {
+        if (original == null || original.isEmpty()) return original;
+
+        List<ClientTooltipComponent> result = original;
+        var mc = Minecraft.getInstance();
+        var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
+        if (space != null
+                && Config.ENABLE_AE_DEPOSIT.get()
+                && AE2Proxy.isLoaded()
+                && mc.player != null
+                && mc.screen instanceof AbstractContainerScreen<?> screen) {
+            ItemStack carried = screen.getMenu().getCarried();
+            boolean wouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
+                    || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
+            if (!carried.isEmpty() && hasNetworkAccess(mc.player) && !wouldDelete) {
+                if (result == original) {
+                    result = new ArrayList<>(original);
+                }
+                String key = isDepositBatchModifierHeld()
+                        ? "emilink.tooltip.deposit_all"
+                        : "emilink.tooltip.deposit";
+                result.add(EmiTooltipComponents.of(
+                        Component.translatable(key).withStyle(ChatFormatting.GRAY)));
+            }
+        }
+
+        if (space == null || !AE2Proxy.isLoaded() || !AENetworkCache.hasAEAccess()) {
+            return result;
+        }
+
+        ItemStack stack = hovered.getEmiStacks().stream()
+                .map(EmiStack::getItemStack)
+                .filter(s -> !s.isEmpty())
+                .findFirst()
+                .orElse(ItemStack.EMPTY);
+        if (stack.isEmpty()) return result;
+
+        if (result == original) {
+            result = new ArrayList<>(original);
+        }
+        AENetworkCache.addToTooltip(stack, result);
+        return result;
+    }
+
+    private static boolean tryCtrlLeftQuickCraft(double mouseX, double mouseY) {
+        var handled = EmiApi.getHandledScreen();
+        if (handled == null && Minecraft.getInstance().screen instanceof AbstractContainerScreen<?> screen) {
+            handled = screen;
+        }
+        if (handled == null || !isAeCraftingTermMenu(handled.getMenu())) return false;
+
+        EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
+        if (hovered == null || hovered.isEmpty()) return false;
+
+        EmiRecipe recipe = getRecipeForHovered(hovered);
+        if (recipe == null) return false;
+
+        boolean craftMax = Screen.hasShiftDown();
+        int fillAmount = craftMax ? 64 : 1;
+        String actionName = craftMax ? "CRAFT_ALL" : "CRAFT_SHIFT";
+        long actionId = craftMax ? 0 : SINGLE_CRAFT_SIGNAL;
+
+        boolean filled = EmiRecipeFiller.performFill(
+                recipe,
+                handled,
+                EmiCraftContext.Type.CRAFTABLE,
+                EmiCraftContext.Destination.INVENTORY,
+                fillAmount);
+        ModLogger.debug("AE_EMI_CTRL_CRAFT direct-fill recipe={} result={} menu={} action={} amount={}",
+                recipe.getId(), filled, handled.getMenu().getClass().getName(), actionName, fillAmount);
+        if (filled) {
+            AEQuickCraftDelayHandler.schedule(handled.getMenu(), actionName, actionId, handled, recipe.getId());
+            return true;
+        }
+
+        boolean fallbackFilled = tryAeFillPacketFallback(recipe);
+        if (fallbackFilled) {
+            AEQuickCraftDelayHandler.schedule(handled.getMenu(), actionName, actionId, handled, recipe.getId());
+        }
+        return fallbackFilled;
+    }
+
+    private static EmiRecipe getRecipeForHovered(EmiStackInteraction hovered) {
+        EmiRecipe recipe = hovered.getRecipeContext();
+        if (recipe != null) return recipe;
+
+        var ingredient = hovered.getStack();
+        if (ingredient == null || ingredient.isEmpty()) return null;
+        var stacks = ingredient.getEmiStacks();
+        if (stacks.isEmpty()) return null;
+
+        var recipes = EmiApi.getRecipeManager().getRecipesByOutput(stacks.get(0));
+        return recipes == null || recipes.isEmpty() ? null : recipes.get(0);
+    }
+
+    private static boolean tryAeFillPacketFallback(EmiRecipe recipe) {
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) return false;
+
+        Recipe<?> backingRecipe = recipe.getBackingRecipe();
+        ResourceLocation recipeId = recipe.getId();
+        if (backingRecipe == null && recipeId != null) {
+            backingRecipe = mc.level.getRecipeManager().byKey(recipeId).orElse(null);
+        }
+        if (backingRecipe == null || !(backingRecipe instanceof CraftingRecipe)) {
+            ModLogger.debug("AE_EMI_CTRL_CRAFT fallback skip recipe={} holder={}",
+                    recipeId, backingRecipe == null ? "null" : backingRecipe.getClass().getName());
+            return false;
+        }
+        if (recipeId == null) return false;
+
+        NonNullList<ItemStack> templates = NonNullList.create();
+        for (var input : recipe.getInputs()) {
+            ItemStack stack = input == null || input.isEmpty()
+                    ? ItemStack.EMPTY
+                    : input.getEmiStacks().stream()
+                            .map(EmiStack::getItemStack)
+                            .filter(s -> !s.isEmpty())
+                            .findFirst()
+                            .orElse(ItemStack.EMPTY);
+            templates.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copyWithCount(1));
+        }
+
+        if (templates.isEmpty()) return false;
+        try {
+            Class<?> packetClass = Class.forName("appeng.core.sync.packets.FillCraftingGridFromRecipePacket");
+            Object packet = packetClass
+                    .getConstructor(ResourceLocation.class, NonNullList.class, boolean.class)
+                    .newInstance(recipeId, templates, true);
+            sendAe2PacketToServer(packet);
+            ModLogger.debug("AE_EMI_CTRL_CRAFT fallback-fill sent recipe={} templates={}",
+                    recipeId, templates.size());
+            return true;
+        } catch (Throwable t) {
+            ModLogger.warn("AE_EMI_CTRL_CRAFT fallback-fill failed: {}", t.toString());
+            return false;
+        }
+    }
+
+    private static void sendAe2PacketToServer(Object packet) throws ReflectiveOperationException {
+        Class<?> networkHandlerClass = Class.forName("appeng.core.sync.network.NetworkHandler");
+        Object handler = networkHandlerClass.getMethod("instance").invoke(null);
+        Class<?> basePacketClass = Class.forName("appeng.core.sync.BasePacket");
+        networkHandlerClass.getMethod("sendToServer", basePacketClass).invoke(handler, packet);
+    }
+
+    private static boolean isAeCraftingTermMenu(Object menu) {
+        if (menu == null || !AE2Proxy.isLoaded()) return false;
+        try {
+            return Class.forName("appeng.menu.me.items.CraftingTermMenu").isInstance(menu);
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
     private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {

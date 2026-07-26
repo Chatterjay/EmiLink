@@ -12,7 +12,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emilink.Config;
-import org.chatterjay.emilink.client.handler.AENetworkCache;
 import org.chatterjay.emilink.client.handler.EmiInteractionHandler;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.spongepowered.asm.mixin.Mixin;
@@ -186,15 +185,7 @@ public class EmiScreenManagerMixin {
     private static List<ClientTooltipComponent> emilink$addAeTooltipInfo(EmiIngredient hov) {
         var list = hov.getTooltip();
         if (list == null) return null;
-        // Inject AE network count/craftable info into tooltip for hovered items
-        var first = hov.getEmiStacks().stream().findFirst().orElse(null);
-        if (first != null) {
-            var itemStack = first.getItemStack();
-            if (!itemStack.isEmpty()) {
-                AENetworkCache.addToTooltip(itemStack, list);
-            }
-        }
-        return list;
+        return EmiInteractionHandler.addAeTooltipInfo(hov, lastMouseX, lastMouseY, list);
     }
 
     @Inject(method = "renderCurrentTooltip", at = @At("HEAD"), cancellable = true, require = 0)
