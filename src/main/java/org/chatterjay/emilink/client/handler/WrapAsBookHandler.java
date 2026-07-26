@@ -1,11 +1,5 @@
 package org.chatterjay.emilink.client.handler;
 
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.GenericStack;
-import appeng.core.sync.network.NetworkHandler;
-import appeng.core.sync.packets.InventoryActionPacket;
-import appeng.helpers.InventoryAction;
-import appeng.menu.me.items.PatternEncodingTermMenu;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -39,37 +33,38 @@ public final class WrapAsBookHandler {
         ModLogger.info("WrapAsBookHandler: cleared");
     }
 
-    public static void applyWrap(PatternEncodingTermMenu menu, List<GenericStack> outputs) {
+    public static void applyWrap(Object menu, List<?> outputs) {
         boolean requested = wrapRequested.get();
-        ModLogger.info("WrapAsBookHandler: applyWrap called, requested={}, outputs={}",
+        ModLogger.debug("WrapAsBookHandler: applyWrap called, requested={}, outputs={}",
                 requested, outputs == null ? 0 : outputs.size());
 
         if (!wrapRequested.getAndSet(false)) return;
         if (outputs == null || outputs.isEmpty()) return;
 
-        GenericStack output = outputs.get(0);
+        Object output = outputs.get(0);
         if (output == null) return;
-        if (!(output.what() instanceof AEItemKey itemKey)) {
-            ModLogger.info("WrapAsBookHandler: output.what() is not AEItemKey: {}",
-                    output.what() == null ? "null" : output.what().getClass().getName());
+        Object itemKey = getGenericStackWhat(output);
+        if (!isAEItemKey(itemKey)) {
+            ModLogger.debug("WrapAsBookHandler: output.what() is not AEItemKey: {}",
+                    itemKey == null ? "null" : itemKey.getClass().getName());
             return;
         }
 
-        ItemStack original = itemKey.toStack();
+        ItemStack original = toItemStack(itemKey);
+        if (original.isEmpty()) return;
         original.setCount(1);
         ItemStack book = createWrittenBook(original);
 
-        var outSlots = menu.getProcessingOutputSlots();
+        Object[] outSlots = getSlots(menu, "getProcessingOutputSlots");
         if (outSlots.length > 0) {
-            NetworkHandler.instance().sendToServer(new InventoryActionPacket(
-                    InventoryAction.SET_FILTER, outSlots[0].index, book));
+            sendSetFilter(getSlotIndex(outSlots[0]), book);
         }
 
         if (Config.WB_FILL_INPUT_GRID.get()) {
-            var inSlots = menu.getProcessingInputSlots();
+            Object[] inSlots = getSlots(menu, "getProcessingInputSlots");
             int target = -1;
             for (int i = 0; i < inSlots.length; i++) {
-                if (inSlots[i].getItem().isEmpty()) {
+                if (getSlotItem(inSlots[i]).isEmpty()) {
                     target = i;
                     break;
                 }
@@ -77,9 +72,91 @@ public final class WrapAsBookHandler {
             if (target < 0 && inSlots.length > 0) target = 0;
 
             if (target >= 0) {
-                NetworkHandler.instance().sendToServer(new InventoryActionPacket(
-                        InventoryAction.SET_FILTER, inSlots[target].index, original));
+                sendSetFilter(getSlotIndex(inSlots[target]), original);
             }
+        }
+    }
+
+    private static Object getGenericStackWhat(Object genericStack) {
+        try {
+            return genericStack.getClass().getMethod("what").invoke(genericStack);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static boolean isAEItemKey(Object what) {
+        try {
+            return what != null && Class.forName("appeng.api.stacks.AEItemKey").isInstance(what);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static ItemStack toItemStack(Object itemKey) {
+        try {
+            Object stack = itemKey.getClass().getMethod("toStack").invoke(itemKey);
+            return stack instanceof ItemStack itemStack ? itemStack : ItemStack.EMPTY;
+        } catch (Exception e) {
+            ModLogger.debug("WrapAsBookHandler: toStack failed: {}", e.getMessage());
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static Object[] getSlots(Object menu, String methodName) {
+        try {
+            Object slots = menu.getClass().getMethod(methodName).invoke(menu);
+            return slots instanceof Object[] array ? array : new Object[0];
+        } catch (Exception e) {
+            ModLogger.debug("WrapAsBookHandler: {} failed: {}", methodName, e.getMessage());
+            return new Object[0];
+        }
+    }
+
+    private static ItemStack getSlotItem(Object slot) {
+        try {
+            Object stack = slot.getClass().getMethod("getItem").invoke(slot);
+            return stack instanceof ItemStack itemStack ? itemStack : ItemStack.EMPTY;
+        } catch (Exception e) {
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static int getSlotIndex(Object slot) {
+        try {
+            return slot.getClass().getField("index").getInt(slot);
+        } catch (Exception e) {
+            try {
+                return (int) slot.getClass().getMethod("getSlotIndex").invoke(slot);
+            } catch (Exception ignored) {
+                return -1;
+            }
+        }
+    }
+
+    private static void sendSetFilter(int slotIndex, ItemStack stack) {
+        if (slotIndex < 0 || stack.isEmpty()) return;
+        try {
+            Class<?> inventoryActionClass = Class.forName("appeng.helpers.InventoryAction");
+            Object setFilter = null;
+            for (Object action : inventoryActionClass.getEnumConstants()) {
+                if ("SET_FILTER".equals(action.toString())) {
+                    setFilter = action;
+                    break;
+                }
+            }
+            if (setFilter == null) return;
+
+            Class<?> packetClass = Class.forName("appeng.core.sync.packets.InventoryActionPacket");
+            Object packet = packetClass.getConstructor(inventoryActionClass, int.class, ItemStack.class)
+                    .newInstance(setFilter, slotIndex, stack.copy());
+
+            Class<?> networkHandlerClass = Class.forName("appeng.core.sync.network.NetworkHandler");
+            Object handler = networkHandlerClass.getMethod("instance").invoke(null);
+            Class<?> basePacketClass = Class.forName("appeng.core.sync.BasePacket");
+            handler.getClass().getMethod("sendToServer", basePacketClass).invoke(handler, packet);
+        } catch (Exception e) {
+            ModLogger.debug("WrapAsBookHandler: sendSetFilter failed: {}", e.getMessage());
         }
     }
 
