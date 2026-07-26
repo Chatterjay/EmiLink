@@ -1,20 +1,19 @@
 {
   "key.categories.emilink": "EmiLink",
   "key.emilink.fill_search": "Fill Search",
-  "key.emilink.quick_pattern": "Quick Pattern (B)",
-  "key.emilink.quick_fill_slot": "Quick Fill Slot",
+  "key.emilink.quick_fill_slot": "Fill Ghost/Filter Slot",
 
-  "emilink.tooltip.wrap_as_book.on": "§eWrap as Book: ON",
-  "emilink.tooltip.wrap_as_book.off": "§7Wrap as Book: OFF",
+  "emilink.tooltip.wrap_as_book.on": "\u00a7eWrap as Book: ON",
+  "emilink.tooltip.wrap_as_book.off": "\u00a77Wrap as Book: OFF",
   "emilink.suffix.pattern": " Pattern",
 
   "ae_tooltip.count": "AE: %s",
   "ae_tooltip.craftable": "Craftable",
 
-  "message.emilink.deposit.no_ae_access": "§cNo AE network access found",
-  "message.emilink.deposit.failed": "§cFailed to deposit %s into AE",
-  "message.emilink.deposit.success": "§aDeposited %s x%d into AE",
-  "message.emilink.deposit.batch_success": "§aDeposited all %s (x%d) into AE",
-  "message.emilink.deposit.batch_none": "§7No %s found to deposit",
-  "message.emilink.deposit.error": "§cError depositing into AE"
+  "message.emilink.deposit.no_ae_access": "\u00a7cNo AE network access found",
+  "message.emilink.deposit.failed": "\u00a7cFailed to deposit %s into AE",
+  "message.emilink.deposit.success": "\u00a7aDeposited %s x%d into AE",
+  "message.emilink.deposit.batch_success": "\u00a7aDeposited all %s (x%d) into AE",
+  "message.emilink.deposit.batch_none": "\u00a77No %s found to deposit",
+  "message.emilink.deposit.error": "\u00a7cError depositing into AE"
 }
