@@ -7,6 +7,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emilink.Config;
+import org.chatterjay.emilink.network.AE2GridQueryUtil;
 import org.chatterjay.emilink.util.ModLogger;
 
 import java.lang.reflect.Method;
@@ -156,13 +157,13 @@ public class AEDepositPacket {
             Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
             if (!aeBaseMenuClass.isInstance(menu)) return null;
 
-            Object grid = resolveGrid(aeBaseMenuClass, menu);
+            Object grid = AE2GridQueryUtil.resolveGrid(aeBaseMenuClass, menu);
             if (grid == null) return null;
 
-            Object storageSvc = callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
+            Object storageSvc = AE2GridQueryUtil.callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
             if (storageSvc == null) return null;
 
-            return callMethodOnBestMatch(storageSvc, "getInventory");
+            return AE2GridQueryUtil.callMethodOnBestMatch(storageSvc, "getInventory");
         } catch (Exception e) {
             return null;
         }
@@ -328,11 +329,11 @@ public class AEDepositPacket {
                 }
             }
 
-            // Approach 9: Diagnostic — list all implemented interfaces and grid-related methods
+            // Approach 9: diagnostic list of implemented interfaces and grid-related methods.
             if (grid == null && Config.DEBUG_MODE.get()) {
                 try {
                     ModLogger.debug("AEDeposit: DIAG - interfaces of {}:", terminal.getItem().getClass().getName());
-                    for (var iface : getAllInterfaces(terminal.getItem().getClass())) {
+                    for (var iface : AE2GridQueryUtil.getAllInterfaces(terminal.getItem().getClass())) {
                         ModLogger.debug("AEDeposit:  implements {}", iface.getName());
                     }
                     ModLogger.debug("AEDeposit: DIAG - grid-related methods:");
@@ -347,7 +348,7 @@ public class AEDepositPacket {
                 }
             }
 
-            // Approach 10: Method name scan — look for any grid-returning method on the item
+            // Approach 10: method name scan for any grid-returning method on the item.
             if (grid == null) {
                 try {
                     ModLogger.debug("AEDeposit: trying approach 10 - method name scan");
@@ -382,7 +383,7 @@ public class AEDepositPacket {
                 }
             }
 
-            // Approach 11: accessPoint NBT → block entity → IActionHost → grid
+            // Approach 11: accessPoint NBT -> block entity -> IActionHost -> grid.
             if (grid == null) {
                 try {
                     ModLogger.debug("AEDeposit: trying approach 11 - accessPoint NBT grid lookup");
@@ -400,7 +401,7 @@ public class AEDepositPacket {
                                 var be = level.getBlockEntity(new net.minecraft.core.BlockPos(posArr[0], posArr[1], posArr[2]));
                                 if (be != null) {
                                     ModLogger.debug("AEDeposit: approach 11 - found BE {} at {} in {}", be.getClass().getSimpleName(), posArr, dimStr);
-                                    for (var iface : getAllInterfaces(be.getClass())) {
+                                    for (var iface : AE2GridQueryUtil.getAllInterfaces(be.getClass())) {
                                         String iname = iface.getName();
                                         if (iname.contains("ActionHost")) {
                                             for (var m : iface.getMethods()) {
@@ -448,11 +449,11 @@ public class AEDepositPacket {
             }
 
             ModLogger.debug("AEDeposit: got grid = {} class = {}", grid, grid.getClass().getName());
-            Object storageSvc = callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
+            Object storageSvc = AE2GridQueryUtil.callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
             ModLogger.debug("AEDeposit: storageSvc = {}", storageSvc == null ? "null" : storageSvc.getClass().getName());
             if (storageSvc == null) return null;
 
-            Object inv = callMethodOnBestMatch(storageSvc, "getInventory");
+            Object inv = AE2GridQueryUtil.callMethodOnBestMatch(storageSvc, "getInventory");
             ModLogger.debug("AEDeposit: inventory = {}", inv == null ? "null" : "FOUND");
             return inv;
         } catch (Exception e) {
@@ -554,7 +555,7 @@ public class AEDepositPacket {
         if (!(stationOpt instanceof java.util.Optional<?> opt) || opt.isEmpty()) return null;
 
         Object station = opt.get();
-        for (var iface : getAllInterfaces(station.getClass())) {
+        for (var iface : AE2GridQueryUtil.getAllInterfaces(station.getClass())) {
             if (iface.getName().contains("ActionHost") || iface.getName().contains("IActionHost")) {
                 for (var m : iface.getMethods()) {
                     if (m.getParameterCount() != 0) continue;
@@ -574,90 +575,4 @@ public class AEDepositPacket {
         return null;
     }
 
-    private static Object resolveGrid(Class<?> menuClass, Object menu) throws Exception {
-        try {
-            var getActionHost = menuClass.getDeclaredMethod("getActionHost");
-            getActionHost.setAccessible(true);
-            Object actionHost = getActionHost.invoke(menu);
-            if (actionHost != null) {
-                for (var iface : getAllInterfaces(actionHost.getClass())) {
-                    if (iface.getName().contains("ActionHost") || iface.getName().contains("IActionHost")) {
-                        for (var m : iface.getMethods()) {
-                            if (m.getParameterCount() != 0) continue;
-                            String retName = m.getReturnType().getName();
-                            if (retName.contains("Grid") || retName.contains("Node")) {
-                                try {
-                                    Object result = m.invoke(actionHost);
-                                    if (result != null) {
-                                        try {
-                                            Object grid = result.getClass().getMethod("getGrid").invoke(result);
-                                            if (grid != null) return grid;
-                                        } catch (NoSuchMethodException e) {}
-                                    }
-                                } catch (Exception e) {}
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {}
-
-        try {
-            Object actionSource = menuClass.getMethod("getActionSource").invoke(menu);
-            if (actionSource != null) {
-                var getMachine = actionSource.getClass().getMethod("getMachineSource");
-                Object machineOpt = getMachine.invoke(actionSource);
-                if (machineOpt instanceof java.util.Optional<?> opt && opt.isPresent()) {
-                    Object machine = opt.get();
-                    for (var m : machine.getClass().getMethods()) {
-                        if (m.getParameterCount() != 0) continue;
-                        String mn = m.getName();
-                        if (!mn.contains("Grid") && !mn.contains("grid") && !mn.contains("Node")) continue;
-                        try {
-                            Object result = m.invoke(machine);
-                            if (result == null) continue;
-                            try {
-                                Object grid = result.getClass().getMethod("getGrid").invoke(result);
-                                if (grid != null) return grid;
-                            } catch (NoSuchMethodException e2) {
-                                if (m.getReturnType().getName().contains("IGrid")) return result;
-                            }
-                        } catch (Exception e2) {}
-                    }
-                }
-            }
-        } catch (Exception e) {}
-
-        return null;
-    }
-
-    private static Object callMethodOnBestMatch(Object target, String... methodNames) {
-        for (String name : methodNames) {
-            try {
-                var m = target.getClass().getMethod(name);
-                return m.invoke(target);
-            } catch (Exception e) {}
-        }
-        return null;
-    }
-
-    private static java.util.Set<Class<?>> getAllInterfaces(Class<?> clazz) {
-        var interfaces = new java.util.LinkedHashSet<Class<?>>();
-        while (clazz != null) {
-            for (var iface : clazz.getInterfaces()) {
-                collectInterfaces(iface, interfaces);
-            }
-            clazz = clazz.getSuperclass();
-        }
-        return interfaces;
-    }
-
-    private static void collectInterfaces(Class<?> iface, java.util.Set<Class<?>> acc) {
-        if (acc.add(iface)) {
-            for (var parent : iface.getInterfaces()) {
-                collectInterfaces(parent, acc);
-            }
-        }
-    }
 }

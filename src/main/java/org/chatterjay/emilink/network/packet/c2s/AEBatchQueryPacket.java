@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.network.AE2GridQueryUtil;
 import org.chatterjay.emilink.network.NetworkHandler;
 import org.chatterjay.emilink.network.PacketRateLimiter;
 import org.chatterjay.emilink.network.packet.s2c.AEBatchQueryResponsePacket;
@@ -65,7 +66,7 @@ public class AEBatchQueryPacket {
                 return;
             }
 
-            Object grid = AEQueryPacket.resolveGrid(aeBaseMenuClass, menu);
+            Object grid = AE2GridQueryUtil.resolveGrid(aeBaseMenuClass, menu);
             if (grid == null) {
                 sendResponse(player, List.of());
                 return;
@@ -80,8 +81,8 @@ public class AEBatchQueryPacket {
                 Object aeKey = ofMethod.invoke(null, stack);
                 if (aeKey == null) continue;
 
-                long count = AEQueryPacket.queryItemCount(grid, aeKey);
-                boolean craftable = AEQueryPacket.queryCraftability(grid, aeKey);
+                long count = AE2GridQueryUtil.queryItemCount(grid, aeKey);
+                boolean craftable = AE2GridQueryUtil.queryCraftability(grid, aeKey);
                 entries.add(new AEBatchQueryResponsePacket.Entry(stack, count, craftable));
             }
 
