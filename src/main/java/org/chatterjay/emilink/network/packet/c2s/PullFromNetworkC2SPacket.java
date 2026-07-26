@@ -127,7 +127,7 @@ public class PullFromNetworkC2SPacket {
                 ItemStack extractedStack = (ItemStack) aeItemKeyClass.getMethod("toStack", int.class).invoke(itemKey, (int) extracted);
                 inventory.setItem(freeSlot, extractedStack);
                 player.containerMenu.broadcastChanges();
-                ModLogger.info("PullFromNetwork: pulled {}x {}", extracted,
+                ModLogger.debug("PullFromNetwork: pulled {}x {}", extracted,
                         msg.stack.getHoverName().getString());
                 return;
             }
@@ -144,7 +144,7 @@ public class PullFromNetworkC2SPacket {
                     Class<?> menuLocatorClass = Class.forName("appeng.menu.locator.MenuLocator");
                     craftAmountMenuClass.getMethod("open", ServerPlayer.class, menuLocatorClass, aeKeyClass, int.class)
                             .invoke(null, player, locator, itemKey, 1);
-                    ModLogger.info("PullFromNetwork: opened craft screen for {}",
+                    ModLogger.debug("PullFromNetwork: opened craft screen for {}",
                             msg.stack.getHoverName().getString());
                 }
             }

@@ -124,7 +124,7 @@ public class BDProxy {
             var getNet = netClass.getMethod("getPrimaryNetFromPlayer", Player.class);
             Object net = getNet.invoke(null, player);
             if (net == null) {
-                ModLogger.info("BDProxy: extractFromNetwork - net is null");
+                ModLogger.debug("BDProxy: extractFromNetwork - net is null");
                 return false;
             }
 
@@ -191,11 +191,11 @@ public class BDProxy {
             if (player.containerMenu != null) {
                 player.containerMenu.broadcastChanges();
             }
-            ModLogger.info("BDProxy: extractFromNetwork extracted {}x {}",
+            ModLogger.debug("BDProxy: extractFromNetwork extracted {}x {}",
                     totalExtracted, targetStack.getHoverName().getString());
             return totalExtracted > 0;
         } catch (Exception e) {
-            ModLogger.info("BDProxy: extractFromNetwork error for {}: {}: {}",
+            ModLogger.debug("BDProxy: extractFromNetwork error for {}: {}: {}",
                     targetStack.getHoverName().getString(), e.getClass().getSimpleName(), e.getMessage());
             return false;
         }

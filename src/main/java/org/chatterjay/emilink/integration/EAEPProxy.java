@@ -19,7 +19,7 @@ public class EAEPProxy {
 
     public static boolean openCraftScreen(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) {
-            ModLogger.info("EAEPProxy: openCraftScreen skipped, loaded={} stack={}", isLoaded(), stack);
+            ModLogger.debug("EAEPProxy: openCraftScreen skipped, loaded={} stack={}", isLoaded(), stack);
             return false;
         }
         try {
@@ -33,18 +33,18 @@ public class EAEPProxy {
             Constructor<?> gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
             Object genericStack = gsCtor.newInstance(aeKey, 1L);
 
-            ModLogger.info("EAEPProxy: openCraftScreen sending packet for {}", stack.getHoverName().getString());
+            ModLogger.debug("EAEPProxy: openCraftScreen sending packet for {}", stack.getHoverName().getString());
             return sendPacket("com.extendedae_plus.network.crafting.OpenCraftFromJeiC2SPacket",
                     genericStack, genericStackClass);
         } catch (Exception e) {
-            ModLogger.info("EAEPProxy: openCraftScreen reflection error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            ModLogger.debug("EAEPProxy: openCraftScreen reflection error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
     }
 
     public static boolean pullFromNetwork(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) {
-            ModLogger.info("EAEPProxy: pullFromNetwork skipped, loaded={} stack={}", isLoaded(), stack);
+            ModLogger.debug("EAEPProxy: pullFromNetwork skipped, loaded={} stack={}", isLoaded(), stack);
             return false;
         }
         try {
@@ -58,11 +58,11 @@ public class EAEPProxy {
             Constructor<?> gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
             Object genericStack = gsCtor.newInstance(aeKey, 1L);
 
-            ModLogger.info("EAEPProxy: pullFromNetwork sending packet for {}", stack.getHoverName().getString());
+            ModLogger.debug("EAEPProxy: pullFromNetwork sending packet for {}", stack.getHoverName().getString());
             return sendPacket("com.extendedae_plus.network.PullFromJeiOrCraftC2SPacket",
                     genericStack, genericStackClass);
         } catch (Exception e) {
-            ModLogger.info("EAEPProxy: pullFromNetwork reflection error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            ModLogger.debug("EAEPProxy: pullFromNetwork reflection error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
     }
@@ -76,12 +76,12 @@ public class EAEPProxy {
             Object channel = findChannel();
             if (channel != null) {
                 channel.getClass().getMethod("sendToServer", Object.class).invoke(channel, packet);
-                ModLogger.info("EAEPProxy: sent via channel for {}", className);
+                ModLogger.debug("EAEPProxy: sent via channel for {}", className);
                 return true;
             }
-            ModLogger.info("EAEPProxy: channel not found for {}", className);
+            ModLogger.debug("EAEPProxy: channel not found for {}", className);
         } catch (Exception e) {
-            ModLogger.info("EAEPProxy: sendPacket (method 1) error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            ModLogger.debug("EAEPProxy: sendPacket (method 1) error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
         try {
@@ -93,10 +93,10 @@ public class EAEPProxy {
             Class<?> networkHandler = Class.forName("com.extendedae_plus.network.NetworkHandler");
             var sendMethod = networkHandler.getMethod("sendToServer", packetClass);
             sendMethod.invoke(null, packet);
-            ModLogger.info("EAEPProxy: sent via NetworkHandler.sendToServer for {}", className);
+            ModLogger.debug("EAEPProxy: sent via NetworkHandler.sendToServer for {}", className);
             return true;
         } catch (Exception e) {
-            ModLogger.info("EAEPProxy: sendPacket (method 2) error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            ModLogger.debug("EAEPProxy: sendPacket (method 2) error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
     }

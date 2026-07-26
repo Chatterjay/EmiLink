@@ -29,21 +29,21 @@ public final class EmiInteractionHandler {
     private EmiInteractionHandler() {}
 
     public static boolean onKeyPressed(int keyCode, int scanCode, int modifiers, int mouseX, int mouseY) {
-        ModLogger.info("EmiInteractionHandler: onKeyPressed keyCode={} scanCode={}", keyCode, scanCode);
+        ModLogger.debug("EmiInteractionHandler: onKeyPressed keyCode={} scanCode={}", keyCode, scanCode);
 
         // Quick fill slot (N key) — check early before other screen checks
         if (ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode)) {
-            ModLogger.info("EmiInteractionHandler: QUICK_FILL_SLOT_KEY matched via EmiScreenManager");
+            ModLogger.debug("EmiInteractionHandler: QUICK_FILL_SLOT_KEY matched via EmiScreenManager");
             if (InputEvents.handleQuickFillSlot()) {
-                ModLogger.info("EmiInteractionHandler: quickFillSlot succeeded");
+                ModLogger.debug("EmiInteractionHandler: quickFillSlot succeeded");
                 return true;
             }
-            ModLogger.info("EmiInteractionHandler: quickFillSlot returned false");
+            ModLogger.debug("EmiInteractionHandler: quickFillSlot returned false");
         }
 
         var mc = Minecraft.getInstance();
         if (AE2Proxy.isCraftConfirmScreen(mc.screen)) {
-            ModLogger.info("EmiInteractionHandler: CraftConfirmScreen detected");
+            ModLogger.debug("EmiInteractionHandler: CraftConfirmScreen detected");
             ItemStack stack = AE2Proxy.getStackUnderMouse(mc.screen, mouseX, mouseY);
             if (!stack.isEmpty()) {
                 EmiStack emiStack = EmiStack.of(stack);
@@ -59,13 +59,13 @@ public final class EmiInteractionHandler {
             EmiStackInteraction hovered = EmiApi.getHoveredStack(mouseX, mouseY, false);
             if (hovered != null && !hovered.isEmpty()) {
                 if (EmiScreenManager.stackInteraction(hovered, bind -> bind.matchesKey(keyCode, scanCode))) {
-                    ModLogger.info("EmiInteractionHandler: AE2 terminal key handled via stackInteraction");
+                    ModLogger.debug("EmiInteractionHandler: AE2 terminal key handled via stackInteraction");
                     return true;
                 }
             }
         }
         if (isCraftingCPUScreen(mc.screen)) {
-            ModLogger.info("EmiInteractionHandler: CraftingCPUScreen detected");
+            ModLogger.debug("EmiInteractionHandler: CraftingCPUScreen detected");
             EmiStack emiStack = getGenericStackUnderMouse(mc.screen, mouseX, mouseY);
             if (emiStack != null && !emiStack.isEmpty()) {
                 if (EmiScreenManager.stackInteraction(
@@ -154,11 +154,11 @@ public final class EmiInteractionHandler {
     }
 
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
-        ModLogger.info("EmiInteractionHandler: onMouseReleased button={} at ({},{})", button, mouseX, mouseY);
+        ModLogger.debug("EmiInteractionHandler: onMouseReleased button={} at ({},{})", button, mouseX, mouseY);
         if (button != 2 && button != 0) return false;
 
         EmiStackInteraction hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
-        ModLogger.info("EmiInteractionHandler: hovered={} empty={}",
+        ModLogger.debug("EmiInteractionHandler: hovered={} empty={}",
                 hovered == null ? "null" : "found",
                 hovered == null ? true : hovered.isEmpty());
         if (hovered == null || hovered.isEmpty()) return false;
@@ -194,7 +194,7 @@ public final class EmiInteractionHandler {
                                 NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
                             }
                             cs.getMenu().setCarried(ItemStack.EMPTY);
-                            ModLogger.info("EmiInteractionHandler: deposited {} from cursor", carried.getHoverName().getString());
+                            ModLogger.debug("EmiInteractionHandler: deposited {} from cursor", carried.getHoverName().getString());
                             return true;
                         }
                     }
@@ -233,7 +233,7 @@ public final class EmiInteractionHandler {
     }
 
     private static boolean handleMiddleClick(ItemStack itemStack) {
-        ModLogger.info("EmiInteractionHandler: handleMiddleClick item={}",
+        ModLogger.debug("EmiInteractionHandler: handleMiddleClick item={}",
                 itemStack.getHoverName().getString());
         var mc = Minecraft.getInstance();
 
@@ -245,14 +245,14 @@ public final class EmiInteractionHandler {
         // Fallback: wireless terminal in inventory (EAEP wireless-only packet)
         var player = mc.player;
         if (player == null || !hasNetworkAccess(player)) {
-            ModLogger.info("EmiInteractionHandler: handleMiddleClick failed: no terminal access");
+            ModLogger.debug("EmiInteractionHandler: handleMiddleClick failed: no terminal access");
             return false;
         }
         return EAEPProxy.openCraftScreen(itemStack);
     }
 
     private static boolean handleShiftClickAE2(ItemStack itemStack) {
-        ModLogger.info("EmiInteractionHandler: handleShiftClickAE2 item={}",
+        ModLogger.debug("EmiInteractionHandler: handleShiftClickAE2 item={}",
                 itemStack.getHoverName().getString());
         var mc = Minecraft.getInstance();
 
@@ -280,7 +280,7 @@ public final class EmiInteractionHandler {
         } else {
             BDProxy.clientExtract(sendStack);
         }
-        ModLogger.info("EmiInteractionHandler: handleShiftClickBDEmi extracted {}", itemStack.getHoverName().getString());
+        ModLogger.debug("EmiInteractionHandler: handleShiftClickBDEmi extracted {}", itemStack.getHoverName().getString());
         return true;
     }
 
@@ -294,10 +294,10 @@ public final class EmiInteractionHandler {
                     .getMethod("sendToServer", Object.class)
                     .invoke(null, packet);
 
-            ModLogger.info("EmiInteractionHandler: sent OpenCraftAmount packet");
+            ModLogger.debug("EmiInteractionHandler: sent OpenCraftAmount packet");
             return true;
         } catch (Exception e) {
-            ModLogger.info("EmiInteractionHandler: sendOpenCraftAmountPacket error: {}: {}",
+            ModLogger.debug("EmiInteractionHandler: sendOpenCraftAmountPacket error: {}: {}",
                     e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
@@ -313,10 +313,10 @@ public final class EmiInteractionHandler {
                     .getMethod("sendToServer", Object.class)
                     .invoke(null, packet);
 
-            ModLogger.info("EmiInteractionHandler: sent PullFromNetwork packet");
+            ModLogger.debug("EmiInteractionHandler: sent PullFromNetwork packet");
             return true;
         } catch (Exception e) {
-            ModLogger.info("EmiInteractionHandler: sendPullFromNetworkPacket error: {}: {}",
+            ModLogger.debug("EmiInteractionHandler: sendPullFromNetworkPacket error: {}: {}",
                     e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
@@ -328,27 +328,27 @@ public final class EmiInteractionHandler {
         var inventory = player.getInventory();
         for (int i = 0; i < inventory.items.size(); i++) {
             if (AE2Proxy.isWirelessTerminal(inventory.items.get(i))) {
-                ModLogger.info("EmiInteractionHandler: found wireless terminal in inventory slot {}", i);
+                ModLogger.debug("EmiInteractionHandler: found wireless terminal in inventory slot {}", i);
                 return true;
             }
         }
         if (AE2Proxy.isWirelessTerminal(player.getOffhandItem())) {
-            ModLogger.info("EmiInteractionHandler: found wireless terminal in offhand");
+            ModLogger.debug("EmiInteractionHandler: found wireless terminal in offhand");
             return true;
         }
         // Curios bauble slot
         Class<?> wtClass = AE2Proxy.getWirelessTerminalClass();
         if (wtClass != null && CuriosProxy.hasWirelessTerminal(player, wtClass)) {
-            ModLogger.info("EmiInteractionHandler: found wireless terminal in curio slot");
+            ModLogger.debug("EmiInteractionHandler: found wireless terminal in curio slot");
             return true;
         }
         // Wired AE2 terminal screen open (MEStorageScreen covers all terminal types)
         var screen = Minecraft.getInstance().screen;
         if (screen != null && AE2Proxy.isMEStorageScreen(screen)) {
-            ModLogger.info("EmiInteractionHandler: found wired terminal (screen open)");
+            ModLogger.debug("EmiInteractionHandler: found wired terminal (screen open)");
             return true;
         }
-        ModLogger.info("EmiInteractionHandler: no network access found");
+        ModLogger.debug("EmiInteractionHandler: no network access found");
         return false;
     }
 }

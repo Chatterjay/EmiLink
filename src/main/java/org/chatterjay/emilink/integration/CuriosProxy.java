@@ -16,14 +16,14 @@ public class CuriosProxy {
         if (loaded == null) {
             var modList = ModList.get();
             loaded = modList != null && modList.isLoaded("curios");
-            ModLogger.info("CuriosProxy: isLoaded={}", loaded);
+            ModLogger.debug("CuriosProxy: isLoaded={}", loaded);
         }
         return loaded;
     }
 
     public static boolean hasWirelessTerminal(Player player, Class<?> terminalItemClass) {
         if (!isLoaded()) {
-            ModLogger.info("CuriosProxy: Curios not loaded, skipping");
+            ModLogger.debug("CuriosProxy: Curios not loaded, skipping");
             return false;
         }
         try {
@@ -35,13 +35,13 @@ public class CuriosProxy {
             var lazyOptClass = Class.forName("net.minecraftforge.common.util.LazyOptional");
             var isPresent = (boolean) lazyOptClass.getMethod("isPresent").invoke(lazyOpt);
             if (!isPresent) {
-                ModLogger.info("CuriosProxy: getCuriosInventory LazyOptional not present");
+                ModLogger.debug("CuriosProxy: getCuriosInventory LazyOptional not present");
                 return false;
             }
             var resolveMethod = lazyOptClass.getMethod("resolve");
             Optional<?> opt = (Optional<?>) resolveMethod.invoke(lazyOpt);
             if (opt.isEmpty()) {
-                ModLogger.info("CuriosProxy: getCuriosInventory resolved empty");
+                ModLogger.debug("CuriosProxy: getCuriosInventory resolved empty");
                 return false;
             }
 
@@ -49,13 +49,13 @@ public class CuriosProxy {
             Method isEquipped = handler.getClass().getMethod("isEquipped", Predicate.class);
             Predicate<ItemStack> predicate = s -> {
                 boolean match = !s.isEmpty() && terminalItemClass.isInstance(s.getItem());
-                if (match) ModLogger.info("CuriosProxy: found matching item {}", s.getHoverName().getString());
+                if (match) ModLogger.debug("CuriosProxy: found matching item {}", s.getHoverName().getString());
                 return match;
             };
             boolean result = (boolean) isEquipped.invoke(handler, predicate);
             return result;
         } catch (Exception e) {
-            ModLogger.info("CuriosProxy: exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            ModLogger.debug("CuriosProxy: exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
     }

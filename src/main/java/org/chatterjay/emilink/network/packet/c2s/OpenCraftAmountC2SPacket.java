@@ -61,7 +61,7 @@ public class OpenCraftAmountC2SPacket {
                 Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
                 craftAmountMenuClass.getMethod("open", ServerPlayer.class, menuLocatorClass, aeKeyClass, int.class)
                         .invoke(null, player, locator, what, 1);
-                ModLogger.info("OpenCraftAmount: opened for {} via {}",
+                ModLogger.debug("OpenCraftAmount: opened for {} via {}",
                         msg.stack.getHoverName().getString(), locator.getClass().getSimpleName());
             } else {
                 ModLogger.warn("OpenCraftAmount: locator is null");

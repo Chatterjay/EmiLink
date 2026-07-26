@@ -25,12 +25,12 @@ public final class WrapAsBookHandler {
 
     public static void toggle() {
         wrapRequested.set(!wrapRequested.get());
-        ModLogger.info("WrapAsBookHandler: toggle -> {}", wrapRequested.get());
+        ModLogger.debug("WrapAsBookHandler: toggle -> {}", wrapRequested.get());
     }
 
     public static void clear() {
         wrapRequested.set(false);
-        ModLogger.info("WrapAsBookHandler: cleared");
+        ModLogger.debug("WrapAsBookHandler: cleared");
     }
 
     public static void applyWrap(Object menu, List<?> outputs) {

@@ -40,17 +40,17 @@ public class BDActionPacket {
         ServerPlayer player = context.getSender();
         if (player == null) return;
 
-        ModLogger.info("BDActionPacket: handling action={}", msg.action);
+        ModLogger.debug("BDActionPacket: handling action={}", msg.action);
 
         switch (msg.action) {
             case 0 -> {
                 if (msg.targetStack == null || msg.targetStack.isEmpty()) {
-                    ModLogger.info("BDActionPacket: action=0 skipped - null/empty targetStack (action={})", msg.action);
+                    ModLogger.debug("BDActionPacket: action=0 skipped - null/empty targetStack (action={})", msg.action);
                     return;
                 }
                 boolean ok = BDProxy.extractFromNetwork(player, msg.targetStack);
                 if (!ok) {
-                    ModLogger.info("BDActionPacket: extractFromNetwork returned false for {}", msg.targetStack.getHoverName().getString());
+                    ModLogger.debug("BDActionPacket: extractFromNetwork returned false for {}", msg.targetStack.getHoverName().getString());
                 }
             }
             case 1 -> {

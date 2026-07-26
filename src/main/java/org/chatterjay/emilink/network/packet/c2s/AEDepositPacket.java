@@ -57,7 +57,7 @@ public class AEDepositPacket {
             }
             if (inventory == null) {
                 player.sendSystemMessage(Component.translatable("message.emilink.deposit.no_ae_access"));
-                ModLogger.info("AEDeposit: no grid available for player {}", player.getName().getString());
+                ModLogger.debug("AEDeposit: no grid available for player {}", player.getName().getString());
                 return;
             }
 
@@ -85,7 +85,7 @@ public class AEDepositPacket {
 
                 player.sendSystemMessage(Component.translatable("message.emilink.deposit.success",
                         stack.getHoverName(), inserted));
-                ModLogger.info("AEDeposit: deposited {} x{}", stack.getHoverName().getString(), inserted);
+                ModLogger.debug("AEDeposit: deposited {} x{}", stack.getHoverName().getString(), inserted);
             }
 
             player.containerMenu.broadcastChanges();
@@ -139,7 +139,7 @@ public class AEDepositPacket {
         if (totalInserted > 0) {
             player.sendSystemMessage(Component.translatable("message.emilink.deposit.batch_success",
                     stack.getHoverName(), totalInserted));
-            ModLogger.info("AEDeposit: batch deposited {} x{}", stack.getHoverName().getString(), totalInserted);
+            ModLogger.debug("AEDeposit: batch deposited {} x{}", stack.getHoverName().getString(), totalInserted);
         } else {
             player.sendSystemMessage(Component.translatable("message.emilink.deposit.batch_none",
                     stack.getHoverName()));
@@ -169,60 +169,60 @@ public class AEDepositPacket {
     }
 
     private static Object resolveInventoryFromWirelessTerminal(Player player) {
-        ModLogger.info("AEDeposit: resolveInventoryFromWirelessTerminal start");
+        ModLogger.debug("AEDeposit: resolveInventoryFromWirelessTerminal start");
         try {
             ItemStack terminal = findWirelessTerminal(player);
             if (terminal == null || terminal.isEmpty()) {
-                ModLogger.info("AEDeposit: resolveInventoryFromWirelessTerminal - no terminal found");
+                ModLogger.debug("AEDeposit: resolveInventoryFromWirelessTerminal - no terminal found");
                 return null;
             }
-            ModLogger.info("AEDeposit: found terminal {} class={}", terminal.getHoverName().getString(), terminal.getItem().getClass().getName());
+            ModLogger.debug("AEDeposit: found terminal {} class={}", terminal.getHoverName().getString(), terminal.getItem().getClass().getName());
 
             java.util.function.Consumer<?> noop = msg -> {};
             Object grid = null;
 
             // Approach 1: Direct getLinkedGrid call with Level.class
             try {
-                ModLogger.info("AEDeposit: trying approach 1 - getLinkedGrid(ItemStack, Level, Consumer)");
+                ModLogger.debug("AEDeposit: trying approach 1 - getLinkedGrid(ItemStack, Level, Consumer)");
                 Method m = terminal.getItem().getClass().getMethod("getLinkedGrid",
                         ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
                 grid = m.invoke(terminal.getItem(), terminal, player.level(), noop);
-                ModLogger.info("AEDeposit: approach 1 result = {}", grid == null ? "null" : "FOUND");
+                ModLogger.debug("AEDeposit: approach 1 result = {}", grid == null ? "null" : "FOUND");
             } catch (Exception e) {
-                ModLogger.info("AEDeposit: approach 1 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                ModLogger.debug("AEDeposit: approach 1 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             }
 
             // Approach 2: Try AbstractWirelessTerminalItem class directly
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 2 - AbstractWirelessTerminalItem");
+                    ModLogger.debug("AEDeposit: trying approach 2 - AbstractWirelessTerminalItem");
                     Class<?> parentClass = Class.forName("appeng.items.tools.powered.AbstractWirelessTerminalItem");
                     Method m = parentClass.getMethod("getLinkedGrid",
                             ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
                     grid = m.invoke(terminal.getItem(), terminal, player.level(), noop);
-                    ModLogger.info("AEDeposit: approach 2 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 2 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 2 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 2 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 3: Try different method name
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 3 - getGrid");
+                    ModLogger.debug("AEDeposit: trying approach 3 - getGrid");
                     Method m = terminal.getItem().getClass().getMethod("getGrid",
                             ItemStack.class, net.minecraft.world.level.Level.class);
                     grid = m.invoke(terminal.getItem(), terminal, player.level());
-                    ModLogger.info("AEDeposit: approach 3 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 3 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 3 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 3 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 4: Try AE API wireless handler
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 4 - AEApi wireless handler");
+                    ModLogger.debug("AEDeposit: trying approach 4 - AEApi wireless handler");
                     Class<?> aeClass = Class.forName("appeng.api.AE");
                     Object aeInstance = aeClass.getMethod("instance").invoke(null);
                     Object wirelessHandler = aeClass.getMethod("wireless").invoke(aeInstance);
@@ -234,82 +234,82 @@ public class AEDepositPacket {
                     }
                     if (getGrid != null) {
                         grid = getGrid.invoke(wirelessHandler, terminal, player.level(), player);
-                        ModLogger.info("AEDeposit: approach 4 result = {}", grid == null ? "null" : "FOUND");
+                        ModLogger.debug("AEDeposit: approach 4 result = {}", grid == null ? "null" : "FOUND");
                     } else {
-                        ModLogger.info("AEDeposit: approach 4 - getGrid method not found");
+                        ModLogger.debug("AEDeposit: approach 4 - getGrid method not found");
                     }
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 4 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 4 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 5: try getGridKey via reflection (works for some AE2 items)
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 5 - getGridKey reflection");
+                    ModLogger.debug("AEDeposit: trying approach 5 - getGridKey reflection");
                     Method getGridKey = terminal.getItem().getClass().getMethod("getGridKey", ItemStack.class);
                     Object gridKeyOpt = getGridKey.invoke(terminal.getItem(), terminal);
                     if (gridKeyOpt instanceof java.util.Optional<?> opt && opt.isPresent()) {
                         long gridKey = (Long) opt.get();
                         grid = lookupGridByKey(player, gridKey);
-                        ModLogger.info("AEDeposit: approach 5 result = {}", grid == null ? "null" : "FOUND");
+                        ModLogger.debug("AEDeposit: approach 5 result = {}", grid == null ? "null" : "FOUND");
                     } else {
-                        ModLogger.info("AEDeposit: approach 5 - grid key empty");
+                        ModLogger.debug("AEDeposit: approach 5 - grid key empty");
                     }
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 5 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 5 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 6: Read gridKey directly from NBT tag
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 6 - NBT direct gridKey");
+                    ModLogger.debug("AEDeposit: trying approach 6 - NBT direct gridKey");
                     var tag = terminal.getTag();
                     if (tag != null) {
-                        ModLogger.info("AEDeposit: approach 6 - NBT keys: {}", tag.getAllKeys());
+                        ModLogger.debug("AEDeposit: approach 6 - NBT keys: {}", tag.getAllKeys());
                         if (tag.contains("gridKey", net.minecraft.nbt.Tag.TAG_LONG)) {
                             long gridKey = tag.getLong("gridKey");
-                            ModLogger.info("AEDeposit: approach 6 - found gridKey {} in NBT", gridKey);
+                            ModLogger.debug("AEDeposit: approach 6 - found gridKey {} in NBT", gridKey);
                             grid = lookupGridByKey(player, gridKey);
                         } else {
-                            ModLogger.info("AEDeposit: approach 6 - no gridKey in NBT, checking other tags...");
+                            ModLogger.debug("AEDeposit: approach 6 - no gridKey in NBT, checking other tags...");
                             // Dump first-level NBT values for debugging
                             for (String k : tag.getAllKeys()) {
                                 var v = tag.get(k);
-                                ModLogger.info("AEDeposit:  NBT[{}] = {} ({})", k, v, v.getClass().getSimpleName());
+                                ModLogger.debug("AEDeposit:  NBT[{}] = {} ({})", k, v, v.getClass().getSimpleName());
                             }
                         }
                     } else {
-                        ModLogger.info("AEDeposit: approach 6 - NBT tag is null");
+                        ModLogger.debug("AEDeposit: approach 6 - NBT tag is null");
                     }
-                    ModLogger.info("AEDeposit: approach 6 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 6 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 6 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 6 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 7: IAEWirelessTerminalItem interface
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 7 - IAEWirelessTerminalItem");
+                    ModLogger.debug("AEDeposit: trying approach 7 - IAEWirelessTerminalItem");
                     Class<?> iface = Class.forName("appeng.api.implementations.items.IAEWirelessTerminalItem");
                     if (iface.isInstance(terminal.getItem())) {
                         Method getGrid = iface.getMethod("getGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
                         grid = getGrid.invoke(terminal.getItem(), terminal, player.level(), noop);
-                        ModLogger.info("AEDeposit: approach 7 result = {}", grid == null ? "null" : "FOUND");
+                        ModLogger.debug("AEDeposit: approach 7 result = {}", grid == null ? "null" : "FOUND");
                     } else {
-                        ModLogger.info("AEDeposit: approach 7 - item does not implement IAEWirelessTerminalItem");
+                        ModLogger.debug("AEDeposit: approach 7 - item does not implement IAEWirelessTerminalItem");
                     }
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 7 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 7 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 8: AE2WTLib WUTHandler
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 8 - AE2WTLib WUTHandler");
+                    ModLogger.debug("AEDeposit: trying approach 8 - AE2WTLib WUTHandler");
                     Class<?> wutHandler = Class.forName("de.mari_023.ae2wtlib.wut.WUTHandler");
                     try {
                         Method getGrid = wutHandler.getMethod("getGrid", ItemStack.class, net.minecraft.world.level.Level.class);
@@ -319,38 +319,38 @@ public class AEDepositPacket {
                             Method getLinkedGrid = wutHandler.getMethod("getLinkedGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class);
                             grid = getLinkedGrid.invoke(null, terminal, player.level(), noop);
                         } catch (NoSuchMethodException e2) {
-                            ModLogger.info("AEDeposit: approach 8 - no suitable method found on WUTHandler");
+                            ModLogger.debug("AEDeposit: approach 8 - no suitable method found on WUTHandler");
                         }
                     }
-                    ModLogger.info("AEDeposit: approach 8 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 8 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 8 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 8 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 9: Diagnostic — list all implemented interfaces and grid-related methods
             if (grid == null && Config.DEBUG_MODE.get()) {
                 try {
-                    ModLogger.info("AEDeposit: DIAG - interfaces of {}:", terminal.getItem().getClass().getName());
+                    ModLogger.debug("AEDeposit: DIAG - interfaces of {}:", terminal.getItem().getClass().getName());
                     for (var iface : getAllInterfaces(terminal.getItem().getClass())) {
-                        ModLogger.info("AEDeposit:  implements {}", iface.getName());
+                        ModLogger.debug("AEDeposit:  implements {}", iface.getName());
                     }
-                    ModLogger.info("AEDeposit: DIAG - grid-related methods:");
+                    ModLogger.debug("AEDeposit: DIAG - grid-related methods:");
                     for (var m : terminal.getItem().getClass().getMethods()) {
                         String mn = m.getName().toLowerCase(java.util.Locale.ROOT);
                         if (mn.contains("grid") || mn.contains("key") || mn.contains("terminal") || mn.contains("wireless") || mn.contains("link")) {
-                            ModLogger.info("AEDeposit:  method: {} -> {}", m.getName(), m.getReturnType().getSimpleName());
+                            ModLogger.debug("AEDeposit:  method: {} -> {}", m.getName(), m.getReturnType().getSimpleName());
                         }
                     }
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: DIAG failed: {}", e.getMessage());
+                    ModLogger.debug("AEDeposit: DIAG failed: {}", e.getMessage());
                 }
             }
 
             // Approach 10: Method name scan — look for any grid-returning method on the item
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 10 - method name scan");
+                    ModLogger.debug("AEDeposit: trying approach 10 - method name scan");
                     for (var m : terminal.getItem().getClass().getMethods()) {
                         if (m.getParameterCount() > 0) continue;
                         String name = m.getName();
@@ -361,13 +361,13 @@ public class AEDepositPacket {
                                 try {
                                     grid = result.getClass().getMethod("getGrid").invoke(result);
                                     if (grid != null) {
-                                        ModLogger.info("AEDeposit: approach 10 - got grid via {}.{}", terminal.getItem().getClass().getSimpleName(), name);
+                                        ModLogger.debug("AEDeposit: approach 10 - got grid via {}.{}", terminal.getItem().getClass().getSimpleName(), name);
                                         break;
                                     }
                                 } catch (NoSuchMethodException e3) {
                                     if (m.getReturnType().getName().contains("IGrid")) {
                                         grid = result;
-                                        ModLogger.info("AEDeposit: approach 10 - got grid directly via {}", name);
+                                        ModLogger.debug("AEDeposit: approach 10 - got grid directly via {}", name);
                                         break;
                                     }
                                 }
@@ -376,16 +376,16 @@ public class AEDepositPacket {
                             // skip
                         }
                     }
-                    ModLogger.info("AEDeposit: approach 10 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 10 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 10 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 10 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             // Approach 11: accessPoint NBT → block entity → IActionHost → grid
             if (grid == null) {
                 try {
-                    ModLogger.info("AEDeposit: trying approach 11 - accessPoint NBT grid lookup");
+                    ModLogger.debug("AEDeposit: trying approach 11 - accessPoint NBT grid lookup");
                     var tag = terminal.getTag();
                     if (tag != null && tag.contains("accessPoint", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
                         var ap = tag.getCompound("accessPoint");
@@ -399,7 +399,7 @@ public class AEDepositPacket {
                             if (level != null) {
                                 var be = level.getBlockEntity(new net.minecraft.core.BlockPos(posArr[0], posArr[1], posArr[2]));
                                 if (be != null) {
-                                    ModLogger.info("AEDeposit: approach 11 - found BE {} at {} in {}", be.getClass().getSimpleName(), posArr, dimStr);
+                                    ModLogger.debug("AEDeposit: approach 11 - found BE {} at {} in {}", be.getClass().getSimpleName(), posArr, dimStr);
                                     for (var iface : getAllInterfaces(be.getClass())) {
                                         String iname = iface.getName();
                                         if (iname.contains("ActionHost")) {
@@ -427,33 +427,33 @@ public class AEDepositPacket {
                                         }
                                     }
                                 } else {
-                                    ModLogger.info("AEDeposit: approach 11 - no block entity at {}", posArr);
+                                    ModLogger.debug("AEDeposit: approach 11 - no block entity at {}", posArr);
                                 }
                             } else {
-                                ModLogger.info("AEDeposit: approach 11 - no level for {}", dimStr);
+                                ModLogger.debug("AEDeposit: approach 11 - no level for {}", dimStr);
                             }
                         }
                     } else {
-                        ModLogger.info("AEDeposit: approach 11 - no accessPoint NBT tag found");
+                        ModLogger.debug("AEDeposit: approach 11 - no accessPoint NBT tag found");
                     }
-                    ModLogger.info("AEDeposit: approach 11 result = {}", grid == null ? "null" : "FOUND");
+                    ModLogger.debug("AEDeposit: approach 11 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
-                    ModLogger.info("AEDeposit: approach 11 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                    ModLogger.debug("AEDeposit: approach 11 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 
             if (grid == null) {
-                ModLogger.info("AEDeposit: ALL approaches failed - no grid from wireless terminal");
+                ModLogger.debug("AEDeposit: ALL approaches failed - no grid from wireless terminal");
                 return null;
             }
 
-            ModLogger.info("AEDeposit: got grid = {} class = {}", grid, grid.getClass().getName());
+            ModLogger.debug("AEDeposit: got grid = {} class = {}", grid, grid.getClass().getName());
             Object storageSvc = callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
-            ModLogger.info("AEDeposit: storageSvc = {}", storageSvc == null ? "null" : storageSvc.getClass().getName());
+            ModLogger.debug("AEDeposit: storageSvc = {}", storageSvc == null ? "null" : storageSvc.getClass().getName());
             if (storageSvc == null) return null;
 
             Object inv = callMethodOnBestMatch(storageSvc, "getInventory");
-            ModLogger.info("AEDeposit: inventory = {}", inv == null ? "null" : "FOUND");
+            ModLogger.debug("AEDeposit: inventory = {}", inv == null ? "null" : "FOUND");
             return inv;
         } catch (Exception e) {
             ModLogger.warn("AEDeposit: wireless terminal error: {}: {}", e.getClass().getSimpleName(), e.getMessage());
@@ -495,12 +495,12 @@ public class AEDepositPacket {
             for (int i = 0; i < inv.items.size(); i++) {
                 ItemStack s = inv.getItem(i);
                 if (wtClass.isInstance(s.getItem())) {
-                    ModLogger.info("AEDeposit: findWT - found in inventory slot {}", i);
+                    ModLogger.debug("AEDeposit: findWT - found in inventory slot {}", i);
                     return s;
                 }
             }
             if (wtClass.isInstance(player.getOffhandItem().getItem())) {
-                ModLogger.info("AEDeposit: findWT - found in offhand");
+                ModLogger.debug("AEDeposit: findWT - found in offhand");
                 return player.getOffhandItem();
             }
 
@@ -524,7 +524,7 @@ public class AEDepositPacket {
                                     try {
                                         ItemStack s = (ItemStack) slotInv.invoke(stacks, i);
                                         if (!s.isEmpty() && wtClass.isInstance(s.getItem())) {
-                                            ModLogger.info("AEDeposit: findWT - found in curio slot {}", i);
+                                            ModLogger.debug("AEDeposit: findWT - found in curio slot {}", i);
                                             return s;
                                         }
                                     } catch (Exception e) { break; }
@@ -534,12 +534,12 @@ public class AEDepositPacket {
                     }
                 }
             } catch (Exception e) {
-                ModLogger.info("AEDeposit: findWT - curios check failed: {}", e.getMessage());
+                ModLogger.debug("AEDeposit: findWT - curios check failed: {}", e.getMessage());
             }
         } catch (Exception e) {
             ModLogger.warn("AEDeposit: findWirelessTerminal error: {}", e.getMessage());
         }
-        ModLogger.info("AEDeposit: findWT - no terminal found");
+        ModLogger.debug("AEDeposit: findWT - no terminal found");
         return ItemStack.EMPTY;
     }
 

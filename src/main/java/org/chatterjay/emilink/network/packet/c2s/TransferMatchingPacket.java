@@ -50,27 +50,27 @@ public class TransferMatchingPacket {
     private static void handleServer(NetworkEvent.Context context, TransferMatchingPacket msg) {
         ServerPlayer player = context.getSender();
         if (player == null || msg.clickedStack == null || msg.clickedStack.isEmpty()) {
-            ModLogger.info("TransferMatchingPacket: skipped - player={}, stack={}",
+            ModLogger.debug("TransferMatchingPacket: skipped - player={}, stack={}",
                     player != null ? "ok" : "null",
                     msg.clickedStack == null ? "null" : (msg.clickedStack.isEmpty() ? "empty" : "ok"));
             return;
         }
 
-        ModLogger.info("TransferMatchingPacket: mode={}, item={}, locked={}",
+        ModLogger.debug("TransferMatchingPacket: mode={}, item={}, locked={}",
                 msg.mode, msg.clickedStack.getHoverName().getString(), msg.lockedSlots.length);
 
         switch (msg.mode) {
             case 0 -> {
                 boolean ok = BDProxy.extractAllFromNetwork(player, msg.clickedStack, msg.lockedSlots);
-                ModLogger.info("TransferMatchingPacket: extractAllFromNetwork={} for {}", ok, msg.clickedStack.getHoverName().getString());
+                ModLogger.debug("TransferMatchingPacket: extractAllFromNetwork={} for {}", ok, msg.clickedStack.getHoverName().getString());
             }
             case 3 -> {
                 boolean ok = BDProxy.extractFromNetwork(player, msg.clickedStack);
-                ModLogger.info("TransferMatchingPacket: extractSingleFromNetwork={} for {}", ok, msg.clickedStack.getHoverName().getString());
+                ModLogger.debug("TransferMatchingPacket: extractSingleFromNetwork={} for {}", ok, msg.clickedStack.getHoverName().getString());
             }
             default -> {
                 boolean ok = BDProxy.depositToNetwork(player, msg.mode, msg.lockedSlots);
-                ModLogger.info("TransferMatchingPacket: depositToNetwork={} for mode={}", ok, msg.mode);
+                ModLogger.debug("TransferMatchingPacket: depositToNetwork={} for mode={}", ok, msg.mode);
             }
         }
     }

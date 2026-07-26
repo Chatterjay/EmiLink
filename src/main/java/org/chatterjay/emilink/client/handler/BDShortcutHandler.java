@@ -152,7 +152,7 @@ public class BDShortcutHandler {
         if (slot.index >= inventoryEnd) {
             long now = System.currentTimeMillis();
             if (now - lastShiftClickTime < 300) {
-                ModLogger.info("BDShortcutHandler: shift+click throttled (too fast)");
+                ModLogger.debug("BDShortcutHandler: shift+click throttled (too fast)");
                 event.setCanceled(true);
                 return;
             }
@@ -160,11 +160,11 @@ public class BDShortcutHandler {
             if (hasServerMod()) {
                 ItemStack sendStack = clickedItem.copy();
                 sendStack.setCount(1);
-                ModLogger.info("BDShortcutHandler: shift+click sending TransferMatchingPacket mode=3 slot={} item={}",
+                ModLogger.debug("BDShortcutHandler: shift+click sending TransferMatchingPacket mode=3 slot={} item={}",
                         slot.index, sendStack.getHoverName().getString());
                 NetworkHandler.sendToServer(new TransferMatchingPacket(sendStack, 3, new int[0]));
             } else {
-                ModLogger.info("BDShortcutHandler: shift+click client-only extract item={}",
+                ModLogger.debug("BDShortcutHandler: shift+click client-only extract item={}",
                         clickedItem.getHoverName().getString());
                 BDProxy.clientExtract(clickedItem);
             }
