@@ -16,6 +16,7 @@
     "CraftingCPUScreenMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
+    "EmiSearchWidgetMixin",
     "RecipeScreenMixin"
   ],
   "injectors": {

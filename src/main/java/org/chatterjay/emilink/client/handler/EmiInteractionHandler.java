@@ -3,9 +3,12 @@ package org.chatterjay.emilink.client.handler;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.stack.EmiStackInteraction;
+import dev.emi.emi.config.CheatMode;
+import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
@@ -167,17 +170,36 @@ public final class EmiInteractionHandler {
                 .orElse(null);
         if (itemStack == null) return false;
 
-        // Deposit: click EMI sidebar to deposit into AE (single + batch all matching from inventory)
-        if (button == 0 && !isExtractModifierHeld()) {
+        // Deposit: cursor item → AE network (matching 1.21.1 behavior)
+        if (button == 0 && Config.ENABLE_AE_DEPOSIT.get()) {
             var mc = Minecraft.getInstance();
-            if (mc.player != null && Config.ENABLE_AE_DEPOSIT.get() && !mc.player.isCreative()) {
-                // Batch deposit: deposit all matching items of this type from inventory
-                ItemStack prototype = itemStack.copyWithCount(1);
-                NetworkHandler.sendToServer(new AEDepositPacket(prototype, -2));
-                ModLogger.info("EmiInteractionHandler: batch deposit {} from EMI click", prototype.getHoverName().getString());
-                return true;
+            if (mc.player != null && mc.screen instanceof AbstractContainerScreen<?> cs) {
+                var carried = cs.getMenu().getCarried();
+                if (!carried.isEmpty() && hasNetworkAccess(mc.player)) {
+                    boolean wouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
+                            || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
+                    if (!wouldDelete) {
+                        var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
+                        if (space != null) {
+                            boolean batch = isDepositBatchModifierHeld();
+                            if (batch) {
+                                NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                                for (int i = 0; i < mc.player.getInventory().items.size(); i++) {
+                                    var s = mc.player.getInventory().getItem(i);
+                                    if (!s.isEmpty() && ItemStack.isSameItemSameTags(s, carried)) {
+                                        NetworkHandler.sendToServer(new AEDepositPacket(s.copy(), i));
+                                    }
+                                }
+                            } else {
+                                NetworkHandler.sendToServer(new AEDepositPacket(carried.copy(), -1));
+                            }
+                            cs.getMenu().setCarried(ItemStack.EMPTY);
+                            ModLogger.info("EmiInteractionHandler: deposited {} from cursor", carried.getHoverName().getString());
+                            return true;
+                        }
+                    }
+                }
             }
-            return false;
         }
 
         if (button == 2) {
@@ -194,6 +216,15 @@ public final class EmiInteractionHandler {
 
     private static boolean isExtractModifierHeld() {
         return switch (Config.getExtractModifier()) {
+            case SHIFT -> Screen.hasShiftDown();
+            case CONTROL -> Screen.hasControlDown();
+            case ALT -> Screen.hasAltDown();
+            case OFF -> false;
+        };
+    }
+
+    private static boolean isDepositBatchModifierHeld() {
+        return switch (Config.getDepositBatchModifier()) {
             case SHIFT -> Screen.hasShiftDown();
             case CONTROL -> Screen.hasControlDown();
             case ALT -> Screen.hasAltDown();
@@ -255,19 +286,9 @@ public final class EmiInteractionHandler {
 
     private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {
         try {
-            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
-            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
-            Object aeKey = ofMethod.invoke(null, itemStack);
-            if (aeKey == null) return false;
-
-            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
-            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
-            var gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
-            Object genericStack = gsCtor.newInstance(aeKey, 1L);
-
             Class<?> packetClass = Class.forName("org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket");
-            var packetCtor = packetClass.getConstructor(genericStackClass);
-            Object packet = packetCtor.newInstance(genericStack);
+            var packetCtor = packetClass.getConstructor(ItemStack.class);
+            Object packet = packetCtor.newInstance(itemStack.copy());
 
             Class.forName("org.chatterjay.emilink.network.NetworkHandler")
                     .getMethod("sendToServer", Object.class)
@@ -284,19 +305,9 @@ public final class EmiInteractionHandler {
 
     private static boolean sendPullFromNetworkPacket(ItemStack itemStack) {
         try {
-            Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
-            var ofMethod = aeItemKeyClass.getMethod("of", ItemStack.class);
-            Object aeKey = ofMethod.invoke(null, itemStack);
-            if (aeKey == null) return false;
-
-            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
-            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
-            var gsCtor = genericStackClass.getDeclaredConstructor(aeKeyClass, long.class);
-            Object genericStack = gsCtor.newInstance(aeKey, 1L);
-
             Class<?> packetClass = Class.forName("org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket");
-            var packetCtor = packetClass.getConstructor(genericStackClass);
-            Object packet = packetCtor.newInstance(genericStack);
+            var packetCtor = packetClass.getConstructor(ItemStack.class);
+            Object packet = packetCtor.newInstance(itemStack.copy());
 
             Class.forName("org.chatterjay.emilink.network.NetworkHandler")
                     .getMethod("sendToServer", Object.class)

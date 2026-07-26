@@ -40,14 +40,14 @@ public class RecipeScreenMixin {
     @Unique
     private void emilink$saveCategory(String path) {
         if (path == null || path.isBlank() || "jemi".equals(path)) {
-            ModLogger.info("RecipeScreenMixin: skip saving category '{}'", path);
+            ModLogger.debug("RecipeScreenMixin: skip saving category '{}'", path);
             return;
         }
         if (path.equals(emilink$lastProviderSearchKey)) return;
         emilink$lastProviderSearchKey = path;
         ProviderSearchHelper.setLastProcessingName(path);
         ProviderSearchHelper.setLastFocusedRecipeCategory(path);
-        ModLogger.info("RecipeScreenMixin: saved category '{}' (from focusCategory/focusRecipe)", path);
+        ModLogger.debug("RecipeScreenMixin: saved category '{}' (from focusCategory/focusRecipe)", path);
     }
 
     @Unique
@@ -83,7 +83,7 @@ public class RecipeScreenMixin {
 
     @Inject(method = {"render", "renderWidget"}, at = @At("TAIL"), require = 0)
     private void emilink$onRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
-        ModLogger.info("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
+        ModLogger.debug("RecipeScreenMixin: render called, old={}, isEncodingTerm={}",
                 old == null ? "null" : old.getClass().getName(),
                 emilink$isEncodingScreen(old));
 
@@ -101,7 +101,7 @@ public class RecipeScreenMixin {
 
         // WB button
         if (!Config.ENABLE_WRAP_BOOK.get()) {
-            ModLogger.info("RecipeScreenMixin: WB button disabled by config");
+            ModLogger.debug("RecipeScreenMixin: WB button disabled by config");
             return;
         }
 
@@ -109,11 +109,11 @@ public class RecipeScreenMixin {
         int btnX = x + backgroundWidth;
         int btnY = y + 5;
         int s = BTN_SIZE;
-        ModLogger.info("RecipeScreenMixin: drawing WB button at ({},{}), active={}, x={}, bgW={}",
+        ModLogger.debug("RecipeScreenMixin: drawing WB button at ({},{}), active={}, x={}, bgW={}",
                 btnX, btnY, active, x, backgroundWidth);
 
         Font font = Minecraft.getInstance().font;
-        String label = active ? "书" : "WB";
+        String label = active ? "ON" : "WB";
         int textX = btnX + (s - font.width(label)) / 2;
         int textY = btnY + (s - font.lineHeight) / 2;
         guiGraphics.drawString(font, label, textX, textY, active ? 0xFFFFAA : 0xAAAAAA, true);
@@ -127,7 +127,7 @@ public class RecipeScreenMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
     private void emilink$onMouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (!emilink$isEncodingScreen(old)) {
-            ModLogger.info("RecipeScreenMixin: click ignored, old is {}",
+            ModLogger.debug("RecipeScreenMixin: click ignored, old is {}",
                     old == null ? "null" : old.getClass().getSimpleName());
             return;
         }
@@ -138,14 +138,14 @@ public class RecipeScreenMixin {
         int btnY = y + 5;
         int s = BTN_SIZE;
         boolean hit = mouseX >= btnX && mouseX < btnX + s && mouseY >= btnY && mouseY < btnY + s;
-        ModLogger.info("RecipeScreenMixin: click at ({},{}), btn=({},{}) size={} hit={}",
+        ModLogger.debug("RecipeScreenMixin: click at ({},{}), btn=({},{}) size={} hit={}",
                 mouseX, mouseY, btnX, btnY, s, hit);
 
         if (hit) {
             boolean before = WrapAsBookHandler.isActive();
             WrapAsBookHandler.toggle();
             boolean after = WrapAsBookHandler.isActive();
-            ModLogger.info("RecipeScreenMixin: WB toggled {} -> {}", before, after);
+            ModLogger.debug("RecipeScreenMixin: WB toggled {} -> {}", before, after);
             cir.setReturnValue(true);
         }
     }

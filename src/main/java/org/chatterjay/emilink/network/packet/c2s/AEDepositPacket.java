@@ -79,7 +79,7 @@ public class AEDepositPacket {
 
                 if (slotIndex == -1) {
                     player.containerMenu.setCarried(ItemStack.EMPTY);
-                } else if (!player.isCreative() && slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
+                } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
                     player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
                 }
 
@@ -379,6 +379,66 @@ public class AEDepositPacket {
                     ModLogger.info("AEDeposit: approach 10 result = {}", grid == null ? "null" : "FOUND");
                 } catch (Exception e) {
                     ModLogger.info("AEDeposit: approach 10 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+            }
+
+            // Approach 11: accessPoint NBT → block entity → IActionHost → grid
+            if (grid == null) {
+                try {
+                    ModLogger.info("AEDeposit: trying approach 11 - accessPoint NBT grid lookup");
+                    var tag = terminal.getTag();
+                    if (tag != null && tag.contains("accessPoint", net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+                        var ap = tag.getCompound("accessPoint");
+                        String dimStr = ap.getString("dimension");
+                        int[] posArr = ap.getIntArray("pos");
+                        if (!dimStr.isEmpty() && posArr.length == 3) {
+                            var dimKey = net.minecraft.resources.ResourceKey.create(
+                                    net.minecraft.core.registries.Registries.DIMENSION,
+                                    new net.minecraft.resources.ResourceLocation(dimStr));
+                            var level = player.getServer().getLevel(dimKey);
+                            if (level != null) {
+                                var be = level.getBlockEntity(new net.minecraft.core.BlockPos(posArr[0], posArr[1], posArr[2]));
+                                if (be != null) {
+                                    ModLogger.info("AEDeposit: approach 11 - found BE {} at {} in {}", be.getClass().getSimpleName(), posArr, dimStr);
+                                    for (var iface : getAllInterfaces(be.getClass())) {
+                                        String iname = iface.getName();
+                                        if (iname.contains("ActionHost")) {
+                                            for (var m : iface.getMethods()) {
+                                                if (m.getParameterCount() != 0) continue;
+                                                String retName = m.getReturnType().getName();
+                                                if (retName.contains("Grid") || retName.contains("Node")) {
+                                                    try {
+                                                        Object result = m.invoke(be);
+                                                        if (result != null) {
+                                                            try {
+                                                                grid = result.getClass().getMethod("getGrid").invoke(result);
+                                                                if (grid != null) break;
+                                                            } catch (NoSuchMethodException ignored) {
+                                                                if (m.getReturnType().getName().contains("IGrid")) {
+                                                                    grid = result;
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                    } catch (Exception e2) { /* try next */ }
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    ModLogger.info("AEDeposit: approach 11 - no block entity at {}", posArr);
+                                }
+                            } else {
+                                ModLogger.info("AEDeposit: approach 11 - no level for {}", dimStr);
+                            }
+                        }
+                    } else {
+                        ModLogger.info("AEDeposit: approach 11 - no accessPoint NBT tag found");
+                    }
+                    ModLogger.info("AEDeposit: approach 11 result = {}", grid == null ? "null" : "FOUND");
+                } catch (Exception e) {
+                    ModLogger.info("AEDeposit: approach 11 failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
                 }
             }
 

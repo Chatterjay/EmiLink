@@ -22,6 +22,7 @@ import org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket;
 import org.chatterjay.emilink.network.packet.c2s.PullFromNetworkC2SPacket;
 import org.chatterjay.emilink.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emilink.network.packet.s2c.*;
+import org.chatterjay.emilink.util.ModLogger;
 
 public class NetworkHandler {
     private static final String PROTOCOL_VERSION = "1";
@@ -61,12 +62,31 @@ public class NetworkHandler {
                 AEDepositPacket::encode, AEDepositPacket::decode, AEDepositPacket::handle);
     }
 
-    public static void sendToPlayer(ServerPlayer player, Object packet) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+    public static boolean sendToPlayer(ServerPlayer player, Object packet) {
+        try {
+            CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+            return true;
+        } catch (Throwable t) {
+            ModLogger.debug("Skipping packet {} for player without EmiLink client: {}",
+                    packet == null ? "null" : packet.getClass().getSimpleName(), t.toString());
+            return false;
+        }
     }
 
-    public static void sendToServer(Object packet) {
-        CHANNEL.sendToServer(packet);
+    public static boolean sendToServer(Object packet) {
+        if (!ServerHasModPacket.serverHasMod) {
+            ModLogger.debug("Skipping client packet {} because server has no EmiLink capability",
+                    packet == null ? "null" : packet.getClass().getSimpleName());
+            return false;
+        }
+        try {
+            CHANNEL.sendToServer(packet);
+            return true;
+        } catch (Throwable t) {
+            ModLogger.warn("Failed to send client packet {}: {}",
+                    packet == null ? "null" : packet.getClass().getSimpleName(), t.toString());
+            return false;
+        }
     }
 
     @Mod.EventBusSubscriber(modid = Emilink.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -80,7 +100,7 @@ public class NetworkHandler {
         @SubscribeEvent
         public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
             if (event.getEntity() instanceof ServerPlayer sp) {
-                CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), new ServerHasModPacket());
+                sendToPlayer(sp, new ServerHasModPacket());
             }
         }
 
@@ -98,7 +118,7 @@ public class NetworkHandler {
                             .requires(source -> source.hasPermission(2))
                             .executes(ctx -> {
                                 if (ctx.getSource().getEntity() instanceof ServerPlayer sp) {
-                                    CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), new ClearCachePacket());
+                                    sendToPlayer(sp, new ClearCachePacket());
                                 }
                                 return Command.SINGLE_SUCCESS;
                             })

@@ -9,10 +9,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.client.handler.AENetworkCache;
+import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.chatterjay.emilink.util.ModLogger;
 
 import java.lang.reflect.Method;
@@ -33,16 +35,17 @@ public final class InputEvents {
         if (ae2Available != null) return ae2Available;
         try {
             fakeSlotClass = Class.forName("appeng.menu.slot.FakeSlot");
-            ModLogger.info("InputEvents: FakeSlot class loaded: {}", fakeSlotClass.getName());
+            ModLogger.debug("InputEvents: FakeSlot class loaded: {}", fakeSlotClass.getName());
             inventoryActionClass = Class.forName("appeng.helpers.InventoryAction");
             inventoryActionPacketClass = Class.forName("appeng.core.sync.packets.InventoryActionPacket");
-            ModLogger.info("InputEvents: InventoryActionPacket class loaded: {}", inventoryActionPacketClass.getName());
+            ModLogger.debug("InputEvents: InventoryActionPacket class loaded: {}", inventoryActionPacketClass.getName());
 
             var nhClass = Class.forName("appeng.core.sync.network.NetworkHandler");
             var instanceMethod = nhClass.getMethod("instance");
             ae2NetworkHandler = instanceMethod.invoke(null);
-            ae2SendToServerMethod = ae2NetworkHandler.getClass().getMethod("sendToServer", Object.class);
-            ModLogger.info("InputEvents: NetworkHandler loaded, sendToServer method: {}", ae2SendToServerMethod.getName());
+            var basePacketClass = Class.forName("appeng.core.sync.BasePacket");
+            ae2SendToServerMethod = ae2NetworkHandler.getClass().getMethod("sendToServer", basePacketClass);
+            ModLogger.debug("InputEvents: NetworkHandler loaded, sendToServer method: {}", ae2SendToServerMethod.getName());
 
             boolean found = false;
             for (var field : inventoryActionClass.getEnumConstants()) {
@@ -61,13 +64,13 @@ public final class InputEvents {
             // Verify FakeSlot.index field exists
             try {
                 var idxField = fakeSlotClass.getField("index");
-                ModLogger.info("InputEvents: FakeSlot.index field: {}", idxField);
+                ModLogger.debug("InputEvents: FakeSlot.index field: {}", idxField);
             } catch (NoSuchFieldException e) {
                 ModLogger.warn("InputEvents: FakeSlot.index field not found, trying getSlotIndex method");
             }
 
             ae2Available = true;
-            ModLogger.info("InputEvents: AE2 reflection initialized successfully");
+            ModLogger.debug("InputEvents: AE2 reflection initialized successfully");
         } catch (Throwable e) {
             ModLogger.warn("InputEvents: AE2 reflection failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             ae2Available = false;
@@ -102,7 +105,7 @@ public final class InputEvents {
 
     private static boolean fillSearchHandled = false;
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onCharTypedPre(ScreenEvent.CharacterTyped.Pre event) {
         if (fillSearchHandled) {
             fillSearchHandled = false;
@@ -112,17 +115,17 @@ public final class InputEvents {
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
 
-        ModLogger.info("InputEvents: KeyPressed.Pre keyCode={} scanCode={} screen={}",
+        ModLogger.debug("InputEvents: KeyPressed.Pre keyCode={} scanCode={} screen={}",
                 keyCode, scanCode, event.getScreen().getClass().getSimpleName());
 
         boolean fillMatch = ModKeybindings.FILL_SEARCH_KEY.matches(keyCode, scanCode);
         boolean quickMatch = ModKeybindings.QUICK_FILL_SLOT_KEY.matches(keyCode, scanCode);
-        ModLogger.info("InputEvents:  FILL_SEARCH_KEY.match={} QUICK_FILL_SLOT_KEY.match={}", fillMatch, quickMatch);
+        ModLogger.debug("InputEvents: FILL_SEARCH_KEY.match={} QUICK_FILL_SLOT_KEY.match={}", fillMatch, quickMatch);
 
         if (fillMatch) {
             onFillSearchKey(event);
@@ -130,12 +133,12 @@ public final class InputEvents {
         }
 
         if (quickMatch) {
-            ModLogger.info("InputEvents: QUICK_FILL_SLOT_KEY matched, calling handleQuickFillSlot");
+            ModLogger.debug("InputEvents: QUICK_FILL_SLOT_KEY matched, calling handleQuickFillSlot");
             if (handleQuickFillSlot()) {
-                ModLogger.info("InputEvents: handleQuickFillSlot succeeded, canceling event");
+                ModLogger.debug("InputEvents: handleQuickFillSlot succeeded, canceling event");
                 event.setCanceled(true);
             } else {
-                ModLogger.info("InputEvents: handleQuickFillSlot returned false");
+                ModLogger.debug("InputEvents: handleQuickFillSlot returned false");
             }
             return;
         }
@@ -165,128 +168,31 @@ public final class InputEvents {
         var text = alt ? "@" + first.getId().getNamespace() : first.getName().getString();
         if (text.isEmpty()) return;
 
-        var screen = Minecraft.getInstance().screen;
-        if (screen == null) return;
-
-        // Ars Nouveau storage terminal: target searchField directly
         try {
-            Class<?> arsScreenClass = Class.forName("com.hollingsworth.arsnouveau.client.container.AbstractStorageTerminalScreen");
-            if (arsScreenClass.isInstance(screen)) {
-                java.lang.reflect.Field sf = arsScreenClass.getDeclaredField("searchField");
-                sf.setAccessible(true);
-                Object searchField = sf.get(screen);
-                if (searchField != null) {
-                    searchField.getClass().getMethod("setValue", String.class).invoke(searchField, text);
-                    fillSearchHandled = true;
-                    event.setCanceled(true);
-                    return;
-                }
-            }
-        } catch (Throwable e) {
-            ModLogger.debug("FILL_SEARCH_KEY: Ars storage terminal exception: {}", e.getMessage());
-        }
-
-        // Universal: try focused EditBox on ANY screen (after Ars check)
-        if (screen.getFocused() instanceof EditBox editBox) {
-            editBox.setValue(text);
-            editBox.moveCursorToEnd();
-            fillSearchHandled = true;
-            event.setCanceled(true);
-            return;
-        }
-
-        // AE2: PatternAccessTermScreen
-        try {
-            var patClass = Class.forName("appeng.client.gui.me.patternaccess.PatternAccessTermScreen");
-            if (patClass.isInstance(screen)) {
-                var searchField = patClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                }
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: PatternAccessTermScreen exception: {}", e.getMessage());
-        }
-
-        // EAEP: GuiWirelessExPAT
-        try {
-            var eaeClass = Class.forName("com.glodblock.github.extendedae.xmod.wt.GuiWirelessExPAT");
-            if (eaeClass.isInstance(screen)) {
-                java.lang.reflect.Field searchField = null;
-                Class<?> cls = screen.getClass();
-                while (cls != null && searchField == null) {
-                    try {
-                        searchField = cls.getDeclaredField("searchField");
-                    } catch (NoSuchFieldException ignored) {}
-                    cls = cls.getSuperclass();
-                }
-                if (searchField != null) {
-                    searchField.setAccessible(true);
-                    Object fieldObj = searchField.get(screen);
-                    if (fieldObj != null) {
-                        fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                        fillSearchHandled = true;
-                        event.setCanceled(true);
-                        return;
-                    }
-                }
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: EAEP GuiWirelessExPAT exception: {}: {}", e.getClass().getSimpleName(), e.getMessage());
-        }
-
-        // AE2 terminal search field
-        try {
-            var meStorageClass = Class.forName("appeng.client.gui.me.common.MEStorageScreen");
-            if (meStorageClass.isInstance(screen)) {
-                var searchField = meStorageClass.getDeclaredField("searchField");
-                searchField.setAccessible(true);
-                Object fieldObj = searchField.get(screen);
-                if (fieldObj != null) {
-                    fieldObj.getClass().getMethod("setValue", String.class).invoke(fieldObj, text);
-                }
-                var setSearch = meStorageClass.getDeclaredMethod("setSearchText", String.class);
-                setSearch.setAccessible(true);
-                setSearch.invoke(screen, text);
-                fillSearchHandled = true;
-                event.setCanceled(true);
-                return;
-            }
-        } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: AE2 terminal search exception: {}", e.getMessage());
-        }
-
-        // EMI search fallback
-        try {
-            EmiApi.setSearchText(text);
+            SearchHistoryOverlay.applySearch(text, first.getItemStack());
             fillSearchHandled = true;
             event.setCanceled(true);
         } catch (Throwable e) {
-            ModLogger.warn("FILL_SEARCH_KEY: EMI setSearchText failed: {}", e.getMessage());
+            ModLogger.warn("FILL_SEARCH_KEY: apply search failed: {}", e.getMessage());
         }
     }
 
     private static boolean quickFillSlot() {
         var hovered = EmiApi.getHoveredStack(true);
         if (hovered == null || hovered.isEmpty()) {
-            ModLogger.info("QuickFillSlot: no hovered stack");
+            ModLogger.debug("QuickFillSlot: no hovered stack");
             return false;
         }
 
         var ingredient = hovered.getStack();
         if (ingredient == null || ingredient.isEmpty()) {
-            ModLogger.info("QuickFillSlot: ingredient empty");
+            ModLogger.debug("QuickFillSlot: ingredient empty");
             return false;
         }
 
         var emiStacks = ingredient.getEmiStacks();
         if (emiStacks.isEmpty()) {
-            ModLogger.info("QuickFillSlot: no emi stacks");
+            ModLogger.debug("QuickFillSlot: no emi stacks");
             return false;
         }
 
@@ -294,31 +200,31 @@ public final class InputEvents {
 
         var itemStack = emiStack.getItemStack();
         if (itemStack.isEmpty()) {
-            ModLogger.info("QuickFillSlot: itemStack empty");
+            ModLogger.debug("QuickFillSlot: itemStack empty");
             return false;
         }
 
         var mc = Minecraft.getInstance();
         if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) {
-            ModLogger.info("QuickFillSlot: screen not AbstractContainerScreen: {}", mc.screen);
+            ModLogger.debug("QuickFillSlot: screen not AbstractContainerScreen: {}", mc.screen);
             return false;
         }
 
         if (!initAE2Reflection()) {
-            ModLogger.info("QuickFillSlot: AE2 reflection not available");
+            ModLogger.debug("QuickFillSlot: AE2 reflection not available");
             return false;
         }
 
-        ModLogger.info("QuickFillSlot: scanning {} slots for empty FakeSlot", containerScreen.getMenu().slots.size());
+        ModLogger.debug("QuickFillSlot: scanning {} slots for empty FakeSlot", containerScreen.getMenu().slots.size());
         for (var slot : containerScreen.getMenu().slots) {
             if (fakeSlotClass.isInstance(slot) && slot.getItem().isEmpty()) {
                 int idx = getFakeSlotIndex(slot);
                 sendInventoryAction(idx, itemStack.copy());
-                ModLogger.info("QuickFillSlot: set slot {} with {}", idx, emiStack.getId());
+                ModLogger.debug("QuickFillSlot: set slot {} with {}", idx, emiStack.getId());
                 return true;
             }
         }
-        ModLogger.info("QuickFillSlot: no empty FakeSlot found");
+        ModLogger.debug("QuickFillSlot: no empty FakeSlot found");
         return false;
     }
 

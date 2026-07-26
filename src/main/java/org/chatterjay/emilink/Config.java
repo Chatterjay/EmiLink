@@ -16,6 +16,14 @@ public class Config {
         OFF
     }
 
+    public enum SearchHistoryPosition {
+        OFF,
+        AUTO,
+        ABOVE,
+        LEFT,
+        RIGHT
+    }
+
     // ---- General ----
     public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
 
@@ -38,6 +46,7 @@ public class Config {
     public static final ForgeConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ForgeConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
     public static final ForgeConfigSpec.BooleanValue ENABLE_DRAG_FILL;
+    public static final ForgeConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
 
     // ---- Network ----
     public static final ForgeConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -114,6 +123,10 @@ public class Config {
         ENABLE_DRAG_FILL = BUILDER
                 .comment("Drag an EMI item onto a text field to fill it with the item name")
                 .define("enableDragFill", true);
+
+        SEARCH_HISTORY_POSITION = BUILDER
+                .comment("EMI search history overlay position. OFF disables it; AUTO keeps the adaptive default; ABOVE, LEFT, and RIGHT force a side of the search box.")
+                .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
         BUILDER.pop();
         BUILDER.push("network");

@@ -89,6 +89,8 @@ public final class AENetworkCache {
 
     @SubscribeEvent
     public static void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        ServerHasModPacket.serverHasMod = false;
+        BDShortcutHandler.serverHasMod = false;
         currentServerId = resolveServerId();
         serverStates.remove(currentServerId);
         current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
@@ -98,12 +100,16 @@ public final class AENetworkCache {
         needsInitialScan = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
+        ModLogger.debug("Client network login: reset EmiLink server capability state");
     }
 
     @SubscribeEvent
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        ServerHasModPacket.serverHasMod = false;
+        BDShortcutHandler.serverHasMod = false;
         pendingBatch.clear();
         accessCheckScreen = null;
+        ModLogger.debug("Client network logout: reset EmiLink server capability state");
     }
 
     // ---- Public API --------------------------------------------------------

@@ -19,12 +19,15 @@ apply plugin: 'org.spongepowered.mixin'
 group = mod_group_id
 version = mod_version
 
+layout.buildDirectory = layout.projectDirectory.dir("build-codex")
+
 base {
     archivesName = mod_id
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 minecraft {
@@ -72,6 +75,7 @@ mixin {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
+    mavenCentral()
     maven {
         name = "TerraformersMC"
         url = "https://maven.terraformersmc.com/"
@@ -113,55 +117,65 @@ dependencies {
     // EMI — 必选依赖
     implementation fg.deobf("dev.emi:emi-forge:${emi_version}")
 
-    // AE2 — 可选（dev 环境可用）
-    implementation fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    // Optional integrations are compile-only for the published jar and runtime-only for local dev runs.
+    compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
 
-    // ExtendedAE Plus — 可选（dev 环境可用）
-    implementation fg.deobf("maven.modrinth:extendedae-plus:1.5.4")
+    // ExtendedAE Plus — optional
+    compileOnly fg.deobf("maven.modrinth:extendedae-plus:1.5.4")
+    runtimeOnly fg.deobf("maven.modrinth:extendedae-plus:1.5.4")
 
-    // GuideME — AE2 和 ex-pattern-provider 的必需前置
-    implementation fg.deobf("org.appliedenergistics:guideme:20.1.7")
+    // GuideME — AE2/ex-pattern-provider dev runtime dependency
+    runtimeOnly fg.deobf("org.appliedenergistics:guideme:20.1.7")
 
     // Glodium — ex-pattern-provider 的必需前置
-    implementation fg.deobf("curse.maven:glodium-957920:5006780")
+    runtimeOnly fg.deobf("curse.maven:glodium-957920:5006780")
 
     // Configuration — ExtendedAE Plus 的前置库
-    implementation fg.deobf("curse.maven:configuration-444699:4710266")
+    runtimeOnly fg.deobf("curse.maven:configuration-444699:4710266")
 
     // ExtendedAE（ex-pattern-provider）— ExtendedAE Plus 的前置，dev 运行时需加载
     runtimeOnly fg.deobf("curse.maven:ex-pattern-provider-892005:7005572")
 
-    // Mekanism — 可选（dev 环境可用）
-    implementation fg.deobf("mekanism:Mekanism:${mekanism_version}")
+    // Mekanism — optional
+    compileOnly fg.deobf("mekanism:Mekanism:${mekanism_version}")
+    runtimeOnly fg.deobf("mekanism:Mekanism:${mekanism_version}")
 
-    // AE2 Wireless Terminals (AE2WTLib) — 可选（dev 环境可用）
-    implementation fg.deobf("maven.modrinth:applied-energistics-2-wireless-terminals:${ae2wt_version}")
+    // AE2 Wireless Terminals (AE2WTLib) — optional
+    compileOnly fg.deobf("maven.modrinth:applied-energistics-2-wireless-terminals:${ae2wt_version}")
+    runtimeOnly fg.deobf("maven.modrinth:applied-energistics-2-wireless-terminals:${ae2wt_version}")
 
     // AE2WTLib 的前置依赖
-    implementation fg.deobf("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1")
-    implementation fg.deobf("curse.maven:architectury-api-419699:4581905")
-    implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:11.1.118")
+    runtimeOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1")
+    runtimeOnly fg.deobf("curse.maven:architectury-api-419699:4581905")
+    runtimeOnly fg.deobf("me.shedaniel.cloth:cloth-config-forge:11.1.118")
 
-    // JEI — 可选（dev 环境可用）
-    implementation fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+    // JEI — optional
+    compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
 
     // Kotlin for Forge — IPN 的前置
-    implementation fg.deobf("thedarkcolour:kotlinforforge:4.3.0")
+    runtimeOnly fg.deobf("thedarkcolour:kotlinforforge:4.3.0")
 
-    // IPN (Inventory Profiles Next) — 测试 IPN 锁定槽位同步功能需要
-    // libipn 和 IPN 在 Modrinth 上没有 forge 1.20.1 版本，改用 CurseMaven
-    implementation fg.deobf("curse.maven:libipn-679177:5208511")
-    implementation fg.deobf("curse.maven:inventory-profiles-next-495267:6095062")
+    // IPN (Inventory Profiles Next) — optional
+    compileOnly fg.deobf("curse.maven:libipn-679177:5208511")
+    compileOnly fg.deobf("curse.maven:inventory-profiles-next-495267:6095062")
+    runtimeOnly fg.deobf("curse.maven:libipn-679177:5208511")
+    runtimeOnly fg.deobf("curse.maven:inventory-profiles-next-495267:6095062")
 
-    // Ars Nouveau + GeckoLib — dev 环境测试 Ars 存储终端交互
-    implementation fg.deobf("curse.maven:geckolib-388172:4627674")
-    implementation fg.deobf("curse.maven:ars-nouveau-401955:6688854")
+    // Ars Nouveau + GeckoLib — optional
+    compileOnly fg.deobf("curse.maven:geckolib-388172:4627674")
+    compileOnly fg.deobf("curse.maven:ars-nouveau-401955:6688854")
+    runtimeOnly fg.deobf("curse.maven:geckolib-388172:4627674")
+    runtimeOnly fg.deobf("curse.maven:ars-nouveau-401955:6688854")
 
-    // Refined Storage — dev 环境测试 RS 模板屏识别
-    implementation fg.deobf("curse.maven:refined-storage-243076:7986568")
+    // Refined Storage — optional
+    compileOnly fg.deobf("curse.maven:refined-storage-243076:7986568")
+    runtimeOnly fg.deobf("curse.maven:refined-storage-243076:7986568")
 
-    // Beyond Dimensions — 可选（dev 环境可用）
-    implementation fg.deobf("maven.modrinth:beyonddimensions:${beyonddimensions_version}")
+    // Beyond Dimensions — optional
+    compileOnly fg.deobf("maven.modrinth:beyonddimensions:${beyonddimensions_version}")
+    runtimeOnly fg.deobf("maven.modrinth:beyonddimensions:${beyonddimensions_version}")
 
 }
 
