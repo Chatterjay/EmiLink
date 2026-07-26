@@ -9,7 +9,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.handler.WrapAsBookHandler;
 import org.chatterjay.emilink.util.ModLogger;

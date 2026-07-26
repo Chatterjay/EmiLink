@@ -7,8 +7,7 @@
   "plugin": "org.chatterjay.emilink.mixin.MixinConditionalPlugin",
   "mixins": [
     "AEBaseMenuMixin",
-    "EncodingHelperMixin",
-    "MEStorageScreenAccessor"
+    "EncodingHelperMixin"
   ],
   "client": [
     "CraftConfirmMenuMixin",
