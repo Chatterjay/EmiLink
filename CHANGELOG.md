@@ -1,47 +1,28 @@
 # 更新日志
 
-## [1.0.0-1.20.1-test] - 2026-07-26
+## [1.0.1-gtl.1] - 2026-07-30
 
 ### 新增
 
-- 初步迁移到 Minecraft Forge 1.20.1 / Forge 47.x。
-- 加入 EMI 搜索历史浮层，支持图标、点击填充、滚轮浏览和位置配置。
-- 接入 F/Alt+F 搜索同步，覆盖 EMI、AE2、BD、RS、ExtendedAE 和常见容器搜索框。
-- 增加客户端/服务端能力探测，客户端连接未安装 EmiLink 的服务端时会跳过自定义包能力。
-- BD 网络库存现在可作为 EMI 可用库存参与配方填充。
-- 打开普通容器时，EMI 侧栏可从容器库存中提取同类物品到玩家背包。
-
-### 修复
-
-- 修复旧 `build/downloadMcpConfig/output.zip` 权限异常导致构建失败的问题，临时构建目录切换为 `build-codex/`。
-- 隔离主类中的客户端初始化，避免专用服务端直接加载配置界面、快捷键等客户端类。
-- 隔离 S2C 缓存包对客户端缓存类的直接引用，改为客户端侧反射调用。
-- 成书包裹、AE 查询响应和供应器搜索辅助移除不必要的硬类型引用。
-- 降低供应器搜索自动填充的高频日志为 debug 输出。
-- 修复 1.20.1 语言文件编码和 JSON 损坏问题。
-- 修复 EMI 收藏栏空白区域悬停穿透到底层 GUI 的问题。
-- 修复 EMI recipe filler 在空界面上下文中查找处理器时可能异常的问题。
-- 适配 AE2 1.20.1 的 crafting grid 填充包日志入口，便于继续排查 AE 终端/样板终端配方填充。
-- BD 配方填充后按 Ctrl 可继续触发网络结果槽快捷合成。
-- 移除从 EMI 存入 AE 时的聊天栏提示，改为 EMI 悬浮提示显示单次/批量存入模式。
-- 修复从 EMI 侧栏空白空间存入 AE 时不触发的问题，并按 AE 实际接收数量消耗物品。
-- 修复 AE 合成终端中 Ctrl+左键 EMI 快速合成无法填充 AE crafting grid 的问题，失败时回退到 AE2 1.20.1 自身填充包。
-- 修复 AE 快速合成只填充 crafting grid、不继续取出结果的问题。
-- 修复 AE 快速合成单次模式误触发整组的问题，并补上 Ctrl+Shift+左键最大值合成。
-- 迁移 1.21.1 的 `CRAFT_SHIFT + Long.MIN_VALUE` 单次合成信号，AE 单次快捷合成会在服务端直接合成一次并放入玩家背包，不再经过鼠标光标。
-- 迁移 Ctrl+Shift+丢弃键一键丢弃同类物品，并补齐对应配置项。
-- 补齐 1.20.1 配置界面的本地化显示。
+- 新建 GregTech Leisure2 专用 fork，目录为 `D:\Temp\EmiLink\gtl-emilink`。
+- 构建产物改名为 `gtl-emilink`，显示名改为 `GTL EmiLink`，mod id 继续保持 `emilink`。
+- 新增 `features.enableServerPacketFeatures` 配置项，用于控制是否启用需要 EmiLink 服务端安装的自定义网络包功能。GTL fork 默认关闭。
 
 ### 变更
 
-- EMI 保持客户端必需依赖。
-- AE2、ExtendedAE Plus、Beyond Dimensions、Curios、Inventory Profiles Next、Mekanism、JEI、Ars Nouveau、Refined Storage 均按软依赖迁移。
-- 可选集成使用 `compileOnly` 编译、`runtimeOnly` 本地开发运行的依赖结构。
-- 条件 mixin 会在目标模组类不存在时跳过对应注入。
-- 本测试版暂不迁移 BOM 自动合成/配方树等重型功能，也暂不迁移 Super Factory Manager 代码编辑器内显示 EMI 的功能。
-- 抽取 AE 网络查询工具，统一单物品查询、批量查询和 AE 存入路径的 grid/storage 反射逻辑。
-- 默认日志进一步收敛，高频集成路径仅在 debug 模式输出。
+- 适配方向调整为客户端功能优先，服务端不需要安装 EmiLink。
+- `mods.toml` 增加 `displayTest = "IGNORE_ALL_VERSION"`，避免客户端/服务端 EmiLink 安装状态不同导致无法进服。
+- AE2 开发依赖对齐 GTL 使用的 `15.4.10`。
+- ExtendedAE Plus 可选依赖范围降为 `[1.2,)`，并从 Gradle 运行依赖中移除硬解析，兼容 GTL 的 `1.2.1-fix` 修复版 jar。
+- `features.enableAeDeposit` 默认改为关闭，避免在 GTL 默认客户端模式下误用 EmiLink 服务端包。
+- AE 终端 Space+点击时，只有在 `enableServerPacketFeatures` 打开后才发送 EmiLink 自定义锁槽同步包。
+- AE 终端中的 EmiLink 自定义打开合成数量、从网络提取、普通容器 EMI 提取、AE 存入提示等能力，现在受 `enableServerPacketFeatures` 保护。
+
+### 修复
+
+- 修复 1.20.1 fork 中中文本地化 JSON 损坏导致资源解析失败的问题。
+- 修复 README 和 CHANGELOG 乱码，重新整理为 GTL 客户端 fork 说明。
 
 ### 验证
 
-- `./gradlew.bat build --no-daemon --console=plain` 已通过。
+- `./gradlew.bat build --no-daemon --console=plain` 通过。

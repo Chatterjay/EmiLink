@@ -100,10 +100,12 @@ public class BDShortcutHandler {
         if (isSpace && AE2Proxy.isMEStorageScreen(screen)) {
             // Send locked slots to server so AEBaseMenuMixin can protect them during MOVE_REGION
             // Always send, even when empty, to clear server-side locked slots on unlock
-            var lockedSet = IPNProxy.getLockedSlots();
-            int[] arr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
-            NetworkHandler.sendToServer(new AELockedSlotsPacket(arr));
-            ModLogger.debug("Sent locked slots to server ({} slots)", arr.length);
+            if (Config.ENABLE_SERVER_PACKET_FEATURES.get()) {
+                var lockedSet = IPNProxy.getLockedSlots();
+                int[] arr = lockedSet.stream().mapToInt(Integer::intValue).toArray();
+                NetworkHandler.sendToServer(new AELockedSlotsPacket(arr));
+                ModLogger.debug("Sent locked slots to server ({} slots)", arr.length);
+            }
             return;
         }
 

@@ -181,7 +181,7 @@ public final class EmiInteractionHandler {
             return true;
         }
 
-        if (button == 0 && handleAeDepositFromEmiSpace(mc, mouseX, mouseY)) {
+        if (button == 0 && Config.ENABLE_SERVER_PACKET_FEATURES.get() && handleAeDepositFromEmiSpace(mc, mouseX, mouseY)) {
             return true;
         }
 
@@ -204,7 +204,7 @@ public final class EmiInteractionHandler {
 
         if (button == 0 && isExtractModifierHeld()) {
             if (handleShiftClickBDEmi(itemStack)) return true;
-            if (handleShiftClickContainer(itemStack)) return true;
+            if (Config.ENABLE_SERVER_PACKET_FEATURES.get() && handleShiftClickContainer(itemStack)) return true;
             return handleShiftClickAE2(itemStack);
         }
 
@@ -236,7 +236,7 @@ public final class EmiInteractionHandler {
 
         // If we're on an AE2 terminal screen, use our own packet (works for wired + wireless)
         if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) {
-            return sendOpenCraftAmountPacket(itemStack);
+            return Config.ENABLE_SERVER_PACKET_FEATURES.get() && sendOpenCraftAmountPacket(itemStack);
         }
 
         // Fallback: wireless terminal in inventory (EAEP wireless-only packet)
@@ -255,7 +255,7 @@ public final class EmiInteractionHandler {
 
         // If we're on an AE2 terminal screen, use our own packet (works for wired + wireless)
         if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) {
-            return sendPullFromNetworkPacket(itemStack);
+            return Config.ENABLE_SERVER_PACKET_FEATURES.get() && sendPullFromNetworkPacket(itemStack);
         }
 
         // Fallback: wireless terminal in inventory
@@ -353,6 +353,7 @@ public final class EmiInteractionHandler {
         var mc = Minecraft.getInstance();
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
         if (space != null
+                && Config.ENABLE_SERVER_PACKET_FEATURES.get()
                 && Config.ENABLE_AE_DEPOSIT.get()
                 && AE2Proxy.isLoaded()
                 && mc.player != null

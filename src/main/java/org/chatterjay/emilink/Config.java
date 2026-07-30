@@ -48,6 +48,7 @@ public class Config {
     public static final ForgeConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
     public static final ForgeConfigSpec.BooleanValue ENABLE_DRAG_FILL;
     public static final ForgeConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
+    public static final ForgeConfigSpec.BooleanValue ENABLE_SERVER_PACKET_FEATURES;
 
     // ---- Network ----
     public static final ForgeConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
@@ -133,7 +134,7 @@ public class Config {
         ENABLE_AE_DEPOSIT = BUILDER
                 .comment("Click EMI sidebar with carried item to deposit into AE")
                 .translation("emilink.config.ae_network.enableAeDeposit")
-                .define("enableAeDeposit", true);
+                .define("enableAeDeposit", false);
 
         DEPOSIT_BATCH_MODIFIER = BUILDER
                 .comment("Modifier for batch deposit (SHIFT, CONTROL, ALT, or OFF)")
@@ -149,6 +150,11 @@ public class Config {
                 .comment("EMI search history overlay position. OFF disables it; AUTO keeps the adaptive default; ABOVE, LEFT, and RIGHT force a side of the search box.")
                 .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
+
+        ENABLE_SERVER_PACKET_FEATURES = BUILDER
+                .comment("Enable features that require EmiLink to be installed on the server. GTL fork keeps this off by default.")
+                .translation("emilink.config.gtl.enableServerPacketFeatures")
+                .define("enableServerPacketFeatures", false);
 
         BUILDER.pop();
         BUILDER.push("network");

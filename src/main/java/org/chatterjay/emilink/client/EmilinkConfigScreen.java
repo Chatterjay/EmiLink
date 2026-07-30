@@ -53,6 +53,8 @@ public final class EmilinkConfigScreen extends Screen {
         idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.enableDragFill", Config.ENABLE_DRAG_FILL);
         idx = addSearchHistoryPositionCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.emi_ui.searchHistoryPosition",
                 Config.SEARCH_HISTORY_POSITION);
+        idx = addToggle(leftCol, rightCol, startY, spacing, idx, "emilink.config.gtl.enableServerPacketFeatures",
+                Config.ENABLE_SERVER_PACKET_FEATURES);
         idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.extractModifier",
                 Config.EXTRACT_MODIFIER);
         idx = addEnumCycle(leftCol, rightCol, startY, spacing, idx, "emilink.config.ae_network.depositBatchModifier",

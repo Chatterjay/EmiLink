@@ -26,6 +26,7 @@
   "emilink.config.emi_ui.enableDragFill": "Drag Fill Search",
   "emilink.config.emi_ui.bookmarkPriority": "Bookmark Priority",
   "emilink.config.emi_ui.searchHistoryPosition": "Search History Position",
+  "emilink.config.gtl.enableServerPacketFeatures": "Server Packet Features",
   "emilink.config.ae_network.enableNetworkBadges": "Network Badges",
   "emilink.config.ae_network.networkBadgeStyle": "Badge Style",
   "emilink.config.ae_network.extractModifier": "Extract Modifier",

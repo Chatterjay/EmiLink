@@ -22,7 +22,7 @@ version = mod_version
 layout.buildDirectory = layout.projectDirectory.dir("build-codex")
 
 base {
-    archivesName = mod_id
+    archivesName = 'gtl-emilink'
 }
 
 java {
@@ -122,9 +122,6 @@ dependencies {
     runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
 
     // ExtendedAE Plus — optional
-    compileOnly fg.deobf("maven.modrinth:extendedae-plus:1.5.4")
-    runtimeOnly fg.deobf("maven.modrinth:extendedae-plus:1.5.4")
-
     // GuideME — AE2/ex-pattern-provider dev runtime dependency
     runtimeOnly fg.deobf("org.appliedenergistics:guideme:20.1.7")
 

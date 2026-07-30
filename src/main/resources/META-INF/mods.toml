@@ -9,6 +9,8 @@ displayName = "${mod_name}"
 authors = "${mod_authors}"
 description = '''${mod_description}'''
 logoFile = "icon.png"
+clientSideOnly = true
+displayTest = "IGNORE_ALL_VERSION"
 
 [[dependencies."${mod_id}"]]
 modId = "forge"
@@ -28,19 +30,19 @@ side = "BOTH"
 modId = "emi"
 mandatory = true
 versionRange = "[1.1.0,)"
-ordering = "NONE"
+ordering = "AFTER"
 side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "ae2"
 mandatory = false
 versionRange = "[15.4,)"
-ordering = "NONE"
-side = "BOTH"
+ordering = "AFTER"
+side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
 modId = "extendedae_plus"
 mandatory = false
-versionRange = "[1.5,)"
-ordering = "NONE"
-side = "BOTH"
+versionRange = "[1.2,)"
+ordering = "AFTER"
+side = "CLIENT"

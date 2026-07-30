@@ -3,6 +3,7 @@
   "minVersion": "0.8",
   "package": "org.chatterjay.emilink.mixin",
   "compatibilityLevel": "JAVA_8",
+  "priority": 500,
   "refmap": "emilink.refmap.json",
   "plugin": "org.chatterjay.emilink.mixin.MixinConditionalPlugin",
   "mixins": [
