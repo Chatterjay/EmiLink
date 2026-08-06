@@ -16,6 +16,7 @@ import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.client.handler.AENetworkCache;
 import org.chatterjay.emilink.client.handler.BDShortcutHandler;
+import org.chatterjay.emilink.client.handler.EmiInteractionHandler;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -121,6 +122,11 @@ public final class InputEvents {
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
+
+        if (EmiInteractionHandler.handleLDLibKeyPressed(keyCode, scanCode)) {
+            event.setCanceled(true);
+            return;
+        }
 
         ModLogger.debug("InputEvents: KeyPressed.Pre keyCode={} scanCode={} screen={}",
                 keyCode, scanCode, event.getScreen().getClass().getSimpleName());
@@ -234,6 +240,14 @@ public final class InputEvents {
         }
         ModLogger.debug("QuickFillSlot: no empty FakeSlot found");
         return false;
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onMouseReleasedPre(ScreenEvent.MouseButtonReleased.Pre event) {
+        if (EmiInteractionHandler.handleLDLibMouseReleased(
+                event.getMouseX(), event.getMouseY(), event.getButton())) {
+            event.setCanceled(true);
+        }
     }
 
     public static boolean tryHandleDiscardMatchingKey(int keyCode, int scanCode) {

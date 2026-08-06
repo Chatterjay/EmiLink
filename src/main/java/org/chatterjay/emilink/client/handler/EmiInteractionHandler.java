@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.InputEvents;
+import org.chatterjay.emilink.client.LDLibEmiHoverAdapter;
 import org.chatterjay.emilink.client.ModKeybindings;
 import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.integration.BDProxy;
@@ -168,6 +169,27 @@ public final class EmiInteractionHandler {
             } catch (Exception ignored) {}
         } catch (Exception ignored) {}
         return null;
+    }
+
+    /**
+     * LDLib recipe previews consume their own input before EmiScreenManager sees it. Forward
+     * only a dynamically discovered LDLib ingredient, leaving all ordinary screens untouched.
+     */
+    public static boolean handleLDLibKeyPressed(int keyCode, int scanCode) {
+        var mouse = Minecraft.getInstance().mouseHandler;
+        var window = Minecraft.getInstance().getWindow();
+        int mouseX = (int) (mouse.xpos() * window.getGuiScaledWidth() / window.getScreenWidth());
+        int mouseY = (int) (mouse.ypos() * window.getGuiScaledHeight() / window.getScreenHeight());
+        EmiStackInteraction hovered = LDLibEmiHoverAdapter.getHoveredStack(mouseX, mouseY);
+        return hovered != null && !hovered.isEmpty()
+                && EmiScreenManager.stackInteraction(hovered, bind -> bind.matchesKey(keyCode, scanCode));
+    }
+
+    public static boolean handleLDLibMouseReleased(double mouseX, double mouseY, int button) {
+        if (button != 0 || !Screen.hasControlDown()) return false;
+        EmiStackInteraction hovered = LDLibEmiHoverAdapter.getHoveredStack((int) mouseX, (int) mouseY);
+        if (hovered == null || hovered.isEmpty()) return false;
+        return onMouseReleased(mouseX, mouseY, button);
     }
 
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {

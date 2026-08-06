@@ -7,6 +7,7 @@
 - 新建 GregTech Leisure2 专用 fork，目录为 `D:\Temp\EmiLink\gtl-emilink`。
 - 构建产物改名为 `gtl-emilink`，显示名改为 `GTL EmiLink`，mod id 继续保持 `emilink`。
 - 新增 `features.enableServerPacketFeatures` 配置项，用于控制是否启用需要 EmiLink 服务端安装的自定义网络包功能。GTL fork 默认关闭。
+- EMI 配方填充现在会读取当前 AE 终端客户端已同步的网络库存，用于判断配方材料是否可用。
 
 ### 变更
 
@@ -17,6 +18,7 @@
 - `features.enableAeDeposit` 默认改为关闭，避免在 GTL 默认客户端模式下误用 EmiLink 服务端包。
 - AE 终端 Space+点击时，只有在 `enableServerPacketFeatures` 打开后才发送 EmiLink 自定义锁槽同步包。
 - AE 终端中的 EmiLink 自定义打开合成数量、从网络提取、普通容器 EMI 提取、AE 存入提示等能力，现在受 `enableServerPacketFeatures` 保护。
+- AE 网络库存注入走 `getClientRepo()` 的客户端缓存，不依赖 EmiLink 服务端包。
 
 ### 修复
 

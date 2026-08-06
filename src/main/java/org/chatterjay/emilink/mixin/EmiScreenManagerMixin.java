@@ -12,6 +12,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emilink.Config;
+import org.chatterjay.emilink.client.LDLibEmiHoverAdapter;
 import org.chatterjay.emilink.client.handler.EmiInteractionHandler;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.spongepowered.asm.mixin.Mixin;
@@ -138,6 +139,12 @@ public class EmiScreenManagerMixin {
         }
 
         if (cir.getReturnValue() != null && !cir.getReturnValue().isEmpty()) return;
+
+        var ldlibHovered = LDLibEmiHoverAdapter.getHoveredStack(mouseX, mouseY);
+        if (ldlibHovered != null && !ldlibHovered.isEmpty()) {
+            cir.setReturnValue(ldlibHovered);
+            return;
+        }
 
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;

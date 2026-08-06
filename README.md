@@ -31,6 +31,7 @@ GTL 当前 mods 目录中未发现 EMI jar，因此使用本 fork 时仍需要�
 - EMI 收藏夹/侧栏交互修补。
 - AE2 合成确认界面、CPU 界面等特殊 GUI 中显示 EMI 的客户端渲染辅助。
 - 可通过原模组自身客户端协议完成的 AE/BD 交互。
+- AE 终端 EMI 配方填充会读取当前终端已经同步到客户端的 AE 网络库存，用于让 EMI 判断网络内材料可用。
 
 默认关闭或需要手动打开的功能：
 
@@ -57,6 +58,7 @@ GTL 当前 mods 目录中未发现 EMI jar，因此使用本 fork 时仍需要�
 - `features.enableServerPacketFeatures`：是否启用需要 EmiLink 服务端安装的功能，GTL fork 默认关闭。
 - `features.enableNetworkBadges`：AE 网络角标，默认关闭。
 - `features.enableAeDeposit`：从 EMI 侧栏把鼠标携带物存入 AE，默认关闭，且需要服务端包功能打开。
+- AE 网络库存读取不需要 EmiLink 服务端安装；它只读取当前打开 AE 终端的客户端仓库缓存。
 - `features.enableDragFill`：允许拖拽 EMI 物品填充搜索框。
 - `features.searchHistoryPosition`：搜索历史位置，支持 `OFF`、`AUTO`、`ABOVE`、`LEFT`、`RIGHT`。
 - `features.enableBulkTransfer`：普通容器 Space+点击批量转移。
