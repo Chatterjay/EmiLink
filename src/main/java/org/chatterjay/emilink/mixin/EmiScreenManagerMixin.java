@@ -15,6 +15,8 @@ import org.chatterjay.emilink.Config;
 import org.chatterjay.emilink.client.LDLibEmiHoverAdapter;
 import org.chatterjay.emilink.client.handler.EmiInteractionHandler;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
+import org.chatterjay.emilink.integration.AE2Proxy;
+import org.chatterjay.emilink.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -117,13 +119,24 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "getHoveredStack(IIZZ)Ldev/emi/emi/api/stack/EmiStackInteraction;",
             at = @At("HEAD"), cancellable = true, require = 0)
-    private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean checkSidebar,
+    private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean notClick,
                                                              boolean includeBatches,
                                                              CallbackInfoReturnable<EmiStackInteraction> cir) {
         if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
             cir.setReturnValue(EmiStackInteraction.EMPTY);
             return;
         }
+
+        var screen = Minecraft.getInstance().screen;
+        if (!notClick
+                && AE2Proxy.isMEStorageScreen(screen)
+                && EmiScreenManager.getHoveredSpace(mouseX, mouseY) == null) {
+            ModLogger.debug("EmiScreenManager: preserved native AE click screen={} at ({},{})",
+                    screen.getClass().getSimpleName(), mouseX, mouseY);
+            cir.setReturnValue(EmiStackInteraction.EMPTY);
+            return;
+        }
+
         var hovered = emilink$getFavoriteSidebarStack(mouseX, mouseY);
         if (hovered != null) {
             cir.setReturnValue(hovered);
@@ -132,7 +145,7 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "getHoveredStack(IIZZ)Ldev/emi/emi/api/stack/EmiStackInteraction;",
             at = @At("RETURN"), cancellable = true, require = 0)
-    private static void emilink$onGetHoveredStack(int mouseX, int mouseY, boolean checkSidebar, boolean includeBatches, CallbackInfoReturnable<dev.emi.emi.api.stack.EmiStackInteraction> cir) {
+    private static void emilink$onGetHoveredStack(int mouseX, int mouseY, boolean notClick, boolean includeBatches, CallbackInfoReturnable<dev.emi.emi.api.stack.EmiStackInteraction> cir) {
         if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
             cir.setReturnValue(dev.emi.emi.api.stack.EmiStackInteraction.EMPTY);
             return;
@@ -148,6 +161,14 @@ public class EmiScreenManagerMixin {
 
         var screen = Minecraft.getInstance().screen;
         if (screen == null) return;
+
+        // EMI calls getHoveredStack(..., false) while deciding whether to consume a mouse
+        // press. Synthesizing an EMI stack for an AE repository slot here prevents AE's own
+        // middle-click AUTO_CRAFT handler from ever receiving that press. Keep the adapter for
+        // tooltips and key interactions, but leave clicks over AE storage slots to AE itself.
+        if (!notClick && AE2Proxy.isMEStorageScreen(screen)) {
+            return;
+        }
 
         try {
             var method = screen.getClass().getMethod("getStackUnderMouse", double.class, double.class);
