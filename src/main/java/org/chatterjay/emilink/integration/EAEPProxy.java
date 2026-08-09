@@ -42,6 +42,23 @@ public class EAEPProxy {
         }
     }
 
+    /** Opens the ExtendedAE craft screen for an AE item or fluid key. */
+    public static boolean openCraftScreenFromAeKey(Object aeKey) {
+        if (!isLoaded() || aeKey == null) return false;
+        try {
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            Object genericStack = genericStackClass.getConstructor(aeKeyClass, long.class)
+                    .newInstance(aeKey, 1L);
+            ModLogger.debug("EAEPProxy: openCraftScreen sending generic AE key {}", aeKey);
+            return sendPacket("com.extendedae_plus.network.crafting.OpenCraftFromJeiC2SPacket",
+                    genericStack, genericStackClass);
+        } catch (Throwable error) {
+            ModLogger.debug("EAEPProxy: generic openCraftScreen error: {}", error.toString());
+            return false;
+        }
+    }
+
     public static boolean pullFromNetwork(ItemStack stack) {
         if (!isLoaded() || stack == null || stack.isEmpty()) {
             ModLogger.debug("EAEPProxy: pullFromNetwork skipped, loaded={} stack={}", isLoaded(), stack);

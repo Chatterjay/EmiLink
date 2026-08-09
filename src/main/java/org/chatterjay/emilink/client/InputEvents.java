@@ -17,6 +17,7 @@ import org.chatterjay.emilink.Emilink;
 import org.chatterjay.emilink.client.handler.AENetworkCache;
 import org.chatterjay.emilink.client.handler.BDShortcutHandler;
 import org.chatterjay.emilink.client.handler.EmiInteractionHandler;
+import org.chatterjay.emilink.integration.AE2Proxy;
 import org.chatterjay.emilink.client.search.SearchHistoryOverlay;
 import org.chatterjay.emilink.util.ModLogger;
 
@@ -36,6 +37,10 @@ public final class InputEvents {
 
     private static boolean initAE2Reflection() {
         if (ae2Available != null) return ae2Available;
+        if (!AE2Proxy.isLoaded()) {
+            ae2Available = false;
+            return false;
+        }
         try {
             fakeSlotClass = Class.forName("appeng.menu.slot.FakeSlot");
             ModLogger.debug("InputEvents: FakeSlot class loaded: {}", fakeSlotClass.getName());

@@ -15,18 +15,23 @@ import java.util.function.Supplier;
  * Uses the currently open menu's MenuLocator to open the sub-screen.
  */
 public class OpenCraftAmountC2SPacket {
-    private final ItemStack stack;
+    private final Object aeKey;
 
     public OpenCraftAmountC2SPacket(ItemStack stack) {
-        this.stack = stack;
+        this.aeKey = toAeItemKey(stack);
+    }
+
+    /** Used by the client for both AEItemKey and AEFluidKey without linking AE2 at class load time. */
+    public OpenCraftAmountC2SPacket(Object aeKey) {
+        this.aeKey = aeKey;
     }
 
     public static void encode(OpenCraftAmountC2SPacket msg, FriendlyByteBuf buf) {
-        buf.writeItem(msg.stack);
+        writeAeKey(buf, msg.aeKey);
     }
 
     public static OpenCraftAmountC2SPacket decode(FriendlyByteBuf buf) {
-        return new OpenCraftAmountC2SPacket(buf.readItem());
+        return new OpenCraftAmountC2SPacket(readAeKey(buf));
     }
 
     public static void handle(OpenCraftAmountC2SPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -37,7 +42,7 @@ public class OpenCraftAmountC2SPacket {
 
     private static void handleServer(NetworkEvent.Context context, OpenCraftAmountC2SPacket msg) {
         ServerPlayer player = context.getSender();
-        if (player == null || msg.stack == null || msg.stack.isEmpty() || !AE2Proxy.isLoaded()) return;
+        if (player == null || msg.aeKey == null || !AE2Proxy.isLoaded()) return;
 
         try {
             Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
@@ -47,11 +52,6 @@ public class OpenCraftAmountC2SPacket {
                 return;
             }
 
-            Object what = Class.forName("appeng.api.stacks.AEItemKey")
-                    .getMethod("of", ItemStack.class)
-                    .invoke(null, msg.stack);
-            if (what == null) return;
-
             Field locatorField = aeBaseMenuClass.getDeclaredField("locator");
             locatorField.setAccessible(true);
             Object locator = locatorField.get(player.containerMenu);
@@ -60,14 +60,67 @@ public class OpenCraftAmountC2SPacket {
                 Class<?> menuLocatorClass = Class.forName("appeng.menu.locator.MenuLocator");
                 Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
                 craftAmountMenuClass.getMethod("open", ServerPlayer.class, menuLocatorClass, aeKeyClass, int.class)
-                        .invoke(null, player, locator, what, 1);
+                        .invoke(null, player, locator, msg.aeKey, getInitialAmount(msg.aeKey));
                 ModLogger.debug("OpenCraftAmount: opened for {} via {}",
-                        msg.stack.getHoverName().getString(), locator.getClass().getSimpleName());
+                        describeAeKey(msg.aeKey), locator.getClass().getSimpleName());
             } else {
                 ModLogger.warn("OpenCraftAmount: locator is null");
             }
         } catch (Exception e) {
             ModLogger.warn("OpenCraftAmount: error accessing locator: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+    }
+
+    private static int getInitialAmount(Object aeKey) {
+        try {
+            return Math.max(1, (int) aeKey.getClass().getMethod("getAmountPerUnit").invoke(aeKey));
+        } catch (Throwable ignored) {
+            return 1;
+        }
+    }
+
+    private static Object toAeItemKey(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        try {
+            return Class.forName("appeng.api.stacks.AEItemKey")
+                    .getMethod("of", ItemStack.class).invoke(null, stack);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static void writeAeKey(FriendlyByteBuf buf, Object aeKey) {
+        if (aeKey == null) {
+            buf.writeBoolean(false);
+            return;
+        }
+        buf.writeBoolean(true);
+        try {
+            Class<?> aeKeyClass = Class.forName("appeng.api.stacks.AEKey");
+            aeKeyClass.getMethod("writeKey", FriendlyByteBuf.class, aeKeyClass)
+                    .invoke(null, buf, aeKey);
+        } catch (Throwable error) {
+            ModLogger.warn("OpenCraftAmount: failed to encode AE key: {}", error.toString());
+        }
+    }
+
+    private static Object readAeKey(FriendlyByteBuf buf) {
+        if (!buf.readBoolean()) return null;
+        try {
+            return Class.forName("appeng.api.stacks.AEKey")
+                    .getMethod("readKey", FriendlyByteBuf.class).invoke(null, buf);
+        } catch (Throwable error) {
+            ModLogger.warn("OpenCraftAmount: failed to decode AE key: {}", error.toString());
+            return null;
+        }
+    }
+
+    private static String describeAeKey(Object aeKey) {
+        try {
+            Object name = aeKey.getClass().getMethod("getDisplayName").invoke(aeKey);
+            return name == null ? aeKey.toString() : name.toString();
+        } catch (Throwable ignored) {
+            return aeKey.toString();
         }
     }
 }

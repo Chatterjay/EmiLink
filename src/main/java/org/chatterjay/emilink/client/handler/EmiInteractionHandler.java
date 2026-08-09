@@ -213,16 +213,18 @@ public final class EmiInteractionHandler {
                 hovered == null ? true : hovered.isEmpty());
         if (hovered == null || hovered.isEmpty()) return false;
 
+        if (button == 2) {
+            // Fluids have no Minecraft ItemStack representation. Resolve the AE key
+            // from the original EMI stack before applying the item-only handlers below.
+            return handleMiddleClick(hovered);
+        }
+
         var itemStack = hovered.getStack().getEmiStacks().stream()
                 .map(EmiStack::getItemStack)
                 .filter(s -> !s.isEmpty())
                 .findFirst()
                 .orElse(null);
         if (itemStack == null) return false;
-
-        if (button == 2) {
-            return handleMiddleClick(itemStack);
-        }
 
         if (button == 0 && isExtractModifierHeld()) {
             if (handleShiftClickBDEmi(itemStack)) return true;
@@ -251,14 +253,24 @@ public final class EmiInteractionHandler {
         };
     }
 
-    private static boolean handleMiddleClick(ItemStack itemStack) {
-        ModLogger.debug("EmiInteractionHandler: handleMiddleClick item={}",
-                itemStack.getHoverName().getString());
+    private static boolean handleMiddleClick(EmiStackInteraction interaction) {
+        EmiStack emiStack = interaction.getStack().getEmiStacks().stream()
+                .findFirst()
+                .orElse(EmiStack.EMPTY);
+        if (emiStack.isEmpty()) return false;
+
+        Object aeKey = getAeKey(emiStack);
+        if (aeKey == null) {
+            ModLogger.debug("EmiInteractionHandler: middle click could not resolve AE key for {}", emiStack.getId());
+            return false;
+        }
+        ModLogger.debug("EmiInteractionHandler: handleMiddleClick key={} type={}",
+                describeAeKey(aeKey), aeKey.getClass().getSimpleName());
         var mc = Minecraft.getInstance();
 
         // If we're on an AE2 terminal screen, use our own packet (works for wired + wireless)
         if (mc.screen != null && AE2Proxy.isMEStorageScreen(mc.screen)) {
-            return Config.ENABLE_SERVER_PACKET_FEATURES.get() && sendOpenCraftAmountPacket(itemStack);
+            return Config.ENABLE_SERVER_PACKET_FEATURES.get() && sendOpenCraftAmountPacket(aeKey);
         }
 
         // Fallback: wireless terminal in inventory (EAEP wireless-only packet)
@@ -267,7 +279,29 @@ public final class EmiInteractionHandler {
             ModLogger.debug("EmiInteractionHandler: handleMiddleClick failed: no terminal access");
             return false;
         }
-        return EAEPProxy.openCraftScreen(itemStack);
+        return EAEPProxy.openCraftScreenFromAeKey(aeKey);
+    }
+
+    /** Converts an EMI item or fluid stack to AE2's generic key without a hard AE2 class reference. */
+    private static Object getAeKey(EmiStack emiStack) {
+        try {
+            Class<?> helperClass = Class.forName("appeng.integration.modules.emi.EmiStackHelper");
+            Object genericStack = helperClass.getMethod("toGenericStack", EmiStack.class)
+                    .invoke(null, emiStack);
+            return genericStack == null ? null : genericStack.getClass().getMethod("what").invoke(genericStack);
+        } catch (Throwable error) {
+            ModLogger.debug("EmiInteractionHandler: EMI to AE stack conversion failed: {}", error.toString());
+            return null;
+        }
+    }
+
+    private static String describeAeKey(Object aeKey) {
+        try {
+            Object displayName = aeKey.getClass().getMethod("getDisplayName").invoke(aeKey);
+            return displayName == null ? aeKey.toString() : displayName.toString();
+        } catch (Throwable ignored) {
+            return aeKey.toString();
+        }
     }
 
     private static boolean handleShiftClickAE2(ItemStack itemStack) {
@@ -524,17 +558,17 @@ public final class EmiInteractionHandler {
         }
     }
 
-    private static boolean sendOpenCraftAmountPacket(ItemStack itemStack) {
+    private static boolean sendOpenCraftAmountPacket(Object aeKey) {
         try {
             Class<?> packetClass = Class.forName("org.chatterjay.emilink.network.packet.c2s.OpenCraftAmountC2SPacket");
-            var packetCtor = packetClass.getConstructor(ItemStack.class);
-            Object packet = packetCtor.newInstance(itemStack.copy());
+            var packetCtor = packetClass.getConstructor(Object.class);
+            Object packet = packetCtor.newInstance(aeKey);
 
             Class.forName("org.chatterjay.emilink.network.NetworkHandler")
                     .getMethod("sendToServer", Object.class)
                     .invoke(null, packet);
 
-            ModLogger.debug("EmiInteractionHandler: sent OpenCraftAmount packet");
+            ModLogger.debug("EmiInteractionHandler: sent OpenCraftAmount packet key={}", describeAeKey(aeKey));
             return true;
         } catch (Exception e) {
             ModLogger.debug("EmiInteractionHandler: sendOpenCraftAmountPacket error: {}: {}",
