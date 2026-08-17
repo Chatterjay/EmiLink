@@ -153,7 +153,8 @@ public final class InputEvents {
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
-        boolean quickCraftKey = EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+        boolean quickCraftKey = EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
+                && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
                 && matchesConfiguredQuickCraftKey(keyCode);
 
         if (ModLogger.isDebugEnabled() && (keyCode == GLFW.GLFW_KEY_A || quickCraftKey)) {
@@ -193,16 +194,19 @@ public final class InputEvents {
 
         if (quickCraftKey) {
             EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-            ModLogger.debug("BOM_KEY quick-craft matched bind={} finalSynthetic={} synthetic={} {}",
+            boolean bomGoal = synthetic == null && isHoveredBomScreenGoalTree();
+            ModLogger.debug("BOM_KEY quick-craft matched bind={} finalSynthetic={} bomGoal={} synthetic={} {}",
                     quickCraftBindText(),
                     synthetic != null,
+                    bomGoal,
                     synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
                     BomTreePageHelper.describeActiveState());
             event.setCanceled(true);
-            if (synthetic == null) {
+            if (synthetic == null && !bomGoal) {
                 var mouse = getCurrentGuiMousePosition();
-                ModLogger.debug("BOM_KEY quick-craft ignored: hovered target is not a final synthetic preciseFavorite={}",
-                        describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
+                ModLogger.debug("BOM_KEY quick-craft ignored: hovered target is not a final synthetic or BoM goal preciseFavorite={} bomHover={}",
+                        describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()),
+                        describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()));
                 return;
             }
             onQuickCraftTabKey(event);
@@ -210,7 +214,8 @@ public final class InputEvents {
     }
 
     public static boolean tryHandleBomKeyFromEmi(int keyCode, int scanCode) {
-        boolean quickCraftKey = EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+        boolean quickCraftKey = EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
+                && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
                 && matchesConfiguredQuickCraftKey(keyCode);
 
         if (keyCode != GLFW.GLFW_KEY_A && !quickCraftKey) {
@@ -228,15 +233,18 @@ public final class InputEvents {
         }
 
         EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-        ModLogger.debug("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} synthetic={} {}",
+        boolean bomGoal = synthetic == null && isHoveredBomScreenGoalTree();
+        ModLogger.debug("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} bomGoal={} synthetic={} {}",
                 quickCraftBindText(),
                 synthetic != null,
+                bomGoal,
                 synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
                 BomTreePageHelper.describeActiveState());
-        if (synthetic == null) {
+        if (synthetic == null && !bomGoal) {
             var mouse = getCurrentGuiMousePosition();
-            ModLogger.debug("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic preciseFavorite={}",
-                    describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()));
+            ModLogger.debug("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic or BoM goal preciseFavorite={} bomHover={}",
+                    describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()),
+                    describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()));
             return false;
         }
         onQuickCraftTabKey(null);
@@ -636,6 +644,21 @@ public final class InputEvents {
         return removed;
     }
 
+    private static boolean isHoveredBomScreenGoalTree() {
+        var mc = Minecraft.getInstance();
+        if (!(mc.screen instanceof dev.emi.emi.screen.BoMScreen)) {
+            return false;
+        }
+        var mouse = getCurrentGuiMousePosition();
+        Object hover = getBomScreenHoverObject(mc.screen, mouse.x(), mouse.y());
+        try {
+            if (hover != null && !(hover instanceof String)) {
+                return isGoalNodeObject(getDeclaredFieldValue(hover, "node"));
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
     private static boolean isTextInputFocused() {
         var screen = Minecraft.getInstance().screen;
         return screen != null && screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox;
@@ -927,6 +950,10 @@ public final class InputEvents {
             return true;
         }
 
+        if (!AE2Proxy.isLoaded()) {
+            return false;
+        }
+
         for (var slot : containerScreen.getMenu().slots) {
             if (!slot.getItem().isEmpty()) continue;
 
@@ -1013,6 +1040,30 @@ public final class InputEvents {
         return firstStack(EmiScreenManager.pressedStack);
     }
 
+    public static boolean tryQuickCraftVisibleBomGoalFromButton() {
+        var mc = Minecraft.getInstance();
+        if (!EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
+                || !EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+                || !(mc.screen instanceof dev.emi.emi.screen.BoMScreen)
+                || BoM.tree == null
+                || BoM.tree.goal == null) {
+            return false;
+        }
+        onQuickCraftTabKey(null, true);
+        return true;
+    }
+
+    public static boolean tryQuickCraftFavoriteSyntheticFromButton(EmiFavorite.Synthetic synthetic) {
+        if (!EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
+                || !EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+                || synthetic == null
+                || !BomTreePageHelper.isFinalSynthetic(synthetic)) {
+            return false;
+        }
+        onQuickCraftTabKey(null, false, synthetic);
+        return true;
+    }
+
     private static EmiStack firstStack(EmiStackInteraction hovered) {
         if (hovered == null || hovered.isEmpty()) return null;
         return firstStack(hovered.getStack());
@@ -1027,8 +1078,26 @@ public final class InputEvents {
 
     /** Walk BoM tree and craft each node; intermediates → AE, only the final goal → inventory. */
     private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event) {
+        onQuickCraftTabKey(event, false, null);
+    }
+
+    private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event, boolean forceVisibleBomGoal) {
+        onQuickCraftTabKey(event, forceVisibleBomGoal, null);
+    }
+
+    private static void onQuickCraftTabKey(ScreenEvent.KeyPressed.Pre event, boolean forceVisibleBomGoal,
+                                          @javax.annotation.Nullable EmiFavorite.Synthetic forcedSynthetic) {
         long runId = ++quickCraftRunSeq;
-        EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
+        if (!EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()) {
+            if (event != null) {
+                event.setCanceled(true);
+            }
+            qcLog(runId, "automatic workbench crafting is disabled in this release");
+            return;
+        }
+        EmiFavorite.Synthetic synthetic = forcedSynthetic != null ? forcedSynthetic
+                : forceVisibleBomGoal ? null : getHoveredFinalSynthetic();
+        boolean usingVisibleBomGoal = forceVisibleBomGoal || (synthetic == null && isHoveredBomScreenGoalTree());
         if (synthetic != null) {
             boolean activated = BomTreePageHelper.activateSynthetic(synthetic);
             if (!activated) {
@@ -1041,13 +1110,18 @@ public final class InputEvents {
                 qcLog(runId, "hovered synthetic favorite did not activate BoM tree: {}",
                         BomTreePageHelper.describeSyntheticActivationFailure(synthetic));
             }
+        } else if (usingVisibleBomGoal) {
+            BomTreePageHelper.storeNewActiveTree();
+            qcLog(runId, "using visible BoM screen goal tree");
         } else {
             var hovered = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
             qcDebug(runId, "hovered stack is not a final BoM synthetic for activation: type={} stack={}",
                     hovered == null || hovered.getStack() == null ? "null" : hovered.getStack().getClass().getName(),
                     formatHoveredStack(hovered));
         }
-        BomTreePageHelper.applyActiveToBoM();
+        if (!usingVisibleBomGoal) {
+            BomTreePageHelper.applyActiveToBoM();
+        }
         var mc = Minecraft.getInstance();
         var handled = EmiApi.getHandledScreen();
         if (handled == null) {
@@ -1080,7 +1154,9 @@ public final class InputEvents {
         var nodes = new java.util.ArrayList<MaterialNode>();
         collectRecipeNodes(BoM.tree.goal, nodes);
         if (nodes.isEmpty()) {
-            event.setCanceled(true);
+            if (event != null) {
+                event.setCanceled(true);
+            }
             qcLog(runId, "no craftable nodes in BoM tree");
             return;
         }

@@ -3,6 +3,7 @@ package org.chatterjay.emiextend.mixin;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import org.chatterjay.emiextend.client.InputEvents;
+import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.search.SearchHistoryOverlay;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,8 +27,16 @@ public class AbstractContainerScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void emilink$discardMatchingBeforeVanillaDrop(int keyCode, int scanCode, int modifiers,
-                                                         CallbackInfoReturnable<Boolean> cir) {
+                                                          CallbackInfoReturnable<Boolean> cir) {
         if (InputEvents.tryHandleDiscardMatchingKey(keyCode, scanCode)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    private void emilink$clickFavoriteBomQuickCraftPanel(double mouseX, double mouseY, int button,
+                                                         CallbackInfoReturnable<Boolean> cir) {
+        if (BomFavoriteQuickCraftButton.mouseClicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
         }
     }

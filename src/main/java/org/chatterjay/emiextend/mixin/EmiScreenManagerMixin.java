@@ -17,13 +17,16 @@ import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.chatterjay.emiextend.client.search.SearchHistoryOverlay;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,6 +34,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -56,6 +61,12 @@ public class EmiScreenManagerMixin {
         throw new AssertionError();
     }
 
+    @Inject(method = "render", at = @At("HEAD"), require = 0)
+    private static void emilink$clearFavoriteBomButtons(EmiDrawContext context, int mouseX, int mouseY, float delta,
+                                                        CallbackInfo ci) {
+        BomFavoriteQuickCraftButton.clearFrame();
+    }
+
     @Inject(method = "render", at = @At("TAIL"), require = 0)
     private static void emilink$renderSearchHistory(EmiDrawContext context, int mouseX, int mouseY, float delta,
                                                     CallbackInfo ci) {
@@ -72,6 +83,10 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onBomKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (emilink$copyHoveredStackId(keyCode, scanCode)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (InputEvents.tryHandleQuickFillSlotKeyFromEmi(keyCode, scanCode)) {
             cir.setReturnValue(true);
             return;
@@ -115,6 +130,11 @@ public class EmiScreenManagerMixin {
         if (org.chatterjay.emiextend.util.ModLogger.isDebugEnabled()) {
             org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
                     "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
+        }
+
+        if (BomFavoriteQuickCraftButton.isMouseOver(mouseX, mouseY)) {
+            cir.setReturnValue(true);
+            return;
         }
 
         if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
@@ -177,6 +197,10 @@ public class EmiScreenManagerMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$clickSearchHistory(double mouseX, double mouseY, int button,
                                                    CallbackInfoReturnable<Boolean> cir) {
+        if (BomFavoriteQuickCraftButton.mouseClicked(mouseX, mouseY, button)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (SearchHistoryOverlay.mouseClicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
         }
@@ -195,6 +219,10 @@ public class EmiScreenManagerMixin {
     private static void emilink$favoritesBeforeUnderlyingGui(int mouseX, int mouseY, boolean notClick,
                                                             boolean ignoreLastHoveredCraftable,
                                                             CallbackInfoReturnable<EmiStackInteraction> cir) {
+        if (BomFavoriteQuickCraftButton.isMouseOver(mouseX, mouseY)) {
+            cir.setReturnValue(EmiStackInteraction.EMPTY);
+            return;
+        }
         if (SearchHistoryOverlay.isMouseOver(mouseX, mouseY)) {
             cir.setReturnValue(EmiStackInteraction.EMPTY);
             return;
@@ -260,6 +288,35 @@ public class EmiScreenManagerMixin {
                 .filter(itemStack -> !itemStack.isEmpty())
                 .findFirst()
                 .orElse(ItemStack.EMPTY);
+    }
+
+    private static boolean emilink$copyHoveredStackId(int keyCode, int scanCode) {
+        if (!EmiLinkConfig.ENABLE_COPY_HOVERED_STACK_ID.get()) {
+            return false;
+        }
+
+        if (keyCode != GLFW.GLFW_KEY_C || !Screen.hasControlDown() || Screen.hasShiftDown() || Screen.hasAltDown()) {
+            return false;
+        }
+
+        var mc = Minecraft.getInstance();
+        if (mc.screen == null || isDisabled()) return false;
+        if (search != null && search.canConsumeInput()) return false;
+        if (hasFocusedTextField(mc.screen, 10)) return false;
+
+        var hovered = EmiScreenManager.getHoveredStack(lastMouseX, lastMouseY, false);
+        if (hovered == null || hovered.isEmpty()) return false;
+
+        var id = hovered.getStack().getEmiStacks().stream()
+                .filter(stack -> stack != null && !stack.isEmpty())
+                .map(EmiStack::getId)
+                .filter(stackId -> stackId != null)
+                .findFirst()
+                .orElse(null);
+        if (id == null) return false;
+
+        GLFW.glfwSetClipboardString(mc.getWindow().getWindow(), id.toString());
+        return true;
     }
 
     private static boolean emilink$shouldSkipFavoriteDeleteKey() {

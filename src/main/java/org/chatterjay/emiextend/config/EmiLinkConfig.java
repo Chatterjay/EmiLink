@@ -37,6 +37,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
     public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
     public static final ModConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
+    public static final ModConfigSpec.BooleanValue ENABLE_COPY_HOVERED_STACK_ID;
 
     // ---- AE / Network Storage ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
@@ -59,6 +60,15 @@ public final class EmiLinkConfig {
 
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
+
+    /**
+     * BOM automatic workbench crafting is intentionally disabled in 1.21.1
+     * and later releases. Existing configuration values remain readable, but
+     * they cannot re-enable the removed behavior.
+     */
+    public static boolean isAutomaticWorkbenchCraftingEnabled() {
+        return false;
+    }
 
     static {
         BUILDER.push("general");
@@ -129,6 +139,12 @@ public final class EmiLinkConfig {
                 .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
+        ENABLE_COPY_HOVERED_STACK_ID = BUILDER
+                .comment("Copy the hovered EMI stack id to clipboard with Ctrl+C. " +
+                         "Disabled by default to avoid conflicting with normal text copy.")
+                .translation("emilink.config.emi_ui.enableCopyHoveredStackId")
+                .define("enableCopyHoveredStackId", false);
+
         BUILDER.pop();
         BUILDER.push("ae_network");
 
@@ -182,8 +198,9 @@ public final class EmiLinkConfig {
         BUILDER.push("quick_craft");
 
         ENABLE_QUICK_CRAFT_TAB = BUILDER
+                .comment("Disabled: BOM automatic workbench crafting is no longer provided.")
                 .translation("emilink.config.quick_craft.enableQuickCraft")
-                .define("enableQuickCraftTab", true);
+                .define("enableQuickCraftTab", false);
 
         QUICK_CRAFT_MODIFIER = BUILDER
                 .translation("emilink.config.quick_craft.quickCraftModifier")

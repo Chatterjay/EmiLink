@@ -20,6 +20,7 @@ public class MixinConditionalPlugin implements IMixinConfigPlugin {
         // Check classpath resource instead of Class.forName to avoid loading the class,
         // which would prevent Mixin from transforming it (MixinTargetAlreadyLoadedException)
         if (targetClassName.startsWith("appeng.")
+                || targetClassName.startsWith("net.pedroksl.advanced_ae.")
                 || targetClassName.startsWith("net.blay09.mods.inventoryessentials.")
                 || targetClassName.startsWith("com.hollingsworth.arsnouveau.")
                 || targetClassName.startsWith("com.wintercogs.beyonddimensions.")) {

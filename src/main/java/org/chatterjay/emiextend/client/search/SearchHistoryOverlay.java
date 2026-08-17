@@ -5,8 +5,6 @@ import dev.emi.emi.screen.EmiScreenManager;
 import dev.emi.emi.screen.widget.EmiSearchWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -15,9 +13,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.fml.loading.FMLPaths;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
-import org.chatterjay.emiextend.integration.AE2Proxy;
-import org.chatterjay.emiextend.integration.BDProxy;
-import org.chatterjay.emiextend.mixin.MEStorageScreenAccessor;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.nio.charset.StandardCharsets;
@@ -27,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class SearchHistoryOverlay {
+    private static final int OVERLAY_Z = 260;
     private static final int MAX_HISTORY = 36;
     private static final int VISIBLE_EXPANDED = 6;
     private static final int ENTRY_HEIGHT = 12;
@@ -82,62 +78,6 @@ public final class SearchHistoryOverlay {
         }
         remember(text, icon);
         EmiApi.setSearchText(text);
-
-        var mc = Minecraft.getInstance();
-        Screen screen = mc.screen;
-        if (screen == null || screen instanceof ChatScreen) {
-            return;
-        }
-
-        if (AE2Proxy.isMEStorageScreen(screen) && screen instanceof MEStorageScreenAccessor aeSearch) {
-            try {
-                var searchField = aeSearch.emilink$getSearchField();
-                if (searchField != null) {
-                    searchField.setValue(text);
-                    searchField.setCursorPosition(text.length());
-                }
-                aeSearch.emilink$setSearchText(text);
-                return;
-            } catch (Exception e) {
-                ModLogger.debug("SEARCH_HISTORY AE sync failed: {}", e.toString());
-            }
-        }
-
-        if (BDProxy.isBDNetGUI(screen)) {
-            if (BDProxy.setSearchText(screen, text)) {
-                return;
-            }
-        }
-
-        if (screen.getFocused() instanceof EditBox focusedEditBox) {
-            setEditBoxValue(focusedEditBox, text);
-            return;
-        }
-
-        for (var child : screen.children()) {
-            if (child instanceof EditBox editBox) {
-                setEditBoxValue(editBox, text);
-                return;
-            }
-        }
-
-        for (var fieldName : new String[]{"searchBox", "searchField", "search"}) {
-            var field = findScreenField(screen, fieldName);
-            if (field == null) {
-                continue;
-            }
-            try {
-                field.setAccessible(true);
-                Object widget = field.get(screen);
-                if (widget == null) {
-                    continue;
-                }
-                var setValue = widget.getClass().getMethod("setValue", String.class);
-                setValue.invoke(widget, text);
-                return;
-            } catch (Exception ignored) {
-            }
-        }
     }
 
     public static void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -161,7 +101,7 @@ public final class SearchHistoryOverlay {
         lastRenderedBounds = bounds;
 
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 500);
+        guiGraphics.pose().translate(0, 0, OVERLAY_Z);
         var font = Minecraft.getInstance().font;
         int rows = bounds.expanded() ? Math.min(visibleExpandedRows(), HISTORY.size()) : 1;
         int bg = bounds.expanded() ? 0xee101014 : 0xcc101014;
@@ -334,23 +274,6 @@ public final class SearchHistoryOverlay {
             }
         } catch (Exception ignored) {
         }
-    }
-
-    private static void setEditBoxValue(EditBox editBox, String text) {
-        editBox.setValue(text);
-        editBox.setCursorPosition(text.length());
-    }
-
-    private static java.lang.reflect.Field findScreenField(Screen screen, String name) {
-        Class<?> cls = screen.getClass();
-        while (cls != null && cls != Screen.class) {
-            try {
-                return cls.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
-            cls = cls.getSuperclass();
-        }
-        return null;
     }
 
     private static Bounds bounds(int mouseX, int mouseY) {

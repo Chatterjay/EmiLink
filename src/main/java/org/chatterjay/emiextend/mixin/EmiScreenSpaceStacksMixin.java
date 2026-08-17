@@ -3,8 +3,10 @@ package org.chatterjay.emiextend.mixin;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.EmiRenderHelper;
 import dev.emi.emi.config.SidebarType;
+import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiDrawContext;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
+import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.bookmark.MobSeparator;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
@@ -35,6 +37,12 @@ public abstract class EmiScreenSpaceStacksMixin {
 
     @Shadow
     public abstract int getRawOffset(int x, int y);
+
+    @Shadow
+    public abstract int getRawX(int off);
+
+    @Shadow
+    public abstract int getRawY(int off);
 
     @Shadow
     public int tx;
@@ -74,8 +82,21 @@ public abstract class EmiScreenSpaceStacksMixin {
     }
 
     @Inject(method = "render", at = @At("RETURN"), remap = false)
-    private void emilink$clearRenderStartIndex(EmiDrawContext context, int mouseX, int mouseY,
-                                               float delta, int startIndex, CallbackInfo ci) {
+    private void emilink$renderFavoriteBomQuickCraftButtons(EmiDrawContext context, int mouseX, int mouseY,
+                                                            float delta, int startIndex, CallbackInfo ci) {
+        if (getType() == SidebarType.FAVORITES && pageSize > 0) {
+            var stacks = getStacks();
+            int end = Math.min(startIndex + pageSize, stacks.size());
+            for (int index = startIndex; index < end; index++) {
+                var ingredient = stacks.get(index);
+                if (ingredient instanceof EmiFavorite.Synthetic synthetic
+                        && BomTreePageHelper.isFinalSynthetic(synthetic)) {
+                    int local = index - startIndex;
+                    BomFavoriteQuickCraftButton.render(context.raw(), getRawX(local), getRawY(local),
+                            mouseX, mouseY, synthetic);
+                }
+            }
+        }
         EMILINK_RENDER_START_INDEX.remove();
     }
 

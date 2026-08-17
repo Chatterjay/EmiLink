@@ -13,6 +13,7 @@ import org.chatterjay.emiextend.util.ModLogger;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -76,7 +77,7 @@ public abstract class BoMScreenMixin {
         ModLogger.debug("BOM_TREE_SCREEN key-return afterSync={}", BomTreePageHelper.describeActiveState());
     }
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"))
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void emilink$logBoMScreenClickHead(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         logBoMScreenClick("head", mouseX, mouseY, button, null);
     }

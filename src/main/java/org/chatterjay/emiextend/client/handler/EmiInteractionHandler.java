@@ -482,7 +482,8 @@ public final class EmiInteractionHandler {
         if (original == null || original.isEmpty()) return original;
 
         List<ClientTooltipComponent> result = original;
-        if (EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
+        if (EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
+                && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
                 && hovered instanceof EmiFavorite.Synthetic synthetic
                 && BomTreePageHelper.isFinalSynthetic(synthetic)) {
             result = new ArrayList<>(result);

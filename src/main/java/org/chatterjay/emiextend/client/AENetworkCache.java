@@ -5,7 +5,6 @@ import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.api.stack.EmiStack;
 import io.netty.buffer.Unpooled;
-import appeng.util.ReadableNumberConverter;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -87,6 +86,14 @@ public final class AENetworkCache {
         if (stack == null || stack.isEmpty()) return;
         var key = normalizeKey(stack);
         pendingBatch.put(key, pendingBatch.getOrDefault(key, false) || queryCraftability);
+    }
+
+    /**
+     * Queue an item for badge rendering. Badges query counts first and only ask
+     * AE for craftability later when the item is not stored.
+     */
+    public static void submitForBadge(ItemStack stack) {
+        submitForBatch(stack, false);
     }
 
     /** Begin a temporary query scope whose results should be discarded after use. */
@@ -419,6 +426,14 @@ public final class AENetworkCache {
         }
         current.cache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
         cacheDirty = true;
+
+        if (!craftabilityKnown
+                && count <= 0
+                && EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
+                && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get()
+                && hasAEAccess()) {
+            submitForBatch(key, true);
+        }
     }
 
     /** Remove cache entries so the next getCachedResult returns not-found. */
@@ -462,7 +477,8 @@ public final class AENetworkCache {
             return "0";
         }
         try {
-            return ReadableNumberConverter.format(count, 4);
+            Class<?> converter = Class.forName("appeng.util.ReadableNumberConverter");
+            return (String) converter.getMethod("format", long.class, int.class).invoke(null, count, 4);
         } catch (Throwable ignored) {
             return fallbackFormatNetworkAmount(count);
         }
@@ -527,20 +543,9 @@ public final class AENetworkCache {
     private static CachedInfo findCached(ItemStack stack) {
         var ephemeral = ephemeralCache.get(stack);
         if (ephemeral != null) return ephemeral;
-        for (var entry : ephemeralCache.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
-                return entry.getValue();
-            }
-        }
 
         var direct = current.cache.get(stack);
         if (direct != null) return direct;
-        // Fallback: linear scan for hash-colliding or component-mismatched entries
-        for (var entry : current.cache.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
-                return entry.getValue();
-            }
-        }
         return null;
     }
 

@@ -114,9 +114,7 @@ public class BDProxy {
     public static boolean setSearchText(Screen screen, String text) {
         if (!isLoaded() || text == null || text.isEmpty()) return false;
         try {
-            Field field = netGUIClass.getDeclaredField("searchField");
-            field.setAccessible(true);
-            EditBox searchField = (EditBox) field.get(netGUIClass.cast(screen));
+            EditBox searchField = getNetSearchField(screen);
             if (searchField != null) {
                 searchField.setValue(text);
                 return true;
@@ -124,6 +122,33 @@ public class BDProxy {
         } catch (Exception e) {
         }
         return false;
+    }
+
+    public static String getSearchText(Screen screen) {
+        if (!isLoaded() || !isBDNetGUI(screen)) return null;
+        try {
+            EditBox searchField = getNetSearchField(screen);
+            return searchField == null ? null : searchField.getValue();
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    public static boolean isSearchFocused(Screen screen) {
+        if (!isLoaded() || !isBDNetGUI(screen)) return false;
+        try {
+            EditBox searchField = getNetSearchField(screen);
+            return searchField != null
+                    && (screen.getFocused() == searchField || searchField.isFocused() || searchField.canConsumeInput());
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private static EditBox getNetSearchField(Screen screen) throws IllegalAccessException, NoSuchFieldException {
+        Field field = netGUIClass.getDeclaredField("searchField");
+        field.setAccessible(true);
+        return (EditBox) field.get(netGUIClass.cast(screen));
     }
 
     // ---- EMI shift+click: extract from network ----
