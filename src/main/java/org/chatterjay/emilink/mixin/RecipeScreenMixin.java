@@ -45,9 +45,22 @@ public class RecipeScreenMixin {
     private String emilink$lastButtonState;
 
     @Unique
+    private boolean emilink$hasFocusedRecipeContext;
+
+    @Unique
     private void emilink$saveCategory(String path) {
+        emilink$saveCategory(path, false);
+    }
+
+    @Unique
+    private void emilink$saveCategory(String path, boolean selectedRecipe) {
         if (path == null || path.isBlank() || "jemi".equals(path)) {
             ModLogger.debug("RecipeScreenMixin: skip saving category '{}'", path);
+            return;
+        }
+        if (!selectedRecipe && emilink$hasFocusedRecipeContext && !path.equals(emilink$lastProviderSearchKey)) {
+            ModLogger.debug("RecipeScreenMixin: retaining selected recipe category '{}' instead of fallback '{}'",
+                    emilink$lastProviderSearchKey, path);
             return;
         }
         if (path.equals(emilink$lastProviderSearchKey)) return;
@@ -122,7 +135,8 @@ public class RecipeScreenMixin {
                 recipe == null ? "null" : recipe.getId(),
                 recipe == null || recipe.getCategory() == null ? "null" : recipe.getCategory().getId());
         if (recipe != null && recipe.getCategory() != null && recipe.getCategory().getId() != null) {
-            emilink$saveCategory(recipe.getCategory().getId().getPath());
+            emilink$hasFocusedRecipeContext = true;
+            emilink$saveCategory(recipe.getCategory().getId().getPath(), true);
         }
         emilink$rememberRecipeOutput(recipe);
     }

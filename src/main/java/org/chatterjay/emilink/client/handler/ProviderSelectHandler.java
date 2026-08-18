@@ -16,7 +16,10 @@ import org.chatterjay.emilink.util.ProviderSearchHelper;
 @Mod.EventBusSubscriber(modid = Emilink.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class ProviderSelectHandler {
 
-    private static final String PROVIDER_SCREEN_CLASS = "com.extendedae_plus.client.screen.ProviderSelectScreen";
+    private static final String[] PROVIDER_SCREEN_CLASSES = {
+            "com.extendedae_plus.client.ui.ProviderSelectScreen",
+            "com.extendedae_plus.client.screen.ProviderSelectScreen"
+    };
 
     private static Boolean ae2Available;
     private static Class<?> encodingMenuClass;
@@ -42,7 +45,7 @@ public final class ProviderSelectHandler {
     @SubscribeEvent
     public static void onScreenInitPost(ScreenEvent.Init.Post event) {
         var screen = event.getScreen();
-        if (!screen.getClass().getName().equals(PROVIDER_SCREEN_CLASS)) return;
+        if (!isProviderSelectScreen(screen)) return;
 
         ModLogger.debug("ProviderSelectHandler: ProviderSelectScreen opened, class={}", screen.getClass().getName());
 
@@ -51,6 +54,14 @@ public final class ProviderSelectHandler {
         } catch (Throwable e) {
             ModLogger.debug("ProviderSelectHandler: auto-fill failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
         }
+    }
+
+    private static boolean isProviderSelectScreen(Screen screen) {
+        String className = screen.getClass().getName();
+        for (String providerScreenClass : PROVIDER_SCREEN_CLASSES) {
+            if (providerScreenClass.equals(className)) return true;
+        }
+        return false;
     }
 
     private static void tryFillSearchKey(Screen screen) throws Exception {
@@ -64,10 +75,19 @@ public final class ProviderSelectHandler {
             return;
         }
 
-        String currentText = (String) searchBox.getClass().getMethod("getValue").invoke(searchBox);
+        String currentText = getSearchBoxValue(searchBox);
         ModLogger.debug("ProviderSelectHandler: current search text='{}'", currentText == null ? "null" : currentText);
+        // EAEP 1.4.x consumes lastProcessingName in its constructor, before the
+        // Forge init event. Always consume our mirror too, even when its search
+        // box has already been pre-filled by that constructor.
+        String lastCategory = ProviderSearchHelper.consumeLastRecipeCategory();
         if (currentText != null && !currentText.isEmpty() && !currentText.equals("jemi")) {
-            ModLogger.debug("ProviderSelectHandler: search already filled with '{}', skipping", currentText);
+            if (lastCategory != null && !lastCategory.isEmpty()) {
+                ModLogger.debug("ProviderSelectHandler: EAEP constructor already consumed saved recipe category '{}', search='{}'",
+                        lastCategory, currentText);
+            } else {
+                ModLogger.debug("ProviderSelectHandler: search already filled with '{}', skipping", currentText);
+            }
             return;
         }
         if ("jemi".equals(currentText)) {
@@ -75,11 +95,9 @@ public final class ProviderSelectHandler {
         }
 
         // First priority: use the last focused category from EMI RecipeScreen (player's chosen tab)
-        String lastCategory = ProviderSearchHelper.consumeLastRecipeCategory();
         if (lastCategory != null && !lastCategory.isEmpty()) {
             ModLogger.debug("ProviderSelectHandler: using saved recipe category '{}' from RecipeScreen", lastCategory);
-            searchBox.getClass().getMethod("setValue", String.class).invoke(searchBox, lastCategory);
-            ProviderSearchHelper.setLastProcessingName(lastCategory);
+            setSearchBoxValue(searchBox, lastCategory);
             return;
         }
         ModLogger.debug("ProviderSelectHandler: no saved recipe category from RecipeScreen, falling back to item-based derivation");
@@ -102,8 +120,23 @@ public final class ProviderSelectHandler {
         }
 
         ModLogger.debug("ProviderSelectHandler: auto-filled empty search key to '{}'", key);
-        searchBox.getClass().getMethod("setValue", String.class).invoke(searchBox, key);
-        ProviderSearchHelper.setLastProcessingName(key);
+        setSearchBoxValue(searchBox, key);
+    }
+
+    private static String getSearchBoxValue(Object searchBox) throws Exception {
+        try {
+            return (String) searchBox.getClass().getMethod("getValue").invoke(searchBox);
+        } catch (NoSuchMethodException ignored) {
+            return (String) searchBox.getClass().getMethod("m_94155_").invoke(searchBox);
+        }
+    }
+
+    private static void setSearchBoxValue(Object searchBox, String value) throws Exception {
+        try {
+            searchBox.getClass().getMethod("setValue", String.class).invoke(searchBox, value);
+        } catch (NoSuchMethodException ignored) {
+            searchBox.getClass().getMethod("m_94144_", String.class).invoke(searchBox, value);
+        }
     }
 
     private static String deriveSearchKey(Screen parent) {

@@ -5,8 +5,16 @@ import net.minecraft.world.item.crafting.Recipe;
 import java.lang.reflect.Method;
 
 public final class ProviderSearchHelper {
+    private static final String[] PATTERN_UPLOAD_UTIL_CLASSES = {
+            // ExtendedAE Plus 1.4.x, bundled by GregTech Leisure 2
+            "com.extendedae_plus.util.ExtendedAEPatternUploadUtil",
+            // ExtendedAE Plus 1.5.x and later
+            "com.extendedae_plus.util.uploadPattern.ExtendedAEPatternUploadUtil"
+    };
+
     private static boolean checked = false;
     private static boolean available = false;
+    private static String resolvedUtilClass;
     private static Method setLastProcessingName;
     private static Method presetCraftingProviderSearchKey;
     private static Method mapRecipeTypeToSearchKey;
@@ -20,29 +28,38 @@ public final class ProviderSearchHelper {
     private static void init() {
         if (checked) return;
         checked = true;
-        try {
-            Class<?> clazz = Class.forName("com.extendedae_plus.util.uploadPattern.ExtendedAEPatternUploadUtil");
-            setLastProcessingName = clazz.getMethod("setLastProcessingName", String.class);
-            mapRecipeTypeToSearchKey = clazz.getMethod("mapRecipeTypeToSearchKey", Recipe.class);
-            // presetCraftingProviderSearchKey is only available in EAEP 1.5.4+
+        for (String className : PATTERN_UPLOAD_UTIL_CLASSES) {
             try {
-                presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
-            } catch (NoSuchMethodException ignored) {
+                Class<?> clazz = Class.forName(className);
+                setLastProcessingName = clazz.getMethod("setLastProcessingName", String.class);
+                mapRecipeTypeToSearchKey = clazz.getMethod("mapRecipeTypeToSearchKey", Recipe.class);
+                // presetCraftingProviderSearchKey is only available in EAEP 1.5.4+
+                try {
+                    presetCraftingProviderSearchKey = clazz.getMethod("presetCraftingProviderSearchKey");
+                } catch (NoSuchMethodException ignored) {
+                }
+                try {
+                    resolveKeyToAlias = clazz.getMethod("resolveKeyToAlias", String.class);
+                } catch (NoSuchMethodException ignored) {
+                }
+                resolvedUtilClass = className;
+                available = true;
+                ModLogger.debug("ProviderSearchHelper: loaded ExtendedAE Plus upload API from {}", className);
+                return;
+            } catch (Throwable t) {
+                ModLogger.debug("ProviderSearchHelper: upload API {} unavailable: {}",
+                        className, t.getClass().getSimpleName());
             }
-            try {
-                resolveKeyToAlias = clazz.getMethod("resolveKeyToAlias", String.class);
-            } catch (NoSuchMethodException ignored) {
-            }
-            available = true;
-        } catch (Throwable t) {
         }
+        ModLogger.debug("ProviderSearchHelper: no compatible ExtendedAE Plus upload API was found");
     }
 
     public static void setLastProcessingName(String name) {
         init();
         if (available && name != null) {
             try {
-                ModLogger.debug("ProviderSearchHelper: setting EAEP RecipeTypeNameConfig to '{}'", name);
+                ModLogger.debug("ProviderSearchHelper: setting EAEP upload search key '{}' through {}",
+                        name, resolvedUtilClass);
                 setLastProcessingName.invoke(null, name);
             } catch (Throwable e) {
                 ModLogger.warn("ProviderSearchHelper: setLastProcessingName failed: {}", e.getMessage());
@@ -87,7 +104,7 @@ public final class ProviderSearchHelper {
         ModLogger.debug("ProviderSearchHelper: mapping recipe type to search key, recipe={}", recipe.getId());
 
         // Try EAEP's mapping first
-        if (available) {
+        if (available && mapRecipeTypeToSearchKey != null) {
             try {
                 String result = (String) mapRecipeTypeToSearchKey.invoke(null, recipe);
                 ModLogger.debug("ProviderSearchHelper: EAEP mapRecipeTypeToSearchKey returned '{}' for recipe {}",
