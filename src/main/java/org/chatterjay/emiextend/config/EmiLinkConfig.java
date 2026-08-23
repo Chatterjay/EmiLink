@@ -38,6 +38,12 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
     public static final ModConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
     public static final ModConfigSpec.BooleanValue ENABLE_COPY_HOVERED_STACK_ID;
+    public static final ModConfigSpec.BooleanValue ENABLE_FAVORITE_DRAG_SELECT;
+    public static final ModConfigSpec.ConfigValue<String> FAVORITE_DRAG_SELECT_MODIFIER;
+    public static final ModConfigSpec.ConfigValue<String> FAVORITE_PROTECTION_BORDER_COLOR;
+    public static final ModConfigSpec.IntValue FAVORITE_PROTECTION_BORDER_OPACITY;
+    public static final ModConfigSpec.ConfigValue<String> FAVORITE_PROTECTION_BACKGROUND_COLOR;
+    public static final ModConfigSpec.IntValue FAVORITE_PROTECTION_BACKGROUND_OPACITY;
 
     // ---- AE / Network Storage ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
@@ -144,6 +150,36 @@ public final class EmiLinkConfig {
                          "Disabled by default to avoid conflicting with normal text copy.")
                 .translation("emilink.config.emi_ui.enableCopyHoveredStackId")
                 .define("enableCopyHoveredStackId", false);
+
+        ENABLE_FAVORITE_DRAG_SELECT = BUILDER
+                .comment("Drag-select over EMI sidebars while holding the modifier key to batch-favorite stacks and protect them from being unfavorited by the A key")
+                .translation("emilink.config.emi_ui.enableFavoriteDragSelect")
+                .define("enableFavoriteDragSelect", true);
+
+        FAVORITE_DRAG_SELECT_MODIFIER = BUILDER
+                .comment("Modifier for favorite drag-select (SHIFT, CONTROL, ALT, or OFF). Left drag favorites and protects; right drag unprotects.")
+                .translation("emilink.config.emi_ui.favoriteDragSelectModifier")
+                .define("favoriteDragSelectModifier", "ALT");
+
+        FAVORITE_PROTECTION_BORDER_COLOR = BUILDER
+                .comment("RGB hex color for protected favorite borders, for example FFD700 or #FFD700")
+                .translation("emilink.config.emi_ui.favoriteProtectionBorderColor")
+                .define("favoriteProtectionBorderColor", "FFD700");
+
+        FAVORITE_PROTECTION_BORDER_OPACITY = BUILDER
+                .comment("Opacity of protected favorite borders, from 0 to 255")
+                .translation("emilink.config.emi_ui.favoriteProtectionBorderOpacity")
+                .defineInRange("favoriteProtectionBorderOpacity", 230, 0, 255);
+
+        FAVORITE_PROTECTION_BACKGROUND_COLOR = BUILDER
+                .comment("RGB hex color for the active favorite drag-selection background, for example FFD700 or #FFD700")
+                .translation("emilink.config.emi_ui.favoriteProtectionBackgroundColor")
+                .define("favoriteProtectionBackgroundColor", "FFD700");
+
+        FAVORITE_PROTECTION_BACKGROUND_OPACITY = BUILDER
+                .comment("Opacity of the active favorite drag-selection background, from 0 to 255")
+                .translation("emilink.config.emi_ui.favoriteProtectionBackgroundOpacity")
+                .defineInRange("favoriteProtectionBackgroundOpacity", 36, 0, 255);
 
         BUILDER.pop();
         BUILDER.push("ae_network");
@@ -280,5 +316,42 @@ public final class EmiLinkConfig {
         validated = false;
         validate();
         ModLogger.debug("Configuration reloaded");
+    }
+
+    public static ExtractTrigger getFavoriteDragSelectModifier() {
+        try {
+            return ExtractTrigger.valueOf(FAVORITE_DRAG_SELECT_MODIFIER.get().toUpperCase(java.util.Locale.ROOT));
+        } catch (Exception e) {
+            return ExtractTrigger.ALT;
+        }
+    }
+
+    public static int getFavoriteProtectionBorderArgb() {
+        return toArgb(FAVORITE_PROTECTION_BORDER_COLOR.get(),
+                FAVORITE_PROTECTION_BORDER_OPACITY.get(), 0xFFD700);
+    }
+
+    public static int getFavoriteProtectionBackgroundArgb() {
+        return toArgb(FAVORITE_PROTECTION_BACKGROUND_COLOR.get(),
+                FAVORITE_PROTECTION_BACKGROUND_OPACITY.get(), 0xFFD700);
+    }
+
+    private static int toArgb(String value, int opacity, int fallbackRgb) {
+        int rgb = fallbackRgb;
+        if (value != null) {
+            String normalized = value.trim();
+            if (normalized.startsWith("#")) normalized = normalized.substring(1);
+            if (normalized.startsWith("0x") || normalized.startsWith("0X")) {
+                normalized = normalized.substring(2);
+            }
+            if (normalized.length() == 6) {
+                try {
+                    rgb = Integer.parseInt(normalized, 16) & 0xFFFFFF;
+                } catch (NumberFormatException ignored) {
+                    // Keep the default color for invalid config input.
+                }
+            }
+        }
+        return ((Math.max(0, Math.min(255, opacity)) & 0xFF) << 24) | rgb;
     }
 }

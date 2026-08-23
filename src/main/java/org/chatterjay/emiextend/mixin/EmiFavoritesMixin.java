@@ -12,6 +12,8 @@ import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
+import org.chatterjay.emiextend.client.FavoriteProtection;
+import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,6 +33,10 @@ public abstract class EmiFavoritesMixin {
 
     @Inject(method = "addFavorite(Ldev/emi/emi/api/stack/EmiIngredient;)V", at = @At("HEAD"), cancellable = true)
     private static void emilink$addBookmarkToActivePage(EmiIngredient stack, CallbackInfo ci) {
+        if (emilink$blockProtectedToggle(stack)) {
+            ci.cancel();
+            return;
+        }
         int pageSize = BookmarkPageHelper.getLastPageSize();
         if (pageSize > 0 && stack instanceof EmiFavorite favorite
                 && !(favorite instanceof EmiFavorite.Craftable)
@@ -44,6 +50,10 @@ public abstract class EmiFavoritesMixin {
 
     @Inject(method = "addFavorite(Ldev/emi/emi/api/stack/EmiIngredient;Ldev/emi/emi/api/recipe/EmiRecipe;)V", at = @At("HEAD"), cancellable = true)
     private static void emilink$addBookmarkWithRecipeToActivePage(EmiIngredient stack, EmiRecipe context, CallbackInfo ci) {
+        if (emilink$blockProtectedToggle(stack)) {
+            ci.cancel();
+            return;
+        }
         int pageSize = BookmarkPageHelper.getLastPageSize();
         if (pageSize > 0 && stack instanceof EmiFavorite favorite
                 && !(favorite instanceof EmiFavorite.Craftable)
@@ -72,6 +82,11 @@ public abstract class EmiFavoritesMixin {
 
     @Inject(method = "removeFavorite", at = @At("HEAD"), cancellable = true)
     private static void emilink$removeBookmarkAsGap(EmiIngredient stack, CallbackInfoReturnable<Boolean> cir) {
+        if (FavoriteProtection.isProtected(stack)) {
+            ModLogger.debug("EmiFavoritesMixin: remove blocked for protected favorite");
+            cir.setReturnValue(false);
+            return;
+        }
         for (int i = 0; i < favorites.size(); i++) {
             EmiFavorite favorite = favorites.get(i);
             if (favorite.strictEquals(stack) && favorite.getRecipe() == EmiApi.getRecipeContext(stack)) {
@@ -81,6 +96,17 @@ public abstract class EmiFavoritesMixin {
                 return;
             }
         }
+    }
+
+    private static boolean emilink$blockProtectedToggle(EmiIngredient stack) {
+        if (!FavoriteProtection.isProtected(stack)) return false;
+        for (EmiFavorite favorite : favorites) {
+            if (favorite.strictEquals(stack)) {
+                ModLogger.debug("EmiFavoritesMixin: toggle blocked for protected favorite");
+                return true;
+            }
+        }
+        return false;
     }
 
     @Inject(method = "save", at = @At("RETURN"), cancellable = true)

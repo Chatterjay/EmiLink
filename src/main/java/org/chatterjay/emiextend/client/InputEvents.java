@@ -2100,10 +2100,8 @@ public final class InputEvents {
         var space = dev.emi.emi.screen.EmiScreenManager.getHoveredSpace(event.getMouseX(), event.getMouseY());
         if (space == null) return;
         if (mc.player == null || !org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(mc.player)) return;
-        // Don't show hint when EMI would delete the item (cheat mode on)
-        boolean emiWouldDelete = dev.emi.emi.config.EmiConfig.cheatMode == dev.emi.emi.config.CheatMode.TRUE
-                || (dev.emi.emi.config.EmiConfig.cheatMode == dev.emi.emi.config.CheatMode.CREATIVE && mc.player.isCreative());
-        if (emiWouldDelete) return;
+        // Keep EMI's cursor-delete action when it is actually configured.
+        if (org.chatterjay.emiextend.client.handler.EmiInteractionHandler.emiOwnsCursorDelete()) return;
 
         var text = Component.translatable(
                 org.chatterjay.emiextend.client.handler.EmiInteractionHandler.matchesDepositBatchModifier()

@@ -24,6 +24,8 @@ import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.InputEvents;
+import org.chatterjay.emiextend.client.handler.FavoriteDragSelectHandler;
+import org.chatterjay.emiextend.client.handler.FavoriteHighlightRenderer;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
 import org.chatterjay.emiextend.client.search.SearchHistoryOverlay;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
@@ -71,6 +73,7 @@ public class EmiScreenManagerMixin {
     private static void emilink$renderSearchHistory(EmiDrawContext context, int mouseX, int mouseY, float delta,
                                                     CallbackInfo ci) {
         SearchHistoryOverlay.render(context.raw(), mouseX, mouseY);
+        FavoriteHighlightRenderer.renderOverlays(context.raw());
     }
 
     @Inject(method = "keyPressed", at = @At("RETURN"), cancellable = true, require = 0)
@@ -83,6 +86,10 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onBomKeyPressedHead(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (FavoriteDragSelectHandler.handleProtectedFavoriteDelete(keyCode, lastMouseX, lastMouseY)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (emilink$copyHoveredStackId(keyCode, scanCode)) {
             cir.setReturnValue(true);
             return;
@@ -127,6 +134,12 @@ public class EmiScreenManagerMixin {
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$onMouseReleased(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
+        if (FavoriteDragSelectHandler.isActive()
+                && FavoriteDragSelectHandler.onMouseReleased(mouseX, mouseY, button)) {
+            cir.setReturnValue(true);
+            return;
+        }
+
         if (org.chatterjay.emiextend.util.ModLogger.isDebugEnabled()) {
             org.chatterjay.emiextend.client.InputEvents.logAeCtrlLeftClick(
                     "emi-mouse-released-head", Minecraft.getInstance().screen, mouseX, mouseY, button);
@@ -203,6 +216,26 @@ public class EmiScreenManagerMixin {
         }
         if (SearchHistoryOverlay.mouseClicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
+            return;
+        }
+        if (FavoriteDragSelectHandler.isActive()) {
+            FavoriteDragSelectHandler.clearEmiDragState();
+            cir.setReturnValue(true);
+            return;
+        }
+        if (FavoriteDragSelectHandler.onMousePressed(
+                Minecraft.getInstance().screen, mouseX, mouseY, button)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$consumeFavoriteDrag(double mouseX, double mouseY, int button,
+                                                     double dragX, double dragY,
+                                                     CallbackInfoReturnable<Boolean> cir) {
+        if (FavoriteDragSelectHandler.isActive()) {
+            FavoriteDragSelectHandler.onMouseDragged(mouseX, mouseY);
+            cir.setReturnValue(true);
         }
     }
 
@@ -245,7 +278,9 @@ public class EmiScreenManagerMixin {
               at = @At(value = "INVOKE", target = "Ldev/emi/emi/api/stack/EmiIngredient;getTooltip()Ljava/util/List;"),
               require = 0)
     private static List<ClientTooltipComponent> emilink$addAeTooltipInfo(EmiIngredient hov) {
-        return EmiInteractionHandler.addAeTooltipInfo(hov, lastMouseX, lastMouseY, hov.getTooltip());
+        List<ClientTooltipComponent> tooltip = EmiInteractionHandler.addAeTooltipInfo(
+                hov, lastMouseX, lastMouseY, hov.getTooltip());
+        return FavoriteHighlightRenderer.appendProtectedTooltip(hov, tooltip);
     }
 
     @Redirect(method = "renderDraggedStack",

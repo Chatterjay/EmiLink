@@ -1,7 +1,6 @@
 package org.chatterjay.emiextend.client.handler;
 
 import dev.emi.emi.api.render.EmiTooltipComponents;
-import dev.emi.emi.config.CheatMode;
 import dev.emi.emi.config.EmiConfig;
 import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.recipe.EmiRecipe;
@@ -181,9 +180,7 @@ public final class EmiInteractionHandler {
             var mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
-                boolean emiWouldDelete = EmiConfig.cheatMode == CheatMode.TRUE
-                        || (EmiConfig.cheatMode == CheatMode.CREATIVE && mc.player.isCreative());
-                if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !emiWouldDelete) {
+                if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !emiOwnsCursorDelete()) {
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
                     if (space != null) {
                         boolean matchAll = matchesDepositBatchModifier();
@@ -511,6 +508,13 @@ public final class EmiInteractionHandler {
         }
         AENetworkCache.addToTooltip(stack, result);
         return result;
+    }
+
+    /** Returns true when EMI's configured cheat-mode cursor-delete action is bound. */
+    public static boolean emiOwnsCursorDelete() {
+        return EmiApi.isCheatMode()
+                && EmiConfig.deleteCursorStack != null
+                && EmiConfig.deleteCursorStack.isBound();
     }
 
     // ---- AE2 / EAEP handlers ----

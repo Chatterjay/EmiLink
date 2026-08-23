@@ -236,9 +236,9 @@ public class EmiAE2 {
     private static void registerConfigScreenReflectively(net.neoforged.fml.ModContainer container) {
         try {
             Class<?> factoryClass = Class.forName("net.neoforged.neoforge.client.gui.IConfigScreenFactory");
-            Class<?> configScreenClass = Class.forName("net.neoforged.neoforge.client.gui.ConfigurationScreen");
             Class<?> screenClass = Class.forName("net.minecraft.client.gui.screens.Screen");
-            var ctor = configScreenClass.getConstructor(net.neoforged.fml.ModContainer.class, screenClass);
+            Class<?> customScreenClass = Class.forName("org.chatterjay.emiextend.client.EmiLinkConfigScreen");
+            var createMethod = customScreenClass.getMethod("create", net.neoforged.fml.ModContainer.class, screenClass);
             var regMethod = net.neoforged.fml.ModContainer.class.getMethod("registerExtensionPoint", Class.class, java.util.function.Supplier.class);
 
             Object factory = java.lang.reflect.Proxy.newProxyInstance(
@@ -246,7 +246,7 @@ public class EmiAE2 {
                     new Class<?>[]{factoryClass},
                     (_proxy, method, args) -> {
                         if ("createScreen".equals(method.getName()) && args != null && args.length == 2) {
-                            return ctor.newInstance(container, args[1]);
+                            return createMethod.invoke(null, container, args[1]);
                         }
                         return null;
                     }
