@@ -6,7 +6,7 @@
 
   "emilink.tooltip.deposit": "Deposit into network",
   "emilink.tooltip.deposit_all": "Deposit all matching",
-  "emilink.tooltip.favorite_protected": "Protected: A cannot remove this favorite; use the modifier + right-drag to unprotect",
+  "emilink.tooltip.favorite_protected": "§6Protected | Modifier + Right Drag to Unprotect",
   "emilink.tooltip.quick_craft": "Press %s to quick craft",
   "emilink.tooltip.favorite_bom_quick_craft": "Left-click to quick craft this BOM tree",
   "emilink.tooltip.favorite_bom_quick_craft.shortcut": "Shortcut: %s",

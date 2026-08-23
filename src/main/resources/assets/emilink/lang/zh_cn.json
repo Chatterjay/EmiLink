@@ -6,7 +6,7 @@
 
   "emilink.tooltip.deposit": "存入网络",
   "emilink.tooltip.deposit_all": "存入所有同类",
-  "emilink.tooltip.favorite_protected": "§6受保护：A 键无法取消收藏，使用修饰键+右键拖选解除保护",
+  "emilink.tooltip.favorite_protected": "§6受保护 | 修饰右键拖选解除",
   "emilink.tooltip.quick_craft": "按下 %s 快速合成",
   "emilink.tooltip.favorite_bom_quick_craft": "左键执行此合成树",
   "emilink.tooltip.favorite_bom_quick_craft.shortcut": "快捷键：%s",
