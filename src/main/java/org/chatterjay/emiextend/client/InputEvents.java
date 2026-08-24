@@ -192,12 +192,9 @@ public final class InputEvents {
     public static void onKeyPressedPre(ScreenEvent.KeyPressed.Pre event) {
         int keyCode = event.getKeyCode();
         int scanCode = event.getScanCode();
-        boolean quickCraftKey = EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
-                && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
-                && matchesConfiguredQuickCraftKey(keyCode);
 
-        if (ModLogger.isDebugEnabled() && (keyCode == GLFW.GLFW_KEY_A || quickCraftKey)) {
-            logBomKeyPress("pre", keyCode, scanCode, quickCraftKey);
+        if (ModLogger.isDebugEnabled() && keyCode == GLFW.GLFW_KEY_A) {
+            logBomKeyPress("pre", keyCode, scanCode);
         }
 
         if (ModKeybindings.FILL_SEARCH_KEY.matches(keyCode, scanCode)) {
@@ -231,63 +228,20 @@ public final class InputEvents {
             return;
         }
 
-        if (quickCraftKey) {
-            EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-            boolean bomGoal = synthetic == null && isHoveredBomScreenGoalTree();
-            ModLogger.debug("BOM_KEY quick-craft matched bind={} finalSynthetic={} bomGoal={} synthetic={} {}",
-                    quickCraftBindText(),
-                    synthetic != null,
-                    bomGoal,
-                    synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
-                    BomTreePageHelper.describeActiveState());
-            event.setCanceled(true);
-            if (synthetic == null && !bomGoal) {
-                var mouse = getCurrentGuiMousePosition();
-                ModLogger.debug("BOM_KEY quick-craft ignored: hovered target is not a final synthetic or BoM goal preciseFavorite={} bomHover={}",
-                        describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()),
-                        describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()));
-                return;
-            }
-            onQuickCraftTabKey(event);
-        }
     }
 
     public static boolean tryHandleBomKeyFromEmi(int keyCode, int scanCode) {
-        boolean quickCraftKey = EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
-                && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
-                && matchesConfiguredQuickCraftKey(keyCode);
-
-        if (keyCode != GLFW.GLFW_KEY_A && !quickCraftKey) {
+        if (keyCode != GLFW.GLFW_KEY_A) {
             return false;
         }
 
         if (ModLogger.isDebugEnabled()) {
-            logBomKeyPress("emi-head", keyCode, scanCode, quickCraftKey);
+            logBomKeyPress("emi-head", keyCode, scanCode);
         }
 
-        if (keyCode == GLFW.GLFW_KEY_A) {
-            boolean canceled = tryCancelHoveredFinalBomTree();
-            ModLogger.debug("BOM_KEY A emi result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
-            return canceled;
-        }
-
-        EmiFavorite.Synthetic synthetic = getHoveredFinalSynthetic();
-        boolean bomGoal = synthetic == null && isHoveredBomScreenGoalTree();
-        ModLogger.debug("BOM_KEY quick-craft emi matched bind={} finalSynthetic={} bomGoal={} synthetic={} {}",
-                quickCraftBindText(),
-                synthetic != null,
-                bomGoal,
-                synthetic == null ? "null" : BomTreePageHelper.describeSyntheticDebug(synthetic),
-                BomTreePageHelper.describeActiveState());
-        if (synthetic == null && !bomGoal) {
-            var mouse = getCurrentGuiMousePosition();
-            ModLogger.debug("BOM_KEY quick-craft emi ignored: hovered target is not a final synthetic or BoM goal preciseFavorite={} bomHover={}",
-                    describePreciseFavoriteHit((int) mouse.x(), (int) mouse.y()),
-                    describeBomScreenHover(Minecraft.getInstance().screen, mouse.x(), mouse.y()));
-            return false;
-        }
-        onQuickCraftTabKey(null);
-        return true;
+        boolean canceled = tryCancelHoveredFinalBomTree();
+        ModLogger.debug("BOM_KEY A emi result canceled={} {}", canceled, BomTreePageHelper.describeActiveState());
+        return canceled;
     }
 
     @SubscribeEvent
@@ -351,7 +305,7 @@ public final class InputEvents {
         }
     }
 
-    private static void logBomKeyPress(String phase, int keyCode, int scanCode, boolean quickCraftKey) {
+    private static void logBomKeyPress(String phase, int keyCode, int scanCode) {
         try {
             var mc = Minecraft.getInstance();
             var mouse = getCurrentGuiMousePosition();
@@ -359,13 +313,11 @@ public final class InputEvents {
             var hoveredApi = EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
             var hoveredLast = EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false);
             ModLogger.debug(
-                    "BOM_KEY {} keyCode={} scanCode={} keyName={} bind={} quickCraftKey={} ctrl={} shift={} alt={} xy=({}, {}) lastXY=({}, {}) screen={} handled={} focus={} hoveredScreen={} hoveredApi={} hoveredLast={} bomScreenHover={} {}",
+                    "BOM_KEY {} keyCode={} scanCode={} keyName={} ctrl={} shift={} alt={} xy=({}, {}) lastXY=({}, {}) screen={} handled={} focus={} hoveredScreen={} hoveredApi={} hoveredLast={} bomScreenHover={} {}",
                     phase,
                     keyCode,
                     scanCode,
                     keyName(keyCode),
-                    quickCraftBindText(),
-                    quickCraftKey,
                     Screen.hasControlDown(),
                     Screen.hasShiftDown(),
                     Screen.hasAltDown(),
@@ -550,76 +502,6 @@ public final class InputEvents {
                 && Screen.hasControlDown()
                 && Screen.hasShiftDown()
                 && !Screen.hasAltDown();
-    }
-
-    private static boolean matchesConfiguredQuickCraftKey(int keyCode) {
-        int configuredKey = parseKeyToken(EmiLinkConfig.QUICK_CRAFT_KEY.get());
-        if (configuredKey < 0) {
-            configuredKey = GLFW.GLFW_KEY_C;
-        }
-        return keyCode == configuredKey && matchesModifier(EmiLinkConfig.QUICK_CRAFT_MODIFIER.get());
-    }
-
-    private static boolean matchesModifier(EmiLinkConfig.ExtractTrigger modifier) {
-        return switch (modifier) {
-            case SHIFT -> Screen.hasShiftDown() && !Screen.hasControlDown() && !Screen.hasAltDown();
-            case CONTROL -> Screen.hasControlDown() && !Screen.hasShiftDown() && !Screen.hasAltDown();
-            case ALT -> Screen.hasAltDown() && !Screen.hasControlDown() && !Screen.hasShiftDown();
-            case OFF -> !Screen.hasControlDown() && !Screen.hasShiftDown() && !Screen.hasAltDown();
-        };
-    }
-
-    public static String quickCraftBindText() {
-        String key = normalizeKeyToken(EmiLinkConfig.QUICK_CRAFT_KEY.get());
-        if (key == null) {
-            key = "C";
-        }
-        return switch (EmiLinkConfig.QUICK_CRAFT_MODIFIER.get()) {
-            case SHIFT -> "Shift+" + key;
-            case CONTROL -> "Ctrl+" + key;
-            case ALT -> "Alt+" + key;
-            case OFF -> key;
-        };
-    }
-
-    private static String normalizeKeyToken(String value) {
-        if (value == null || value.isBlank()) return null;
-        String token = value.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
-        return parseKeyToken(token) < 0 ? null : token;
-    }
-
-    private static int parseKeyToken(String value) {
-        if (value == null || value.isBlank()) return -1;
-        String token = value.trim().toUpperCase(java.util.Locale.ROOT).replace("-", "_");
-        if (token.length() == 1) {
-            char c = token.charAt(0);
-            if (c >= 'A' && c <= 'Z') return GLFW.GLFW_KEY_A + (c - 'A');
-            if (c >= '0' && c <= '9') return GLFW.GLFW_KEY_0 + (c - '0');
-        }
-        if (token.startsWith("F")) {
-            try {
-                int fn = Integer.parseInt(token.substring(1));
-                if (fn >= 1 && fn <= 25) return GLFW.GLFW_KEY_F1 + (fn - 1);
-            } catch (NumberFormatException ignored) {}
-        }
-        return switch (token) {
-            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
-            case "TAB" -> GLFW.GLFW_KEY_TAB;
-            case "ENTER", "RETURN" -> GLFW.GLFW_KEY_ENTER;
-            case "ESC", "ESCAPE" -> GLFW.GLFW_KEY_ESCAPE;
-            case "BACKSPACE" -> GLFW.GLFW_KEY_BACKSPACE;
-            case "DELETE", "DEL" -> GLFW.GLFW_KEY_DELETE;
-            case "INSERT", "INS" -> GLFW.GLFW_KEY_INSERT;
-            case "HOME" -> GLFW.GLFW_KEY_HOME;
-            case "END" -> GLFW.GLFW_KEY_END;
-            case "PAGE_UP", "PAGEUP" -> GLFW.GLFW_KEY_PAGE_UP;
-            case "PAGE_DOWN", "PAGEDOWN" -> GLFW.GLFW_KEY_PAGE_DOWN;
-            case "LEFT" -> GLFW.GLFW_KEY_LEFT;
-            case "RIGHT" -> GLFW.GLFW_KEY_RIGHT;
-            case "UP" -> GLFW.GLFW_KEY_UP;
-            case "DOWN" -> GLFW.GLFW_KEY_DOWN;
-            default -> -1;
-        };
     }
 
     private static boolean tryCancelHoveredFinalBomTree() {

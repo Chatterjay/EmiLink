@@ -57,8 +57,6 @@ public final class EmiLinkConfig {
 
     // ---- Quick Craft ----
     public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> QUICK_CRAFT_MODIFIER;
-    public static final ModConfigSpec.ConfigValue<String> QUICK_CRAFT_KEY;
     public static final ModConfigSpec.IntValue QUICK_CRAFT_BATCHES_PER_TICK;
 
     // ---- Inventory ----
@@ -233,14 +231,6 @@ public final class EmiLinkConfig {
                 .comment("Enable recursive BOM automatic workbench crafting")
                 .translation("emilink.config.quick_craft.enableQuickCraft")
                 .define("enableQuickCraftTab", true);
-
-        QUICK_CRAFT_MODIFIER = BUILDER
-                .translation("emilink.config.quick_craft.quickCraftModifier")
-                .defineEnum("quickCraftModifier", ExtractTrigger.SHIFT);
-
-        QUICK_CRAFT_KEY = BUILDER
-                .translation("emilink.config.quick_craft.quickCraftKey")
-                .define("quickCraftKey", "C");
 
         QUICK_CRAFT_BATCHES_PER_TICK = BUILDER
                 .comment("Maximum BOM crafting batches processed in one client tick (1-256)")

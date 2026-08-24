@@ -48,10 +48,7 @@ public final class BomFavoriteQuickCraftButton {
         if (hovered) {
             drawHoverFrame(guiGraphics, x, y, HITBOX_OUTSIDE_WIDTH, SLOT_SIZE, HOVER_FRAME_COLOR);
             guiGraphics.renderTooltip(font,
-                    List.of(
-                            Component.translatable("emilink.tooltip.favorite_bom_quick_craft"),
-                            Component.translatable("emilink.tooltip.favorite_bom_quick_craft.shortcut",
-                                    Component.literal(InputEvents.quickCraftBindText()))),
+                    List.of(Component.translatable("emilink.tooltip.favorite_bom_quick_craft")),
                     java.util.Optional.empty(),
                     mouseX,
                     mouseY);

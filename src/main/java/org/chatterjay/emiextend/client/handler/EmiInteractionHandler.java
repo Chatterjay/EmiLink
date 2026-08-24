@@ -11,7 +11,6 @@ import dev.emi.emi.api.stack.EmiStackInteraction;
 import dev.emi.emi.registry.EmiRecipeFiller;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -24,7 +23,6 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import org.chatterjay.emiextend.client.BDShortcutHandler;
 import org.chatterjay.emiextend.client.ClientPacketHelper;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
-import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
@@ -485,10 +483,7 @@ public final class EmiInteractionHandler {
                 && BomTreePageHelper.isFinalSynthetic(synthetic)) {
             result = new ArrayList<>(result);
             result.add(EmiTooltipComponents.of(
-                    Component.translatable(
-                            "emilink.tooltip.quick_craft",
-                            Component.literal(InputEvents.quickCraftBindText())
-                    ).withStyle(ChatFormatting.GRAY)));
+                    Component.translatable("emilink.tooltip.quick_craft")));
         }
 
         var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);

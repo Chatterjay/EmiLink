@@ -7,9 +7,8 @@
   "emilink.tooltip.deposit": "Deposit into network",
   "emilink.tooltip.deposit_all": "Deposit all matching",
   "emilink.tooltip.favorite_protected": "§6Protected | Modifier + Right Drag to Unprotect",
-  "emilink.tooltip.quick_craft": "Press %s to quick craft",
+  "emilink.tooltip.quick_craft": "Use the BOM quick-craft button to craft this tree",
   "emilink.tooltip.favorite_bom_quick_craft": "Left-click to quick craft this BOM tree",
-  "emilink.tooltip.favorite_bom_quick_craft.shortcut": "Shortcut: %s",
   "ae_tooltip.count": "Network: %s",
   "ae_tooltip.craftable": "Network craftable",
   "emilink.tooltip.wrap_as_book.on": "Wrap as Book: On",
@@ -90,10 +89,6 @@
 
   "emilink.config.quick_craft.enableQuickCraft": "BOM Automatic Workbench Crafting",
   "emilink.config.quick_craft.enableQuickCraft.tooltip": "Recursively execute the BOM tree and fill the workbench automatically.",
-  "emilink.config.quick_craft.quickCraftModifier": "Quick Craft Modifier",
-  "emilink.config.quick_craft.quickCraftModifier.tooltip": "Modifier used for quick crafting the BOM final output.\nSHIFT, CONTROL, ALT, or OFF.",
-  "emilink.config.quick_craft.quickCraftKey": "Quick Craft Key",
-  "emilink.config.quick_craft.quickCraftKey.tooltip": "Main key used for quick crafting the BOM final output.\nDefault: C. Supports letters, digits, F1-F25, SPACE, TAB, etc.",
   "emilink.config.quick_craft.batchesPerTick": "Batches Per Tick",
   "emilink.config.quick_craft.batchesPerTick.tooltip": "Maximum successful AE BOM batches submitted per client tick.\nRange: 1-256. Higher values are faster but may increase burst menu packets.",
 
