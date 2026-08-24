@@ -8,6 +8,8 @@ import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.util.ModLogger;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.util.List;
 
 public final class AEQuickCraftDelayHandler {
     private static PendingResultClick pending;
@@ -93,6 +95,55 @@ public final class AEQuickCraftDelayHandler {
             ModLogger.debug("AE_EMI_CTRL_CRAFT delayed-click packet failed: {}", error.toString());
         }
         return false;
+    }
+
+    /**
+     * Send one AE crafting-terminal action without re-filling the EMI recipe.
+     * The BOM runner fills a node once, then uses this path for the remaining
+     * batches so fill packets cannot race with craft packets.
+     */
+    public static boolean sendSingleCraft(Object menu, Object recipeId) {
+        if (!AE2Proxy.isLoaded() || menu == null) return false;
+        try {
+            Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
+            Class<?> slotSemanticClass = Class.forName("appeng.menu.SlotSemantic");
+            Class<?> slotSemanticsClass = Class.forName("appeng.menu.SlotSemantics");
+            Object resultSemantic = slotSemanticsClass.getField("CRAFTING_RESULT").get(null);
+            Method getSlots = aeBaseMenuClass.getMethod("getSlots", slotSemanticClass);
+            Object value = getSlots.invoke(menu, resultSemantic);
+            if (!(value instanceof List<?> slots) || slots.isEmpty()) {
+                ModLogger.debug("AE_EMI_CTRL_CRAFT direct-single-craft failed: no result slot recipe={}", recipeId);
+                return false;
+            }
+
+            int slotIndex = readSlotIndex(slots.getFirst());
+            Class<?> actionClass = Class.forName("appeng.helpers.InventoryAction");
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object action = Enum.valueOf((Class<? extends Enum>) actionClass, "CRAFT_SHIFT");
+            boolean sent = sendInventoryAction(action, slotIndex, Long.MIN_VALUE);
+            ModLogger.debug("AE_EMI_CTRL_CRAFT direct-single-craft recipe={} slot={} sent={}",
+                    recipeId, slotIndex, sent);
+            return sent;
+        } catch (ReflectiveOperationException | RuntimeException error) {
+            ModLogger.debug("AE_EMI_CTRL_CRAFT direct-single-craft failed recipe={} error={}",
+                    recipeId, error.toString());
+            return false;
+        }
+    }
+
+    private static int readSlotIndex(Object slot) throws ReflectiveOperationException {
+        if (slot == null) throw new IllegalArgumentException("null result slot");
+        Class<?> type = slot.getClass();
+        while (type != null) {
+            try {
+                Field field = type.getDeclaredField("index");
+                field.setAccessible(true);
+                return field.getInt(slot);
+            } catch (NoSuchFieldException ignored) {
+                type = type.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException("index");
     }
 
     private record PendingResultClick(Object action, int slotIndex, long id, int containerId,

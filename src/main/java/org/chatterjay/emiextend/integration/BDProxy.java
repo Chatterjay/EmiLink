@@ -37,6 +37,10 @@ public class BDProxy {
     private record CraftReturnSnapshot(int containerId, boolean firstCraftReturnDir) {
     }
 
+    /** Result of a server-side batch taken from the BD crafting result slot. */
+    public record BatchCraftResult(int crafted, int delivered) {
+    }
+
     private static boolean initReflection() {
         if (loaded != null) return loaded;
         var modList = ModList.get();
@@ -860,6 +864,59 @@ public class BDProxy {
         } catch (Exception e) {
             ModLogger.warn("BDProxy singleCraftToNetwork failed: {}", e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Craft several results in one server packet. The BD result slot refills
+     * itself from the network after each take, so no client round-trip is
+     * needed between individual crafts.
+     */
+    public static BatchCraftResult batchCraft(Player player, int amount, boolean toNetwork) {
+        if (!isLoaded() || player == null || amount <= 0) {
+            return new BatchCraftResult(0, 0);
+        }
+        try {
+            var menu = player.containerMenu;
+            if (!craftMenuClass.isInstance(menu)) {
+                return new BatchCraftResult(0, 0);
+            }
+
+            int resultSlotIndex = (int) craftMenuClass.getField("resultSlotIndex").get(menu);
+            if (resultSlotIndex < 0 || resultSlotIndex >= menu.slots.size()) {
+                return new BatchCraftResult(0, 0);
+            }
+
+            int crafted = 0;
+            int delivered = 0;
+            int limit = Math.min(amount, 256);
+            for (int i = 0; i < limit; i++) {
+                refreshCraftingResult(menu);
+                ItemStack result = menu.slots.get(resultSlotIndex).getItem().copy();
+                if (result.isEmpty()) {
+                    break;
+                }
+
+                boolean ok = toNetwork
+                        ? singleCraftToNetwork(player)
+                        : singleCraft(player);
+                if (!ok) {
+                    break;
+                }
+                crafted++;
+                delivered += result.getCount();
+            }
+
+            if (player.containerMenu != null) {
+                player.getInventory().setChanged();
+                player.containerMenu.broadcastChanges();
+            }
+            ModLogger.debug("BD_QUICKCRAFT batch result requested={} crafted={} delivered={} destination={}",
+                    amount, crafted, delivered, toNetwork ? "NETWORK" : "INVENTORY");
+            return new BatchCraftResult(crafted, delivered);
+        } catch (Exception e) {
+            ModLogger.warn("BDProxy batchCraft failed: {}", e.getMessage());
+            return new BatchCraftResult(0, 0);
         }
     }
 

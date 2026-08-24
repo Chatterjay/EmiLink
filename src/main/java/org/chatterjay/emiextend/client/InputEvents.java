@@ -36,6 +36,8 @@ import org.chatterjay.emiextend.network.packet.c2s.BDDepositSlotPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEQuickCraftBatchPacket;
+import org.chatterjay.emiextend.network.packet.c2s.BDBatchCraftPacket;
 import org.lwjgl.glfw.GLFW;
 
 public final class InputEvents {
@@ -49,7 +51,7 @@ public final class InputEvents {
 
     private static boolean fillSearchHandled = false;
 
-    /** Active multi-tick crafting job (one batch per game tick to avoid freezing). */
+    /** Active BOM crafting job. AE batches may be submitted several at a time. */
     private static CraftingJob currentJob = null;
 
     /** Tracks successfully crafted batches per recipe ID across job restarts. */
@@ -57,6 +59,8 @@ public final class InputEvents {
     private static String lastGoalRecipeId = null;
     private static long lastBoMBatches = -1;
     private static String lastPlanSignature = null;
+    /** Completion counts are only resumable within the same storage domain. */
+    private static QuickCraftStorageMode lastCompletionStorageMode = null;
 
     /** Preflight: batch-query AE cache for all node outputs before starting the job. */
     private static java.util.List<MaterialNode> preflightNodes;
@@ -68,7 +72,10 @@ public final class InputEvents {
     private static long preflightQueryStartedAt;
     private static long preflightRunId;
     private static long quickCraftRunSeq = 0;
-    private static final long PREFLIGHT_TIMEOUT_MS = 3000;
+    private static long aeBatchRequestSeq = 0;
+    private static long bdBatchRequestSeq = 0;
+    /** Do not block BOM execution for several seconds when an AE query is unavailable. */
+    private static final long PREFLIGHT_TIMEOUT_MS = 750;
 
     private enum QuickCraftStorageMode {
         AE_EXTERNAL,
@@ -94,11 +101,27 @@ public final class InputEvents {
         MaterialNode pendingBdCraftNode;
         int pendingBdCraftTicks;
         long pendingBdCraftBeforeTotal;
+        boolean bdRecipeFilled;
+        long pendingBdBatchRequestId;
+        int pendingBdBatchRequested;
+        int pendingBdBatchTicks;
         MaterialNode pendingVerifyNode;
         int pendingVerifyTicks;
         long pendingVerifyBeforeTotal;
         MaterialNode pendingDepositNode;
         int pendingDepositTicks;
+        long pendingDepositExpected;
+        long pendingDepositCollected;
+        long pendingDepositBatches;
+        long nodeDeliveredItems;
+        boolean nodeRecipeFilled;
+        boolean waitForCursorSync;
+        int localSyncWaitTicks;
+        int aeBatchFillWaitTicks;
+        int aeEmptyResultRetries;
+        long pendingAeCraftRequestId;
+        int pendingAeCraftRequested;
+        int pendingAeCraftTicks;
 
         CraftingJob(AbstractContainerScreen<?> screen, MaterialNode goalNode,
                     java.util.List<MaterialNode> nodes, java.util.Map<MaterialNode, Long> neededAmounts,
@@ -119,11 +142,27 @@ public final class InputEvents {
             this.pendingBdCraftNode = null;
             this.pendingBdCraftTicks = 0;
             this.pendingBdCraftBeforeTotal = 0;
+            this.bdRecipeFilled = false;
+            this.pendingBdBatchRequestId = 0;
+            this.pendingBdBatchRequested = 0;
+            this.pendingBdBatchTicks = 0;
             this.pendingVerifyNode = null;
             this.pendingVerifyTicks = 0;
             this.pendingVerifyBeforeTotal = 0;
             this.pendingDepositNode = null;
             this.pendingDepositTicks = 0;
+            this.pendingDepositExpected = 0;
+            this.pendingDepositCollected = 0;
+            this.pendingDepositBatches = 0;
+            this.nodeDeliveredItems = 0;
+            this.nodeRecipeFilled = false;
+            this.waitForCursorSync = false;
+            this.localSyncWaitTicks = 0;
+            this.aeBatchFillWaitTicks = 0;
+            this.aeEmptyResultRetries = 0;
+            this.pendingAeCraftRequestId = 0;
+            this.pendingAeCraftRequested = 0;
+            this.pendingAeCraftTicks = 0;
         }
     }
 
@@ -852,7 +891,9 @@ public final class InputEvents {
         // 6. EMI search fallback
         SearchHistoryOverlay.applySearch(text, icon);
         fillSearchHandled = true;
-        event.setCanceled(true);
+        if (event != null) {
+            event.setCanceled(true);
+        }
     }
 
     /** Check if screen is any supported pattern encoding terminal (AE2, ExtendedAE, or RS) */
@@ -1131,7 +1172,7 @@ public final class InputEvents {
             qcLog(runId, "no handled screen (quick craft ignored)");
             return;
         }
-        QuickCraftStorageMode storageMode = getQuickCraftStorageMode(handled, mc.player);
+        QuickCraftStorageMode storageMode = getQuickCraftStorageMode(handled);
         qcLog(runId, "BEGIN handled={} storageMode={}",
                 handled.getClass().getName(), storageMode);
         if (storageMode == QuickCraftStorageMode.UNSAFE_EXTERNAL_GRID) {
@@ -1183,9 +1224,13 @@ public final class InputEvents {
         boolean goalChanged = goalId != null && !goalId.equals(lastGoalRecipeId);
         boolean batchesChanged = BoM.tree.batches != lastBoMBatches;
         boolean planChanged = lastPlanSignature != null && !lastPlanSignature.equals(planSignature);
-        if (goalChanged || batchesChanged || planChanged) {
-            qcLog(runId, "resetting completedBatches (goalChanged={}, batchesChanged={}, planChanged={}, oldBatches={}, newBatches={}, previousEntries={})",
-                    goalChanged, batchesChanged, planChanged, lastBoMBatches, BoM.tree.batches, completedBatches.size());
+        boolean storageModeChanged = lastCompletionStorageMode != null
+                && lastCompletionStorageMode != storageMode;
+        if (goalChanged || batchesChanged || planChanged || storageModeChanged) {
+            qcLog(runId, "resetting completedBatches (goalChanged={}, batchesChanged={}, planChanged={}, storageModeChanged={}, oldStorageMode={}, newStorageMode={}, oldBatches={}, newBatches={}, previousEntries={})",
+                    goalChanged, batchesChanged, planChanged, storageModeChanged,
+                    lastCompletionStorageMode, storageMode,
+                    lastBoMBatches, BoM.tree.batches, completedBatches.size());
             if (!completedBatches.isEmpty()) {
                 qcLog(runId, "completedBatches before reset: {}", completedBatches);
             }
@@ -1208,6 +1253,7 @@ public final class InputEvents {
         } else if (lastPlanSignature == null) {
             lastPlanSignature = planSignature;
         }
+        lastCompletionStorageMode = storageMode;
 
         // Sweep intermediate items to AE before computing need adjustments.
         // Otherwise items stuck in inventory from an interrupted job would be
@@ -1229,7 +1275,6 @@ public final class InputEvents {
                     if (matchesOutput(stack, allOutputs)) {
                         appendStackAmount(detail, stack, stack.getCount());
                         if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
-                            inv.setItem(i, ItemStack.EMPTY);
                             total += stack.getCount();
                         }
                     }
@@ -1292,7 +1337,6 @@ public final class InputEvents {
                             ? ClientPacketHelper.sendToServer(new BDDepositSlotPacket(i))
                             : ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i));
                     if (deposited) {
-                        inv.setItem(i, ItemStack.EMPTY);
                         qcLog(runId, "row-clear deposited slot {} to {}: {} x{}", i,
                                 storageMode == QuickCraftStorageMode.BD_EXTERNAL ? "BD" : "AE",
                                 stack.getDisplayName().getString(), stack.getCount());
@@ -1343,7 +1387,9 @@ public final class InputEvents {
                 qcLog(runId, "BD_QUICKCRAFT_RETURN_MODE network-first enabled");
             }
         }
-        event.setCanceled(true);
+        if (event != null) {
+            event.setCanceled(true);
+        }
         qcLog(runId, "preflight started ({} nodes, {} target batches), waiting for AE cache...",
                 nodes.size(), initialBatches);
     }
@@ -1401,8 +1447,7 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputsToDeposit)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
-                    inv.setItem(i, ItemStack.EMPTY);
+                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i, true))) {
                     total += stack.getCount();
                 }
             }
@@ -1412,8 +1457,7 @@ public final class InputEvents {
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputsToDeposit)) {
             appendStackAmount(detail, carried, carried.getCount());
-            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1))) {
-                player.containerMenu.setCarried(ItemStack.EMPTY);
+            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1, true))) {
                 total += carried.getCount();
             }
         }
@@ -1439,8 +1483,7 @@ public final class InputEvents {
             if (stack.isEmpty()) continue;
             if (matchesOutput(stack, outputs)) {
                 appendStackAmount(detail, stack, stack.getCount());
-                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i))) {
-                    inv.setItem(i, ItemStack.EMPTY);
+                if (ClientPacketHelper.sendToServer(new AEDepositPacket(stack.copy(), i, true))) {
                     total += stack.getCount();
                     invalidation.add(stack.copyWithCount(1));
                 }
@@ -1450,8 +1493,7 @@ public final class InputEvents {
         var carried = player.containerMenu.getCarried();
         if (!carried.isEmpty() && matchesOutput(carried, outputs)) {
             appendStackAmount(detail, carried, carried.getCount());
-            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1))) {
-                player.containerMenu.setCarried(ItemStack.EMPTY);
+            if (ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1, true))) {
                 total += carried.getCount();
                 invalidation.add(carried.copyWithCount(1));
             }
@@ -1465,7 +1507,11 @@ public final class InputEvents {
     }
 
 
-    /** After each batch: if backpack has fewer than 3 empty slots, sweep intermediates to AE. */
+    /**
+     * After each batch, sweep intermediates when storage is getting tight. A
+     * cursor-held intermediate is also swept immediately so it remains a
+     * temporary slot instead of blocking the next batch.
+     */
     private static void checkAndSweepIntermediates(Player player) {
         if (currentJob == null) return;
         if (currentJob.storageMode != QuickCraftStorageMode.AE_EXTERNAL) return;
@@ -1474,15 +1520,74 @@ public final class InputEvents {
         for (int i = 0; i < inv.items.size(); i++) {
             if (inv.getItem(i).isEmpty()) emptySlots++;
         }
-        if (emptySlots < 3) {
-            qcLog(currentJob.runId, "low empty slots ({}), sweeping intermediates", emptySlots);
+        boolean carriedIntermediate = false;
+        var carried = player.containerMenu.getCarried();
+        if (!carried.isEmpty()) {
+            for (var node : currentJob.nodes) {
+                if (node == currentJob.goalNode || node.recipe == null) continue;
+                if (matchesNodeOutput(carried, node)) {
+                    carriedIntermediate = true;
+                    break;
+                }
+            }
+        }
+        if (emptySlots < 3 || carriedIntermediate) {
+            qcLog(currentJob.runId, "sweeping intermediates (emptySlots={}, carriedIntermediate={})",
+                    emptySlots, carriedIntermediate);
             depositAllIntermediates(currentJob.runId, player, currentJob);
         }
     }
 
-    /** Process one batch per game tick, linear through nodes. */
+    /**
+     * Run the BOM state machine with a bounded per-tick budget. AE fills do not
+     * need an inventory verification round-trip, so successful AE batches can
+     * be submitted back-to-back. BD and local crafting still yield whenever a
+     * server-side result or deposit needs time to arrive.
+     */
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
+        int budget = Math.max(1, EmiLinkConfig.QUICK_CRAFT_BATCHES_PER_TICK.get());
+        for (int i = 0; i < budget; i++) {
+            CraftingJob beforeJob = currentJob;
+            java.util.List<MaterialNode> beforePreflight = preflightNodes;
+            int beforeNodeIndex = currentJob == null ? -1 : currentJob.nodeIndex;
+            long beforeRemaining = currentJob == null ? -1 : currentJob.remainingBatches;
+            long beforeSucceeded = currentJob == null ? -1 : currentJob.nodeSucceeded;
+
+            processQuickCraftTick(event);
+
+            if (currentJob == null || preflightNodes != null) {
+                break;
+            }
+            if (beforePreflight != null || currentJob != beforeJob) {
+                continue;
+            }
+            if (currentJob.pendingBdCraftNode != null
+                    || currentJob.pendingBdBatchRequestId != 0
+                    || currentJob.pendingVerifyNode != null
+                    || currentJob.pendingDepositNode != null
+                    || currentJob.pendingAeCraftRequestId != 0) {
+                break;
+            }
+            if (currentJob.waitForCursorSync) {
+                break;
+            }
+            if (currentJob.localSyncWaitTicks > 0) {
+                break;
+            }
+
+            // Continue only after a successful batch or node transition. A
+            // failed fill must yield so the server/client inventory can settle.
+            boolean progressed = currentJob.nodeIndex != beforeNodeIndex
+                    || currentJob.remainingBatches != beforeRemaining
+                    || currentJob.nodeSucceeded != beforeSucceeded;
+            if (!progressed) {
+                break;
+            }
+        }
+    }
+
+    private static void processQuickCraftTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
         var mc = Minecraft.getInstance();
 
         // Handle preflight: wait for AE cache queries to return before creating job
@@ -1529,11 +1634,12 @@ public final class InputEvents {
                 preflightStorageMode = QuickCraftStorageMode.LOCAL_INVENTORY;
                 preflightQueryStartedAt = 0;
                 preflightRunId = 0;
-                completedBatches.clear();
-                lastGoalRecipeId = null;
-                lastBoMBatches = -1;
-                lastPlanSignature = null;
-                AENetworkCache.clearEphemeralQuery();
+            completedBatches.clear();
+            lastGoalRecipeId = null;
+            lastBoMBatches = -1;
+            lastPlanSignature = null;
+            lastCompletionStorageMode = null;
+            AENetworkCache.clearEphemeralQuery();
                 return;
             }
 
@@ -1606,29 +1712,66 @@ public final class InputEvents {
             return;
         }
 
+        if (currentJob.pendingAeCraftRequestId != 0) {
+            currentJob.pendingAeCraftTicks++;
+            if (currentJob.pendingAeCraftTicks >= 20) {
+                qcLog(currentJob.runId, "AE_BATCH_TIMEOUT requestId={} requested={} ticks={}",
+                        currentJob.pendingAeCraftRequestId,
+                        currentJob.pendingAeCraftRequested,
+                        currentJob.pendingAeCraftTicks);
+                abortCurrentJob("AE batch response timeout");
+            }
+            return;
+        }
+
+        if (currentJob.pendingBdBatchRequestId != 0) {
+            currentJob.pendingBdBatchTicks++;
+            if (currentJob.pendingBdBatchTicks >= 20) {
+                qcLog(currentJob.runId, "BD_BATCH_TIMEOUT requestId={} requested={} ticks={}",
+                        currentJob.pendingBdBatchRequestId,
+                        currentJob.pendingBdBatchRequested,
+                        currentJob.pendingBdBatchTicks);
+                abortCurrentJob("BD batch response timeout");
+            }
+            return;
+        }
+
+        if (currentJob.localSyncWaitTicks > 0) {
+            currentJob.localSyncWaitTicks--;
+            return;
+        }
+
         if (currentJob.pendingBdCraftNode != null) {
             var node = currentJob.pendingBdCraftNode;
             currentJob.pendingBdCraftTicks++;
-            if (currentJob.pendingBdCraftTicks < 2) {
+            if (!currentJob.bdRecipeFilled && currentJob.pendingBdCraftTicks < 2) {
                 return;
             }
 
             boolean bdIntermediate = currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL
                     && node != currentJob.goalNode;
-            ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, bdIntermediate ? 7 : 2));
-            currentJob.pendingVerifyNode = node;
-            currentJob.pendingVerifyTicks = 0;
-            currentJob.pendingVerifyBeforeTotal = currentJob.pendingBdCraftBeforeTotal;
-            qcLog(currentJob.runId, "BD_CRAFT_RESULT_SENT {} destination={} beforeTotal={}",
-                    recipeId(node), bdIntermediate ? "NETWORK" : "INVENTORY",
-                    currentJob.pendingVerifyBeforeTotal);
-            currentJob.pendingBdCraftNode = null;
-            currentJob.pendingBdCraftTicks = 0;
-            currentJob.pendingBdCraftBeforeTotal = 0;
+            int requestAmount = (int) Math.min(currentJob.remainingBatches,
+                    Math.max(1, EmiLinkConfig.QUICK_CRAFT_BATCHES_PER_TICK.get()));
+            long requestId = ++bdBatchRequestSeq;
+            currentJob.pendingBdBatchRequestId = requestId;
+            currentJob.pendingBdBatchRequested = requestAmount;
+            currentJob.pendingBdBatchTicks = 0;
+            boolean sent = ClientPacketHelper.sendToServer(new BDBatchCraftPacket(
+                    requestAmount, bdIntermediate, requestId));
+            qcLog(currentJob.runId, "BD_BATCH_REQUEST recipe={} requestId={} amount={} destination={} sent={}",
+                    recipeId(node), requestId, requestAmount,
+                    bdIntermediate ? "NETWORK" : "INVENTORY", sent);
+            if (!sent) {
+                currentJob.pendingBdBatchRequestId = 0;
+                currentJob.pendingBdBatchRequested = 0;
+                currentJob.pendingBdBatchTicks = 0;
+                abortCurrentJob("BD batch packet unavailable");
+            }
             return;
         }
 
-        if (currentJob.pendingVerifyNode != null) {
+        if (currentJob.pendingVerifyNode != null
+                && currentJob.storageMode != QuickCraftStorageMode.BD_EXTERNAL) {
             var node = currentJob.pendingVerifyNode;
             var availability = getNodeAvailability(node, mc.player, currentJob.storageMode);
             currentJob.pendingVerifyTicks++;
@@ -1680,9 +1823,13 @@ public final class InputEvents {
 
         if (currentJob.pendingDepositNode != null) {
             int deposited = depositNodeOutputs(currentJob.runId, mc.player, currentJob.pendingDepositNode);
+            currentJob.pendingDepositCollected += Math.max(0, deposited);
             currentJob.pendingDepositTicks++;
-            if (deposited > 0 || currentJob.pendingDepositTicks >= 3) {
-                if (deposited <= 0) {
+            boolean expectedReached = currentJob.pendingDepositExpected <= 0
+                    ? deposited > 0
+                    : currentJob.pendingDepositCollected >= currentJob.pendingDepositExpected;
+            if (expectedReached || currentJob.pendingDepositTicks >= 8) {
+                if (!expectedReached) {
                     qcLog(currentJob.runId, "no finished node outputs found to deposit after {} ticks for {}",
                             currentJob.pendingDepositTicks, recipeId(currentJob.pendingDepositNode));
                     if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL
@@ -1691,8 +1838,24 @@ public final class InputEvents {
                         return;
                     }
                 }
+                qcLog(currentJob.runId, "node output deposit progress recipe={} deposited={} collected={}/{} ticks={}",
+                        recipeId(currentJob.pendingDepositNode), deposited,
+                        currentJob.pendingDepositCollected, currentJob.pendingDepositExpected,
+                        currentJob.pendingDepositTicks);
+                if (expectedReached) {
+                    String completedRecipe = recipeId(currentJob.pendingDepositNode);
+                    completedBatches.merge(completedRecipe,
+                            currentJob.pendingDepositBatches, Long::sum);
+                    qcLog(currentJob.runId, "committed completed batches recipe={} batches={} map={}",
+                            completedRecipe, currentJob.pendingDepositBatches, completedBatches);
+                }
                 currentJob.pendingDepositNode = null;
                 currentJob.pendingDepositTicks = 0;
+                currentJob.pendingDepositExpected = 0;
+                currentJob.pendingDepositCollected = 0;
+                currentJob.pendingDepositBatches = 0;
+                currentJob.nodeDeliveredItems = 0;
+                currentJob.nodeRecipeFilled = false;
                 currentJob.nodeIndex++;
             }
             return;
@@ -1735,6 +1898,13 @@ public final class InputEvents {
                 currentJob.nodeSucceeded = 0;
                 currentJob.nodeFailed = 0;
                 currentJob.consecutiveFails = 0;
+                currentJob.nodeRecipeFilled = false;
+                currentJob.bdRecipeFilled = false;
+                currentJob.aeBatchFillWaitTicks = 0;
+                currentJob.aeEmptyResultRetries = 0;
+                currentJob.pendingDepositExpected = 0;
+                currentJob.pendingDepositCollected = 0;
+                currentJob.pendingDepositBatches = 0;
                 qcLog(currentJob.runId, "NODE_DECISION CRAFT index={} recipe={} need={} divisor={} completedBatches={} completedItems={} availabilityTotal={} effectiveAvailabilityTotal={} goalOutputDeduction={} ae={} inv={} carried={} adjustedNeed={} batches={} detail={}",
                         currentJob.nodeIndex, node.recipe.getId(), needed, node.divisor,
                         alreadyDone, alreadyDoneItems, rawAvailabilityTotal, effectiveAvailabilityTotal,
@@ -1756,14 +1926,10 @@ public final class InputEvents {
 
             checkAndSweepIntermediates(mc.player);
 
-            boolean outputMustFitInventory = currentJob.storageMode != QuickCraftStorageMode.BD_EXTERNAL
-                    || node == currentJob.goalNode;
-            if (outputMustFitInventory && !canAcceptRecipeOutputs(mc.player, node.recipe)) {
-                qcLog(currentJob.runId, "STOP inventory cannot accept output for {} outputs={}",
-                        node.recipe.getId(), describeNodeOutputs(node));
-                abortCurrentJob("no room for crafting output");
-                return;
-            }
+            // Keep backpack-first routing for the final product as well.
+            // AE receives only the overflow, so available network capacity is
+            // used before the cursor and world drop fallback.
+            boolean aeOutputToNetwork = currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL;
 
             if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
                 AeInputNeed aeInputNeed = findAeAutocraftInputNeed(node, currentJob.remainingBatches, mc.player);
@@ -1781,8 +1947,9 @@ public final class InputEvents {
                 }
             }
 
-            // All nodes use INVENTORY — goes through CraftingTermSlotMixin
-            // which reliably puts items into PlayerInternalInventory.
+            // AE batch crafts fill the terminal grid once, then use the
+            // server-side single-craft path. Intermediate output is routed
+            // to the player inventory first; only overflow may enter AE.
             //
             // Important for AE quick-craft: do not enable the post-fill AE autocraft
             // handoff here. That path only runs after EMI/AE has filled the crafting
@@ -1795,17 +1962,77 @@ public final class InputEvents {
             if (currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
                 ClientPacketHelper.sendToServer(new BDActionPacket(ItemStack.EMPTY, 3));
             }
+            boolean ok;
             if (currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
-                qcLog(currentJob.runId, "AE_QUICKCRAFT performFill without post-fill ME handoff for {}; prefill request already checked",
+                if (!currentJob.nodeRecipeFilled) {
+                    qcLog(currentJob.runId, "AE_BATCH_FILL recipe={} destination=NONE", node.recipe.getId());
+                    ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
+                            EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.NONE, 1);
+                    if (ok) {
+                        currentJob.nodeRecipeFilled = true;
+                        // performFill sends a server packet. Give the menu a
+                        // couple of ticks to broadcast the result slot before
+                        // the first batch request reads it.
+                        currentJob.aeBatchFillWaitTicks = 2;
+                        qcLog(currentJob.runId, "AE_BATCH_FILL_DONE recipe={}", node.recipe.getId());
+                    }
+                    if (!ok) {
+                        currentJob.nodeFailed++;
+                        currentJob.consecutiveFails++;
+                        currentJob.hadFailures = true;
+                    }
+                    return;
+                }
+
+                if (currentJob.aeBatchFillWaitTicks > 0) {
+                    currentJob.aeBatchFillWaitTicks--;
+                    return;
+                }
+
+                int requestAmount = (int) Math.min(currentJob.remainingBatches,
+                        Math.max(1, EmiLinkConfig.QUICK_CRAFT_BATCHES_PER_TICK.get()));
+                int resultSlot = findCraftingResultSlot(currentJob.screen.getMenu());
+                if (resultSlot < 0) {
+                    abortCurrentJob("AE crafting result slot unavailable");
+                    return;
+                }
+                long requestId = ++aeBatchRequestSeq;
+                currentJob.pendingAeCraftRequestId = requestId;
+                currentJob.pendingAeCraftRequested = requestAmount;
+                currentJob.pendingAeCraftTicks = 0;
+                boolean sent = ClientPacketHelper.sendToServer(new AEQuickCraftBatchPacket(
+                        currentJob.screen.getMenu().containerId,
+                        resultSlot,
+                        requestAmount,
+                        aeOutputToNetwork,
+                        requestId));
+                qcLog(currentJob.runId, "AE_BATCH_REQUEST recipe={} requestId={} amount={} networkOverflow={} sent={}",
+                        node.recipe.getId(), requestId, requestAmount, aeOutputToNetwork, sent);
+                if (!sent) {
+                    currentJob.pendingAeCraftRequestId = 0;
+                    currentJob.pendingAeCraftRequested = 0;
+                    currentJob.pendingAeCraftTicks = 0;
+                    abortCurrentJob("AE batch packet unavailable");
+                }
+                return;
+            } else {
+                // Local menus, including Sophisticated Storage crafting
+                // upgrades, must use EMI's normal one-craft path. Their
+                // handlers own the nested result slot and output routing;
+                // bypassing them with a batch packet can drop the result.
+                qcLog(currentJob.runId, "LOCAL_SLOW_FILL recipe={} amount=1 destination=INVENTORY",
                         node.recipe.getId());
+                ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
+                        EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
+                qcLog(currentJob.runId, "LOCAL_SLOW_FILL_RESULT recipe={} ok={}",
+                        node.recipe.getId(), ok);
             }
-            boolean ok = EmiRecipeFiller.performFill(node.recipe, currentJob.screen,
-                    EmiCraftContext.Type.FILL_BUTTON, EmiCraftContext.Destination.INVENTORY, 1);
 
             if (ok && currentJob.storageMode == QuickCraftStorageMode.BD_EXTERNAL) {
                 currentJob.pendingBdCraftNode = node;
                 currentJob.pendingBdCraftTicks = 0;
                 currentJob.pendingBdCraftBeforeTotal = beforeOutputTotal;
+                currentJob.bdRecipeFilled = true;
                 qcLog(currentJob.runId, "BD_FILL_SCHEDULE {} beforeTotal={}",
                         node.recipe.getId(), currentJob.pendingBdCraftBeforeTotal);
                 return;
@@ -1844,7 +2071,7 @@ public final class InputEvents {
                 finishCurrentNode(mc.player, node);
             }
 
-            return; // One batch per tick
+            return; // Non-AE crafting still advances one verified batch at a time.
         }
 
         // ALL DONE — sweep intermediates to AE (goal is excluded from sweep)
@@ -1867,6 +2094,7 @@ public final class InputEvents {
             lastGoalRecipeId = null;
             lastBoMBatches = -1;
             lastPlanSignature = null;
+            lastCompletionStorageMode = null;
         }
         currentJob = null;
         AENetworkCache.clearEphemeralQuery();
@@ -1882,24 +2110,198 @@ public final class InputEvents {
                 goalRecipeId, reason, removed);
     }
 
+    /** Resolve AE's crafting-result slot without loading AE classes on other screens. */
+    private static int findCraftingResultSlot(Object menu) {
+        if (menu == null) return -1;
+        try {
+            Class<?> aeBaseMenu = Class.forName("appeng.menu.AEBaseMenu");
+            Class<?> semantic = Class.forName("appeng.menu.SlotSemantic");
+            Class<?> semantics = Class.forName("appeng.menu.SlotSemantics");
+            Object resultSemantic = semantics.getField("CRAFTING_RESULT").get(null);
+            Object slots = aeBaseMenu.getMethod("getSlots", semantic).invoke(menu, resultSemantic);
+            if (slots instanceof java.util.List<?> list && !list.isEmpty()) {
+                Object slot = list.getFirst();
+                Class<?> type = slot.getClass();
+                while (type != null) {
+                    try {
+                        var field = type.getDeclaredField("index");
+                        field.setAccessible(true);
+                        return field.getInt(slot);
+                    } catch (NoSuchFieldException ignored) {
+                        type = type.getSuperclass();
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // Optional AE implementation details vary between terminals.
+        }
+        return -1;
+    }
+
+    /** Apply the server-confirmed result of one exact AE BOM batch. */
+    public static void onAeQuickCraftBatchResponse(long requestId, int crafted, int delivered,
+                                                   boolean resultSlotEmpty) {
+        if (currentJob == null || currentJob.pendingAeCraftRequestId != requestId) {
+            ModLogger.debug("QuickCraft: ignored stale AE batch response requestId={} crafted={} delivered={} resultSlotEmpty={}",
+                    requestId, crafted, delivered, resultSlotEmpty);
+            return;
+        }
+
+        var job = currentJob;
+        var node = job.nodeIndex >= 0 && job.nodeIndex < job.nodes.size()
+                ? job.nodes.get(job.nodeIndex) : null;
+        int requested = job.pendingAeCraftRequested;
+        int actual = Math.max(0, Math.min(requested, crafted));
+        int actualDelivered = Math.max(0, delivered);
+        job.pendingAeCraftRequestId = 0;
+        job.pendingAeCraftRequested = 0;
+        job.pendingAeCraftTicks = 0;
+
+        if (actual > 0) {
+            job.remainingBatches = Math.max(0, job.remainingBatches - actual);
+            job.nodeSucceeded += actual;
+            job.nodeDeliveredItems = Math.min(Long.MAX_VALUE - actualDelivered,
+                    job.nodeDeliveredItems + actualDelivered);
+            job.consecutiveFails = 0;
+        }
+        qcLog(job.runId, "AE_BATCH_RESPONSE recipe={} requestId={} requested={} crafted={} delivered={} resultSlotEmpty={} left={}",
+                recipeId(node), requestId, requested, actual, actualDelivered, resultSlotEmpty, job.remainingBatches);
+
+        if (actual <= 0) {
+            if (resultSlotEmpty && job.aeEmptyResultRetries < 3 && node != null) {
+                job.aeEmptyResultRetries++;
+                job.nodeRecipeFilled = false;
+                job.aeBatchFillWaitTicks = 0;
+                qcLog(job.runId, "AE_BATCH_RETRY_EMPTY_RESULT recipe={} retry={} left={}",
+                        recipeId(node), job.aeEmptyResultRetries, job.remainingBatches);
+                return;
+            }
+            job.nodeFailed++;
+            job.consecutiveFails++;
+            job.hadFailures = true;
+            abortCurrentJob(resultSlotEmpty
+                    ? "AE batch result stayed empty after retries"
+                    : "AE batch produced no output");
+            return;
+        }
+        if (resultSlotEmpty && job.remainingBatches > 0 && node != null) {
+            if (job.aeEmptyResultRetries < 3) {
+                job.aeEmptyResultRetries++;
+                job.nodeRecipeFilled = false;
+                job.aeBatchFillWaitTicks = 0;
+                qcLog(job.runId, "AE_BATCH_RETRY_PARTIAL_EMPTY_RESULT recipe={} retry={} crafted={} left={}",
+                        recipeId(node), job.aeEmptyResultRetries, actual, job.remainingBatches);
+            } else {
+                job.nodeFailed++;
+                job.hadFailures = true;
+                abortCurrentJob("AE batch result stayed empty after retries");
+            }
+            return;
+        }
+        job.aeEmptyResultRetries = 0;
+        if (job.remainingBatches <= 0 && node != null) {
+            finishCurrentNode(Minecraft.getInstance().player, node);
+        }
+    }
+
+    /** Apply the authoritative result of one BD server-side craft batch. */
+    public static void onBdBatchCraftResponse(long requestId, int crafted, int delivered) {
+        if (currentJob == null || currentJob.pendingBdBatchRequestId != requestId
+                || currentJob.storageMode != QuickCraftStorageMode.BD_EXTERNAL) {
+            ModLogger.debug("QuickCraft: ignored stale BD batch response requestId={} crafted={} delivered={}",
+                    requestId, crafted, delivered);
+            return;
+        }
+
+        var job = currentJob;
+        var node = job.nodeIndex >= 0 && job.nodeIndex < job.nodes.size()
+                ? job.nodes.get(job.nodeIndex) : null;
+        int requested = job.pendingBdBatchRequested;
+        int actual = Math.max(0, Math.min(requested, crafted));
+        int actualDelivered = Math.max(0, delivered);
+        job.pendingBdBatchRequestId = 0;
+        job.pendingBdBatchRequested = 0;
+        job.pendingBdBatchTicks = 0;
+        job.pendingBdCraftNode = null;
+        job.pendingBdCraftTicks = 0;
+
+        if (actual > 0) {
+            job.remainingBatches = Math.max(0, job.remainingBatches - actual);
+            job.nodeSucceeded += actual;
+            job.nodeDeliveredItems = Math.min(Long.MAX_VALUE - actualDelivered,
+                    job.nodeDeliveredItems + actualDelivered);
+            job.consecutiveFails = 0;
+        }
+        qcLog(job.runId, "BD_BATCH_RESPONSE recipe={} requestId={} requested={} crafted={} delivered={} left={}",
+                recipeId(node), requestId, requested, actual, actualDelivered, job.remainingBatches);
+
+        if (actual <= 0) {
+            job.nodeFailed++;
+            job.consecutiveFails++;
+            job.hadFailures = true;
+            abortCurrentJob("BD batch produced no output");
+            return;
+        }
+
+        if (actual < requested) {
+            job.nodeFailed++;
+            job.hadFailures = true;
+            abortCurrentJob("BD batch stopped before requested amount");
+            return;
+        }
+
+        if (job.remainingBatches <= 0 && node != null) {
+            finishCurrentNode(Minecraft.getInstance().player, node);
+            return;
+        }
+
+        if (node != null) {
+            job.pendingBdCraftNode = node;
+            job.pendingBdCraftTicks = 0;
+            job.pendingBdCraftBeforeTotal = 0;
+        }
+    }
+
     private static void finishCurrentNode(Player player, MaterialNode node) {
         if (currentJob == null || node == null || node.recipe == null || node.recipe.getId() == null) return;
 
         logNodeSummary(currentJob.runId, player, node);
-        if (node != currentJob.goalNode
-                && currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL) {
+        boolean needsDeposit = node != currentJob.goalNode
+                && currentJob.storageMode == QuickCraftStorageMode.AE_EXTERNAL;
+        if (needsDeposit) {
             currentJob.pendingDepositNode = node;
             currentJob.pendingDepositTicks = 0;
+            currentJob.pendingDepositExpected = Math.max(1L,
+                    (long) Math.max(1, node.divisor) * Math.max(1L, currentJob.nodeSucceeded));
+            currentJob.pendingDepositCollected = Math.min(currentJob.pendingDepositExpected,
+                    Math.max(0L, currentJob.nodeDeliveredItems));
         } else {
             currentJob.nodeIndex++;
         }
-        completedBatches.merge(node.recipe.getId().toString(), currentJob.nodeSucceeded, Long::sum);
-        qcLog(currentJob.runId, "saved {} batches for {} (total={}, map={})",
-                currentJob.nodeSucceeded, node.recipe.getId(),
-                completedBatches.get(node.recipe.getId().toString()), completedBatches);
+        currentJob.nodeRecipeFilled = false;
+        currentJob.bdRecipeFilled = false;
+        currentJob.aeBatchFillWaitTicks = 0;
+        currentJob.aeEmptyResultRetries = 0;
+        long completed = currentJob.nodeSucceeded;
+        if (!needsDeposit) {
+            completedBatches.merge(node.recipe.getId().toString(), completed, Long::sum);
+            qcLog(currentJob.runId, "saved {} batches for {} (total={}, map={})",
+                    completed, node.recipe.getId(),
+                    completedBatches.get(node.recipe.getId().toString()), completedBatches);
+        } else {
+            currentJob.pendingDepositBatches = completed;
+            qcLog(currentJob.runId, "deferred {} completed batches for {} until output deposit is complete",
+                    completed, node.recipe.getId());
+        }
         currentJob.nodeSucceeded = 0;
         currentJob.nodeFailed = 0;
+        currentJob.nodeDeliveredItems = 0;
         currentJob.consecutiveFails = 0;
+        if (currentJob.storageMode == QuickCraftStorageMode.LOCAL_INVENTORY) {
+            // EMI fill packets are server-bound. Let their inventory changes
+            // reach the client before evaluating the next BOM node.
+            currentJob.localSyncWaitTicks = 2;
+        }
     }
 
     private static int verificationTimeoutTicks(QuickCraftStorageMode storageMode) {
@@ -1972,71 +2374,42 @@ public final class InputEvents {
         return empty;
     }
 
-    private static QuickCraftStorageMode getQuickCraftStorageMode(AbstractContainerScreen<?> screen, Player player) {
+    private static QuickCraftStorageMode getQuickCraftStorageMode(AbstractContainerScreen<?> screen) {
         if (screen != null) {
             if (BDProxy.isBDNetGUI(screen) || BDProxy.isBDCraftGUI(screen)
                     || BDProxy.isBDBaseMenu(screen.getMenu())) {
+                ModLogger.debug("QuickCraft storage mode={} reason=BD screen={} menu={}",
+                        QuickCraftStorageMode.BD_EXTERNAL,
+                        screen.getClass().getName(),
+                        screen.getMenu() == null ? "null" : screen.getMenu().getClass().getName());
                 return QuickCraftStorageMode.BD_EXTERNAL;
             }
             String screenName = screen.getClass().getName();
             if (screenName.startsWith("com.refinedmods.refinedstorage.")) {
+                ModLogger.debug("QuickCraft storage mode={} reason=unsupported external grid screen={}",
+                        QuickCraftStorageMode.UNSAFE_EXTERNAL_GRID, screenName);
                 return QuickCraftStorageMode.UNSAFE_EXTERNAL_GRID;
             }
             try {
                 Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
                 if (aeBaseMenuClass.isInstance(screen.getMenu())) {
+                    ModLogger.debug("QuickCraft storage mode={} reason=AE menu screen={} menu={}",
+                            QuickCraftStorageMode.AE_EXTERNAL,
+                            screenName,
+                            screen.getMenu() == null ? "null" : screen.getMenu().getClass().getName());
                     return QuickCraftStorageMode.AE_EXTERNAL;
                 }
             } catch (Throwable ignored) {}
         }
-        if (player != null
-                && org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(player)) {
-            return QuickCraftStorageMode.AE_EXTERNAL;
-        }
+        // A wireless terminal only grants AE access. It must not change the
+        // crafting semantics of an unrelated container that also has a
+        // crafting upgrade. EMI can handle those menus through its generic
+        // ResultSlot/CraftingContainer path.
+        ModLogger.debug("QuickCraft storage mode={} reason=local container screen={} menu={}",
+                QuickCraftStorageMode.LOCAL_INVENTORY,
+                screen == null ? "null" : screen.getClass().getName(),
+                screen == null || screen.getMenu() == null ? "null" : screen.getMenu().getClass().getName());
         return QuickCraftStorageMode.LOCAL_INVENTORY;
-    }
-
-    private static boolean canAcceptRecipeOutputs(Player player, EmiRecipe recipe) {
-        if (player == null || recipe == null) return false;
-
-        var simulated = new java.util.ArrayList<ItemStack>();
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.items.size(); i++) {
-            simulated.add(inv.getItem(i).copy());
-        }
-
-        for (var output : recipe.getOutputs()) {
-            var out = output.getItemStack();
-            if (out == null || out.isEmpty()) continue;
-
-            int remaining = Math.max(1, out.getCount());
-            for (var slot : simulated) {
-                if (remaining <= 0) break;
-                if (slot.isEmpty()) continue;
-                if (!ItemStack.isSameItemSameComponents(slot, out)) continue;
-
-                int room = Math.max(0, slot.getMaxStackSize() - slot.getCount());
-                int moved = Math.min(room, remaining);
-                if (moved > 0) {
-                    slot.grow(moved);
-                    remaining -= moved;
-                }
-            }
-
-            for (int i = 0; i < simulated.size() && remaining > 0; i++) {
-                var slot = simulated.get(i);
-                if (!slot.isEmpty()) continue;
-
-                int moved = Math.min(out.getMaxStackSize(), remaining);
-                simulated.set(i, out.copyWithCount(moved));
-                remaining -= moved;
-            }
-
-            if (remaining > 0) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** Log what the AE network cache says about this node's inputs and outputs. */

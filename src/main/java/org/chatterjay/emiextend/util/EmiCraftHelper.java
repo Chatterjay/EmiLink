@@ -6,6 +6,9 @@ package org.chatterjay.emiextend.util;
  */
 public class EmiCraftHelper {
     private static final ThreadLocal<Boolean> singleCraftToInventory = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Boolean> singleCraftProduced = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Integer> singleCraftDelivered = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Boolean> singleCraftToNetwork = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Boolean> aeAutocraftFromQuickCraft = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Boolean> aeAutocraftHandoff = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Long> aeAutocraftRequestedAmount = ThreadLocal.withInitial(() -> 0L);
@@ -16,6 +19,39 @@ public class EmiCraftHelper {
 
     public static boolean checkSingleCraft() {
         return singleCraftToInventory.get();
+    }
+
+    /** Mark that the current single-craft request produced a real result. */
+    public static void markSingleCraftProduced() {
+        singleCraftProduced.set(true);
+    }
+
+    /** Consume the result flag for the current server-side craft request. */
+    public static boolean consumeSingleCraftProduced() {
+        boolean produced = singleCraftProduced.get();
+        singleCraftProduced.set(false);
+        return produced;
+    }
+
+    /** Record how many output items reached inventory, AE, or the cursor. */
+    public static void markSingleCraftDelivered(int amount) {
+        singleCraftDelivered.set(Math.max(0, amount));
+    }
+
+    /** Consume the number of output items that were stored instead of dropped. */
+    public static int consumeSingleCraftDelivered() {
+        int delivered = singleCraftDelivered.get();
+        singleCraftDelivered.set(0);
+        return delivered;
+    }
+
+    /** Allow intermediate output overflow to be inserted into AE storage. */
+    public static void markSingleCraftToNetwork() {
+        singleCraftToNetwork.set(true);
+    }
+
+    public static boolean checkSingleCraftToNetwork() {
+        return singleCraftToNetwork.get();
     }
 
     public static void markAeAutocraftFromQuickCraft() {
@@ -45,6 +81,9 @@ public class EmiCraftHelper {
 
     public static void clear() {
         singleCraftToInventory.remove();
+        singleCraftProduced.remove();
+        singleCraftDelivered.remove();
+        singleCraftToNetwork.remove();
         aeAutocraftFromQuickCraft.remove();
         aeAutocraftHandoff.remove();
         aeAutocraftRequestedAmount.remove();

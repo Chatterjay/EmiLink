@@ -17,12 +17,14 @@ import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
+import org.chatterjay.emiextend.client.DragFillTarget;
 import org.chatterjay.emiextend.client.InputEvents;
 import org.chatterjay.emiextend.client.handler.FavoriteDragSelectHandler;
 import org.chatterjay.emiextend.client.handler.FavoriteHighlightRenderer;
@@ -41,6 +43,8 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 @Mixin(value = EmiScreenManager.class, remap = false)
 public class EmiScreenManagerMixin {
@@ -74,6 +78,7 @@ public class EmiScreenManagerMixin {
                                                     CallbackInfo ci) {
         SearchHistoryOverlay.render(context.raw(), mouseX, mouseY);
         FavoriteHighlightRenderer.renderOverlays(context.raw());
+        emilink$renderDragFillTargets(context.raw(), mouseX, mouseY);
     }
 
     @Inject(method = "keyPressed", at = @At("RETURN"), cancellable = true, require = 0)
@@ -177,7 +182,7 @@ public class EmiScreenManagerMixin {
                 if (text != null) {
                     ItemStack icon = emilink$getDragFillIcon(draggedStack);
                     // Check EMI's own search widget first (not in screen.children())
-                    if (search.isMouseOver(mouseX, mouseY)) {
+                    if (search != null && search.isMouseOver(mouseX, mouseY)) {
                         search.setValue(text);
                         search.setCursorPosition(text.length());
                         SearchHistoryOverlay.remember(text, icon);
@@ -191,6 +196,31 @@ public class EmiScreenManagerMixin {
                         if (child instanceof EditBox eb && eb.isMouseOver((int) mouseX, (int) mouseY)) {
                             eb.setValue(text);
                             eb.setCursorPosition(text.length());
+                            SearchHistoryOverlay.remember(text, icon);
+                            pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            cir.setReturnValue(true);
+                            return;
+                        }
+                    }
+
+                    // Include non-EditBox text widgets exposed as children.
+                    for (var child : mc.screen.children()) {
+                        if (emilink$isDragFillTargetAt(child, mouseX, mouseY)
+                                && emilink$setDragFillValue(child, text)) {
+                            SearchHistoryOverlay.remember(text, icon);
+                            pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
+                            cir.setReturnValue(true);
+                            return;
+                        }
+                    }
+
+                    // Some screens keep their search widget out of children().
+                    for (String fieldName : new String[]{"searchBox", "searchField", "search"}) {
+                        Object widget = emilink$findScreenField(mc.screen, fieldName);
+                        if (emilink$isDragFillTargetAt(widget, mouseX, mouseY)
+                                && emilink$setDragFillValue(widget, text)) {
                             SearchHistoryOverlay.remember(text, icon);
                             pressedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
                             draggedStack = dev.emi.emi.api.stack.EmiStack.EMPTY;
@@ -323,6 +353,147 @@ public class EmiScreenManagerMixin {
                 .filter(itemStack -> !itemStack.isEmpty())
                 .findFirst()
                 .orElse(ItemStack.EMPTY);
+    }
+
+    /** Draw compatible input fields as opaque drop targets during EMI dragging. */
+    private static void emilink$renderDragFillTargets(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!EmiLinkConfig.ENABLE_DRAG_FILL.get() || draggedStack == null || draggedStack.isEmpty()) {
+            return;
+        }
+
+        var screen = Minecraft.getInstance().screen;
+        if (screen == null) {
+            return;
+        }
+
+        List<DragFillTarget> targets = new ArrayList<>();
+        for (var child : screen.children()) {
+            emilink$addDragFillTarget(targets, child);
+        }
+
+        // Some mod screens keep their search widget out of children(). Keep
+        // this list in sync with the reflective drag-fill fallback.
+        for (String fieldName : new String[]{"searchBox", "searchField", "search"}) {
+            Object widget = emilink$findScreenField(screen, fieldName);
+            emilink$addDragFillTarget(targets, widget);
+        }
+
+        for (DragFillTarget target : targets) {
+            boolean hovered = mouseX >= target.x() && mouseX < target.x() + target.width()
+                    && mouseY >= target.y() && mouseY < target.y() + target.height();
+            // Keep the target visible without obscuring the widget text.
+            int fill = hovered ? 0x663c9cff : 0x302b78d0;
+            int x = target.x();
+            int y = target.y();
+            int right = x + target.width();
+            int bottom = y + target.height();
+            graphics.fill(x, y, right, bottom, fill);
+        }
+    }
+
+    private static void emilink$addDragFillTarget(List<DragFillTarget> targets, Object widget) {
+        // EMI's own search widget is handled by EMI and should remain visually
+        // unchanged while other mod input fields are highlighted.
+        if (widget == null || widget == search) {
+            return;
+        }
+
+        int x;
+        int y;
+        int width;
+        int height;
+        if (widget instanceof EditBox editBox) {
+            x = editBox.getX();
+            y = editBox.getY();
+            width = editBox.getWidth();
+            height = editBox.getHeight();
+        } else {
+            if (!emilink$hasStringSetter(widget)) {
+                return;
+            }
+            x = emilink$readInt(widget, "getX");
+            y = emilink$readInt(widget, "getY");
+            width = emilink$readInt(widget, "getWidth");
+            height = emilink$readInt(widget, "getHeight");
+        }
+
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        for (DragFillTarget target : targets) {
+            if (target.x() == x && target.y() == y
+                    && target.width() == width && target.height() == height) {
+                return;
+            }
+        }
+        targets.add(new DragFillTarget(x, y, width, height));
+    }
+
+    private static boolean emilink$hasStringSetter(Object widget) {
+        try {
+            widget.getClass().getMethod("setValue", String.class);
+            return true;
+        } catch (ReflectiveOperationException ignored) {
+            return false;
+        }
+    }
+
+    private static int emilink$readInt(Object widget, String methodName) {
+        try {
+            Method method = widget.getClass().getMethod(methodName);
+            Object value = method.invoke(widget);
+            return value instanceof Number number ? number.intValue() : -1;
+        } catch (ReflectiveOperationException ignored) {
+            return -1;
+        }
+    }
+
+    private static boolean emilink$isDragFillTargetAt(Object widget, double mouseX, double mouseY) {
+        if (widget == null || !emilink$hasStringSetter(widget)) {
+            return false;
+        }
+        if (widget instanceof EditBox editBox) {
+            return editBox.isMouseOver((int) mouseX, (int) mouseY);
+        }
+        int x = emilink$readInt(widget, "getX");
+        int y = emilink$readInt(widget, "getY");
+        int width = emilink$readInt(widget, "getWidth");
+        int height = emilink$readInt(widget, "getHeight");
+        return width > 0 && height > 0
+                && mouseX >= x && mouseX < x + width
+                && mouseY >= y && mouseY < y + height;
+    }
+
+    private static boolean emilink$setDragFillValue(Object widget, String text) {
+        if (widget == null || text == null) {
+            return false;
+        }
+        try {
+            Method setValue = widget.getClass().getMethod("setValue", String.class);
+            setValue.invoke(widget, text);
+            try {
+                Method setCursor = widget.getClass().getMethod("setCursorPosition", int.class);
+                setCursor.invoke(widget, text.length());
+            } catch (ReflectiveOperationException ignored) {
+                // A custom text widget may not expose cursor positioning.
+            }
+            return true;
+        } catch (ReflectiveOperationException ignored) {
+            return false;
+        }
+    }
+
+    private static Object emilink$findScreenField(Screen screen, String fieldName) {
+        for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass()) {
+            try {
+                Field field = type.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(screen);
+            } catch (ReflectiveOperationException ignored) {
+                // Search fields are frequently declared on a superclass.
+            }
+        }
+        return null;
     }
 
     private static boolean emilink$copyHoveredStackId(int keyCode, int scanCode) {

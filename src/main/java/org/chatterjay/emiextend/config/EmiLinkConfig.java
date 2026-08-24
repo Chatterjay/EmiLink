@@ -59,6 +59,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
     public static final ModConfigSpec.EnumValue<ExtractTrigger> QUICK_CRAFT_MODIFIER;
     public static final ModConfigSpec.ConfigValue<String> QUICK_CRAFT_KEY;
+    public static final ModConfigSpec.IntValue QUICK_CRAFT_BATCHES_PER_TICK;
 
     // ---- Inventory ----
     public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
@@ -67,13 +68,8 @@ public final class EmiLinkConfig {
     // ---- Network ----
     public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
-    /**
-     * BOM automatic workbench crafting is intentionally disabled in 1.21.1
-     * and later releases. Existing configuration values remain readable, but
-     * they cannot re-enable the removed behavior.
-     */
     public static boolean isAutomaticWorkbenchCraftingEnabled() {
-        return false;
+        return ENABLE_QUICK_CRAFT_TAB.get();
     }
 
     static {
@@ -234,9 +230,9 @@ public final class EmiLinkConfig {
         BUILDER.push("quick_craft");
 
         ENABLE_QUICK_CRAFT_TAB = BUILDER
-                .comment("Disabled: BOM automatic workbench crafting is no longer provided.")
+                .comment("Enable recursive BOM automatic workbench crafting")
                 .translation("emilink.config.quick_craft.enableQuickCraft")
-                .define("enableQuickCraftTab", false);
+                .define("enableQuickCraftTab", true);
 
         QUICK_CRAFT_MODIFIER = BUILDER
                 .translation("emilink.config.quick_craft.quickCraftModifier")
@@ -245,6 +241,11 @@ public final class EmiLinkConfig {
         QUICK_CRAFT_KEY = BUILDER
                 .translation("emilink.config.quick_craft.quickCraftKey")
                 .define("quickCraftKey", "C");
+
+        QUICK_CRAFT_BATCHES_PER_TICK = BUILDER
+                .comment("Maximum BOM crafting batches processed in one client tick (1-256)")
+                .translation("emilink.config.quick_craft.batchesPerTick")
+                .defineInRange("batchesPerTick", 64, 1, 256);
 
         BUILDER.pop();
         BUILDER.push("inventory");
@@ -291,6 +292,7 @@ public final class EmiLinkConfig {
         validateInt(FAVORITE_PAGE_COUNT, "emi_ui.favoritePageCount", 5, 1, 50);
         validateInt(INITIAL_BADGE_SCAN_LIMIT, "ae_network.initialBadgeScanLimit", 24, 0, 512);
         validateInt(NETWORK_BADGE_STYLE, "ae_network.networkBadgeStyle", 1, 1, 2);
+        validateInt(QUICK_CRAFT_BATCHES_PER_TICK, "quick_craft.batchesPerTick", 64, 1, 256);
     }
 
     private static void validateLong(ModConfigSpec.LongValue value, String path, long fallback, long min, long max) {

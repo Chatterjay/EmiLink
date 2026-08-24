@@ -20,7 +20,11 @@ import org.chatterjay.emiextend.util.ModLogger;
  * slotIndex = -1 for cursor item, >= 0 for inventory slot (batch deposit).
  * After insert, the server clears the source slot to prevent duplication.
  */
-public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomPacketPayload {
+public record AEDepositPacket(ItemStack stack, int slotIndex, boolean dropOnFailure) implements CustomPacketPayload {
+
+    public AEDepositPacket(ItemStack stack, int slotIndex) {
+        this(stack, slotIndex, false);
+    }
     public static final Type<AEDepositPacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_deposit"));
 
@@ -28,12 +32,20 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
             StreamCodec.composite(
                     ItemStack.OPTIONAL_STREAM_CODEC, AEDepositPacket::stack,
                     ByteBufCodecs.VAR_INT, AEDepositPacket::slotIndex,
+                    ByteBufCodecs.BOOL, AEDepositPacket::dropOnFailure,
                     AEDepositPacket::new
             );
 
     void handleInServer(final IPayloadContext context) {
         Player player = context.player();
         if (player == null || stack == null || stack.isEmpty()) return;
+
+        ItemStack source = getSource(player, slotIndex);
+        if (source.isEmpty() || !ItemStack.isSameItemSameComponents(source, stack)) {
+            ModLogger.debug("AEDeposit: source changed before deposit slot={} requested={}", slotIndex,
+                    stack.getHoverName().getString());
+            return;
+        }
 
         try {
             Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
@@ -49,33 +61,68 @@ public record AEDepositPacket(ItemStack stack, int slotIndex) implements CustomP
             }
             if (inventory == null) {
                 ModLogger.warn("AEDeposit: no grid available");
+                if (dropOnFailure) dropIfRequested(player, source, slotIndex, "no grid");
                 return;
             }
 
-            Object aeKey = aeItemKeyClass.getMethod("of", ItemStack.class).invoke(null, stack);
+            int requested = Math.min(source.getCount(), stack.getCount());
+            ItemStack requestedStack = source.copyWithCount(requested);
+            Object aeKey = aeItemKeyClass.getMethod("of", ItemStack.class).invoke(null, requestedStack);
             if (aeKey == null) {
                 ModLogger.warn("AEDeposit: failed to create AEKey for {}", stack);
+                if (dropOnFailure) dropIfRequested(player, source, slotIndex, "AE key unavailable");
                 return;
             }
 
             var insertMethod = inventory.getClass().getMethod("insert", aeKeyClass, long.class, actionableClass, actionSourceClass);
-            long inserted = (long) insertMethod.invoke(inventory, aeKey, (long) stack.getCount(), modulate, actionSource);
-            if (inserted <= 0) return;
+            long inserted = (long) insertMethod.invoke(inventory, aeKey, (long) requested, modulate, actionSource);
+            int accepted = (int) Math.max(0, Math.min(requested, inserted));
+            ItemStack remaining = source.copy();
+            remaining.shrink(accepted);
 
-            // Cursor is always cleared on deposit. Inventory slots are always cleared too —
-            // the client only sends deposit packets when EMI won't delete items itself
-            // (i.e. CheatMode is NEVER), so we must consume the item here in all game modes.
+            // The server owns the source slot. The client must not clear it
+            // optimistically because a full AE network may accept nothing.
             if (slotIndex == -1) {
-                player.containerMenu.setCarried(ItemStack.EMPTY);
+                player.containerMenu.setCarried(remaining);
                 player.containerMenu.broadcastChanges();
             } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
-                player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
+                player.getInventory().setItem(slotIndex, remaining);
                 player.containerMenu.broadcastChanges();
+            }
+
+            ModLogger.debug("AEDeposit: item={} requested={} accepted={} remaining={} dropOnFailure={} slot={}",
+                    stack.getHoverName().getString(), requested, accepted, remaining.getCount(),
+                    dropOnFailure, slotIndex);
+
+            if (dropOnFailure && !remaining.isEmpty()) {
+                dropIfRequested(player, remaining, slotIndex, "AE capacity");
             }
 
         } catch (Exception e) {
             ModLogger.warn("AEDeposit: error: {}", e.getMessage());
+            if (dropOnFailure) dropIfRequested(player, source, slotIndex, "exception");
         }
+    }
+
+    private static ItemStack getSource(Player player, int slotIndex) {
+        if (slotIndex == -1) return player.containerMenu.getCarried();
+        if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
+            return player.getInventory().getItem(slotIndex);
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static void dropIfRequested(Player player, ItemStack stack, int slotIndex, String reason) {
+        if (stack == null || stack.isEmpty()) return;
+        ModLogger.debug("AEDeposit: dropping undelivered item={} count={} slot={} reason={}",
+                stack.getHoverName().getString(), stack.getCount(), slotIndex, reason);
+        player.drop(stack.copy(), false);
+        if (slotIndex == -1) {
+            player.containerMenu.setCarried(ItemStack.EMPTY);
+        } else if (slotIndex >= 0 && slotIndex < player.getInventory().items.size()) {
+            player.getInventory().setItem(slotIndex, ItemStack.EMPTY);
+        }
+        player.containerMenu.broadcastChanges();
     }
 
     static Object resolveInventoryFromMenu(Player player) {

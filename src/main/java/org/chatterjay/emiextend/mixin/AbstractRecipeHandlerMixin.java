@@ -10,6 +10,10 @@ import appeng.menu.me.items.CraftingTermMenu;
 import org.chatterjay.emiextend.client.AEQuickCraftDelayHandler;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.client.ClientPacketHelper;
+import org.chatterjay.emiextend.client.ae.BulkAutocraftNeed;
+import org.chatterjay.emiextend.client.ae.BulkAutocraftRequest;
+import org.chatterjay.emiextend.client.ae.CraftableMissingCheck;
+import org.chatterjay.emiextend.client.ae.CraftableShortageCheck;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.handler.EmiCraftContext;
 import dev.emi.emi.api.stack.EmiStack;
@@ -184,19 +188,6 @@ public class AbstractRecipeHandlerMixin {
             PacketDistributor.sendToServer(new InventoryActionPacket(InventoryAction.CRAFT_ITEM, slotIndex, 0));
         }
     }
-
-    @Unique
-    private record CraftableMissingCheck(String ingredients, String missingSlots, String craftableSlots,
-                                         boolean anyMissing, boolean anyCraftable) {}
-
-    @Unique
-    private record CraftableShortageCheck(String detail, boolean anyShortage, boolean anyCraftableShortage) {}
-
-    @Unique
-    private record BulkAutocraftRequest(ItemStack stack, int amount) {}
-
-    @Unique
-    private record BulkAutocraftNeed(ItemStack stack, long needed) {}
 
     @Unique
     private static void sendMissingAutocraftTransferOrFallback(EmiRecipe recipe, EmiCraftContext<?> context,

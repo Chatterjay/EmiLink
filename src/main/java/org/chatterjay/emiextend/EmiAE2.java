@@ -23,9 +23,11 @@ import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftAmountOverridePacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
+import org.chatterjay.emiextend.network.packet.c2s.AEQuickCraftBatchPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
+import org.chatterjay.emiextend.network.packet.c2s.BDBatchCraftPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDDepositSlotPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
@@ -34,6 +36,8 @@ import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
+import org.chatterjay.emiextend.network.packet.s2c.AEQuickCraftBatchResponsePacket;
+import org.chatterjay.emiextend.network.packet.s2c.BDBatchCraftResponsePacket;
 import org.chatterjay.emiextend.util.ModLogger;
 
 @Mod(EmiAE2.MODID)
@@ -128,6 +132,11 @@ public class EmiAE2 {
                 BDActionPacket::handle
         );
         registrar.playToServer(
+                BDBatchCraftPacket.TYPE,
+                BDBatchCraftPacket.STREAM_CODEC,
+                BDBatchCraftPacket::handle
+        );
+        registrar.playToServer(
                 BDDepositSlotPacket.TYPE,
                 BDDepositSlotPacket.STREAM_CODEC,
                 BDDepositSlotPacket::handle
@@ -146,6 +155,11 @@ public class EmiAE2 {
                 ServerHasModPacket.TYPE,
                 ServerHasModPacket.STREAM_CODEC,
                 ServerHasModPacket::handle
+        );
+        registrar.playToClient(
+                BDBatchCraftResponsePacket.TYPE,
+                BDBatchCraftResponsePacket.STREAM_CODEC,
+                BDBatchCraftResponsePacket::handle
         );
     }
 
@@ -171,6 +185,11 @@ public class EmiAE2 {
                 AEBatchQueryPacket::handle
         );
         registrar.playToServer(
+                AEQuickCraftBatchPacket.TYPE,
+                AEQuickCraftBatchPacket.STREAM_CODEC,
+                AEQuickCraftBatchPacket::handle
+        );
+        registrar.playToServer(
                 AELockedSlotsPacket.TYPE,
                 AELockedSlotsPacket.STREAM_CODEC,
                 AELockedSlotsPacket::handle
@@ -194,6 +213,11 @@ public class EmiAE2 {
                 AEBatchQueryResponsePacket.TYPE,
                 AEBatchQueryResponsePacket.STREAM_CODEC,
                 AEBatchQueryResponsePacket::handle
+        );
+        registrar.playToClient(
+                AEQuickCraftBatchResponsePacket.TYPE,
+                AEQuickCraftBatchResponsePacket.STREAM_CODEC,
+                AEQuickCraftBatchResponsePacket::handle
         );
     }
 
