@@ -22,12 +22,17 @@ import java.util.List;
  * Batch AE network query — client sends multiple items at once, server responds
  * with count and optionally craftability for each. Delegates query logic to AE2GridQueryUtil.
  */
-public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftability) implements CustomPacketPayload {
+public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftability,
+        boolean durabilityCompatible) implements CustomPacketPayload {
     public static final Type<AEBatchQueryPacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(EmiAE2.MODID, "ae_batch_query"));
 
     public AEBatchQueryPacket(List<ItemStack> stacks) {
-        this(stacks, true);
+        this(stacks, true, false);
+    }
+
+    public AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftability) {
+        this(stacks, queryCraftability, false);
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AEBatchQueryPacket> STREAM_CODEC =
@@ -39,6 +44,7 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
                         ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, stack);
                     }
                     buf.writeBoolean(packet.queryCraftability());
+                    buf.writeBoolean(packet.durabilityCompatible());
                 }
 
                 @Override
@@ -49,7 +55,10 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
                         stacks.add(ItemStack.OPTIONAL_STREAM_CODEC.decode(buf));
                     }
                     boolean queryCraftability = buf.readBoolean();
-                    return new AEBatchQueryPacket(stacks, queryCraftability);
+                    // Keep accepting packets from older EmiLink servers that
+                    // did not have the optional BOM durability flag.
+                    boolean durabilityCompatible = buf.readableBytes() > 0 && buf.readBoolean();
+                    return new AEBatchQueryPacket(stacks, queryCraftability, durabilityCompatible);
                 }
             };
 
@@ -79,7 +88,9 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
                 try {
                     Object aeKey = aeItemKeyClass.getMethod("of", ItemStack.class).invoke(null, stack);
                     if (aeKey != null) {
-                        count = AE2GridQueryUtil.queryItemCount(grid, aeKey);
+                        count = durabilityCompatible && stack.isDamageableItem()
+                                ? AE2GridQueryUtil.queryItemCountForBom(grid, aeKey, stack)
+                                : AE2GridQueryUtil.queryItemCount(grid, aeKey);
                         craftable = queryCraftability && AE2GridQueryUtil.queryCraftability(grid, aeKey);
                     }
                 } catch (Exception e) {
@@ -93,6 +104,8 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
         }
 
         if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            ModLogger.debug("AEBatchQuery: sending response entries={} queryCraftability={} durabilityCompatible={} stacks={}",
+                    results.size(), queryCraftability, durabilityCompatible, stacks.size());
             PacketDistributor.sendToPlayer(sp, new AEBatchQueryResponsePacket(results));
         }
     }

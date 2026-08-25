@@ -22,6 +22,7 @@ import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.util.ModLogger;
+import org.chatterjay.emiextend.util.BomItemStackMatcher;
 import net.neoforged.bus.api.SubscribeEvent;
 
 import java.nio.file.Path;
@@ -104,10 +105,15 @@ public final class AENetworkCache {
             if (stack == null || stack.isEmpty()) continue;
             ephemeralKeys.add(normalizeKey(stack));
         }
+        ModLogger.debug("AE cache: began ephemeral query keys={}", ephemeralKeys.size());
     }
 
     /** Discard temporary query results so they cannot affect later rendering or tooltip state. */
     public static void clearEphemeralQuery() {
+        if (!ephemeralKeys.isEmpty() || !ephemeralCache.isEmpty()) {
+            ModLogger.debug("AE cache: clearing ephemeral keys={} results={}",
+                    ephemeralKeys.size(), ephemeralCache.size());
+        }
         ephemeralKeys.clear();
         ephemeralCache.clear();
     }
@@ -419,7 +425,10 @@ public final class AENetworkCache {
     public static void receiveResponse(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {
         if (stack == null || stack.isEmpty()) return;
         var key = normalizeKey(stack);
-        if (containsMatching(ephemeralKeys, key)) {
+        boolean ephemeral = containsMatching(ephemeralKeys, key);
+        ModLogger.debug("AE cache: response item={} count={} ephemeralMatch={} ephemeralKeys={} craftable={} known={}",
+                stack.getHoverName().getString(), count, ephemeral, ephemeralKeys.size(), craftable, craftabilityKnown);
+        if (ephemeral) {
             removeMatching(ephemeralCache, key);
             ephemeralCache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
             return;
@@ -546,6 +555,20 @@ public final class AENetworkCache {
 
         var direct = current.cache.get(stack);
         if (direct != null) return direct;
+
+        // Some AE/EMI stacks carry equivalent component data in distinct
+        // ItemStack instances. Keep the preflight lookup resilient to that
+        // representation difference, including damaged tools.
+        for (var entry : ephemeralCache.entrySet()) {
+            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
+                return entry.getValue();
+            }
+        }
+        for (var entry : current.cache.entrySet()) {
+            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
+                return entry.getValue();
+            }
+        }
         return null;
     }
 

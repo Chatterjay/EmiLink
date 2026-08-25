@@ -8,6 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
 import org.chatterjay.emiextend.client.AENetworkCache;
+import org.chatterjay.emiextend.util.ModLogger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,8 +54,12 @@ public record AEBatchQueryResponsePacket(List<Entry> entries) implements CustomP
     public static void handle(final AEBatchQueryResponsePacket packet, final IPayloadContext context) {
         context.enqueueWork(() -> {
             if (packet.entries() == null) return;
+            ModLogger.debug("AEBatchQueryResponse: received entries={}", packet.entries().size());
             for (var entry : packet.entries()) {
                 if (entry.stack() != null && !entry.stack().isEmpty()) {
+                    ModLogger.debug("AEBatchQueryResponse: entry item={} count={} craftable={} craftabilityKnown={}",
+                            entry.stack().getHoverName().getString(), entry.count(),
+                            entry.craftable(), entry.craftabilityKnown());
                     AENetworkCache.receiveResponse(entry.stack(), entry.count(), entry.craftable(), entry.craftabilityKnown());
                 }
             }

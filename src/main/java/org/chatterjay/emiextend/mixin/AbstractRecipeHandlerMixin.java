@@ -20,6 +20,7 @@ import dev.emi.emi.api.stack.EmiStack;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftAmountOverridePacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.util.EmiCraftHelper;
+import org.chatterjay.emiextend.util.BomItemStackMatcher;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -251,7 +252,7 @@ public class AbstractRecipeHandlerMixin {
             boolean merged = false;
             for (int i = 0; i < needs.size(); i++) {
                 BulkAutocraftNeed existing = needs.get(i);
-                if (ItemStack.isSameItemSameComponents(existing.stack(), craftableStack)) {
+                if (BomItemStackMatcher.matches(existing.stack(), craftableStack)) {
                     needs.set(i, new BulkAutocraftNeed(existing.stack(), existing.needed() + needForSlot));
                     merged = true;
                     break;
@@ -293,12 +294,12 @@ public class AbstractRecipeHandlerMixin {
                 continue;
             }
             var stack = inv.getItem(i);
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, template)) {
+            if (!stack.isEmpty() && BomItemStackMatcher.matches(stack, template)) {
                 count += stack.getCount();
             }
         }
         var carried = menu.getCarried();
-        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, template)) {
+        if (!carried.isEmpty() && BomItemStackMatcher.matches(carried, template)) {
             count += carried.getCount();
         }
         return count;
@@ -387,7 +388,7 @@ public class AbstractRecipeHandlerMixin {
     @Unique
     private static long getReserved(IdentityHashMap<ItemStack, Long> reserved, ItemStack stack) {
         for (var entry : reserved.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
                 return entry.getValue();
             }
         }
@@ -397,7 +398,7 @@ public class AbstractRecipeHandlerMixin {
     @Unique
     private static void addReserved(IdentityHashMap<ItemStack, Long> reserved, ItemStack stack, long amount) {
         for (var entry : reserved.entrySet()) {
-            if (ItemStack.isSameItemSameComponents(entry.getKey(), stack)) {
+            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
                 entry.setValue(entry.getValue() + amount);
                 return;
             }

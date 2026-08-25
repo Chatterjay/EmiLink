@@ -9,6 +9,7 @@ import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
 import org.chatterjay.emiextend.client.bookmark.MobSeparator;
+import org.chatterjay.emiextend.client.handler.FavoriteHighlightRenderer;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -79,6 +80,8 @@ public abstract class EmiScreenSpaceStacksMixin {
     private void emilink$captureRenderStartIndex(EmiDrawContext context, int mouseX, int mouseY,
                                                  float delta, int startIndex, CallbackInfo ci) {
         EMILINK_RENDER_START_INDEX.set(startIndex);
+        FavoriteHighlightRenderer.renderBackground(context.raw(),
+                (dev.emi.emi.screen.EmiScreenManager.ScreenSpace) (Object) this);
     }
 
     @Inject(method = "render", at = @At("RETURN"), remap = false)

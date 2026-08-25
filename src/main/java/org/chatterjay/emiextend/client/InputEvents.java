@@ -38,6 +38,7 @@ import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQuickCraftBatchPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDBatchCraftPacket;
+import org.chatterjay.emiextend.util.BomItemStackMatcher;
 import org.lwjgl.glfw.GLFW;
 
 public final class InputEvents {
@@ -1252,7 +1253,8 @@ public final class InputEvents {
         if (!queryItems.isEmpty()) {
             AENetworkCache.invalidateEntries(queryItems);
             AENetworkCache.beginEphemeralQuery(queryItems);
-            if (ClientPacketHelper.sendToServer(new AEBatchQueryPacket(new java.util.ArrayList<>(queryItems)))) {
+            if (ClientPacketHelper.sendToServer(new AEBatchQueryPacket(
+                    new java.util.ArrayList<>(queryItems), true, true))) {
                 qcLog(runId, "preflight direct query sent for {} AE stacks: {}", queryItems.size(), describeStacks(queryItems));
             }
         }
@@ -1862,6 +1864,11 @@ public final class InputEvents {
                         currentJob.nodeFailed++;
                         currentJob.consecutiveFails++;
                         currentJob.hadFailures = true;
+                        qcLog(currentJob.runId, "AE_BATCH_FILL_FAILED recipe={} fail={} consecutiveFails={}",
+                                node.recipe.getId(), currentJob.nodeFailed, currentJob.consecutiveFails);
+                        if (currentJob.consecutiveFails >= 3) {
+                            abortCurrentJob("AE recipe fill failed repeatedly");
+                        }
                     }
                     return;
                 }
@@ -2586,7 +2593,7 @@ public final class InputEvents {
             boolean merged = false;
             for (int i = 0; i < needs.size(); i++) {
                 var existing = needs.get(i);
-                if (ItemStack.isSameItemSameComponents(existing.stack(), craftableStack)) {
+                if (BomItemStackMatcher.matches(existing.stack(), craftableStack)) {
                     needs.set(i, new AeInputNeed(existing.stack(), existing.needed() + need));
                     merged = true;
                     break;
@@ -2660,12 +2667,12 @@ public final class InputEvents {
         var inv = player.getInventory();
         for (int i = 0; i < inv.items.size(); i++) {
             var stack = inv.getItem(i);
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, template)) {
+            if (!stack.isEmpty() && BomItemStackMatcher.matches(stack, template)) {
                 count += stack.getCount();
             }
         }
         var carried = player.containerMenu.getCarried();
-        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, template)) {
+        if (!carried.isEmpty() && BomItemStackMatcher.matches(carried, template)) {
             count += carried.getCount();
         }
         return count;
@@ -2700,12 +2707,12 @@ public final class InputEvents {
                 var inv = player.getInventory();
                 for (int i = 0; i < inv.items.size(); i++) {
                     var invStack = inv.getItem(i);
-                    if (!invStack.isEmpty() && ItemStack.isSameItemSameComponents(invStack, stack)) {
+                    if (!invStack.isEmpty() && BomItemStackMatcher.matches(invStack, stack)) {
                         invCount += invStack.getCount();
                     }
                 }
                 var carried = player.containerMenu.getCarried();
-                if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, stack)) {
+                if (!carried.isEmpty() && BomItemStackMatcher.matches(carried, stack)) {
                     carriedCount += carried.getCount();
                 }
             }

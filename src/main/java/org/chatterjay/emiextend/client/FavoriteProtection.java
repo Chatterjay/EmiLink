@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -36,6 +37,20 @@ public final class FavoriteProtection {
         }
     }
 
+    public static void protectAll(Collection<? extends EmiIngredient> stacks) {
+        if (stacks == null || stacks.isEmpty()) return;
+        load();
+        int changed = 0;
+        for (EmiIngredient stack : stacks) {
+            String id = getId(stack);
+            if (id != null && PROTECTED.add(id)) changed++;
+        }
+        if (changed > 0) {
+            save();
+            ModLogger.debug("FavoriteProtection: protected {} favorites in batch", changed);
+        }
+    }
+
     public static void unprotect(EmiIngredient stack) {
         String id = getId(stack);
         if (id == null) return;
@@ -43,6 +58,20 @@ public final class FavoriteProtection {
         if (PROTECTED.remove(id)) {
             save();
             ModLogger.debug("FavoriteProtection: unprotected {}", id);
+        }
+    }
+
+    public static void unprotectAll(Collection<? extends EmiIngredient> stacks) {
+        if (stacks == null || stacks.isEmpty()) return;
+        load();
+        int changed = 0;
+        for (EmiIngredient stack : stacks) {
+            String id = getId(stack);
+            if (id != null && PROTECTED.remove(id)) changed++;
+        }
+        if (changed > 0) {
+            save();
+            ModLogger.debug("FavoriteProtection: unprotected {} favorites in batch", changed);
         }
     }
 

@@ -4,6 +4,10 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import net.minecraft.world.item.ItemStack;
+import org.chatterjay.emiextend.util.BomItemStackMatcher;
+import org.chatterjay.emiextend.util.ModLogger;
+
 /**
  * Shared AE2 grid query logic used by both AEQueryPacket and AEBatchQueryPacket.
  * All methods are static and stateless — safe for concurrent usage.
@@ -135,6 +139,76 @@ public final class AE2GridQueryUtil {
         } catch (Exception e) { /* ignore */ }
 
         return result;
+    }
+
+    /**
+     * Query a BOM ingredient that may be represented by a damaged AE item key.
+     * AE2 stores every damage value as a separate key, so an exact lookup can
+     * report zero even though the network contains a usable damaged tool.
+     */
+    public static long queryItemCountForBom(Object grid, Object aeKey, ItemStack template) {
+        long exact = queryItemCount(grid, aeKey);
+        if (template == null || template.isEmpty() || !template.isDamageableItem()) {
+            return exact;
+        }
+
+        try {
+            Object available = resolveAvailableStacks(grid);
+            if (!(available instanceof Iterable<?> entries)) {
+                return exact;
+            }
+
+            long matched = 0;
+            for (Object entry : entries) {
+                if (!(entry instanceof java.util.Map.Entry<?, ?> mapEntry)) {
+                    continue;
+                }
+                Object key = mapEntry.getKey();
+                Object candidate = key == null ? null : invokeNoArg(key, "getReadOnlyStack");
+                if (!(candidate instanceof ItemStack candidateStack)
+                        || !BomItemStackMatcher.matches(candidateStack, template)) {
+                    continue;
+                }
+
+                Object amount = mapEntry.getValue();
+                if (amount instanceof Number number) {
+                    matched += Math.max(0L, number.longValue());
+                }
+            }
+
+            ModLogger.debug("AE_BOM_DURABILITY_QUERY item={} exact={} compatible={} detail=network-keys-scanned",
+                    template.getHoverName().getString(), exact, matched);
+            return Math.max(exact, matched);
+        } catch (Throwable error) {
+            ModLogger.debug("AE_BOM_DURABILITY_QUERY failed item={} exact={} error={}",
+                    template.getHoverName().getString(), exact, error.toString());
+            return exact;
+        }
+    }
+
+    private static Object resolveAvailableStacks(Object grid) {
+        Object storageSvc = callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid", "getService");
+        if (storageSvc == null) {
+            return null;
+        }
+
+        Object inventory = callMethodOnBestMatch(storageSvc, "getInventory");
+        Object available = inventory == null ? null : callMethodOnBestMatch(inventory, "getAvailableStacks");
+        if (available != null) {
+            return available;
+        }
+        return callMethodOnBestMatch(storageSvc, "getCachedAvailableStacks", "getAvailableStacks");
+    }
+
+    private static Object invokeNoArg(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     /**

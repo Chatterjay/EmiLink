@@ -154,7 +154,7 @@ public final class FavoriteDragSelectHandler {
 
     private static EmiIngredient findProtectedFavorite(int mouseX, int mouseY) {
         final EmiIngredient[] result = {null};
-        forEachVisibleCell((space, stack, x, y) -> {
+        forEachVisibleCell((space, stack, x, y, col, row) -> {
             if (result[0] != null || space.getType() != SidebarType.FAVORITES) return;
             if (mouseX >= x && mouseX < x + 18 && mouseY >= y && mouseY < y + 18
                     && FavoriteProtection.isProtected(stack)) {
@@ -246,14 +246,17 @@ public final class FavoriteDragSelectHandler {
                 } catch (Throwable e) {
                     ModLogger.debug("FavoriteDragSelect: addFavorite failed for {}: {}", stack, e);
                 }
-                FavoriteProtection.protect(stack);
                 protectedCount++;
             } else {
-                FavoriteProtection.unprotect(stack);
                 String id = getStackId(stack);
                 if (id != null) lastProtectedSelectionIds.remove(id);
                 unprotected++;
             }
+        }
+        if (protectMode) {
+            FavoriteProtection.protectAll(selectedStacks);
+        } else {
+            FavoriteProtection.unprotectAll(selectedStacks);
         }
         if (favored > 0) {
             try {
@@ -283,7 +286,7 @@ public final class FavoriteDragSelectHandler {
 
     private static java.util.List<EmiIngredient> collectVisibleStacks(int x1, int y1, int x2, int y2) {
         java.util.List<EmiIngredient> result = new ArrayList<>();
-        forEachVisibleCell((space, stack, x, y) -> {
+        forEachVisibleCell((space, stack, x, y, col, row) -> {
             if (isCellSelected(x, y, x1, y1, x2, y2)) result.add(stack);
         });
         return result;
@@ -300,7 +303,8 @@ public final class FavoriteDragSelectHandler {
     }
 
     public interface CellVisitor {
-        void accept(EmiScreenManager.ScreenSpace space, EmiIngredient stack, int x, int y);
+        void accept(EmiScreenManager.ScreenSpace space, EmiIngredient stack,
+                   int x, int y, int col, int row);
     }
 
     /** Walks every visible sidebar cell using EMI's own screen-space offsets. */
@@ -324,9 +328,37 @@ public final class FavoriteDragSelectHandler {
                         if (index < 0 || index >= stacks.size()) continue;
                         EmiIngredient stack = stacks.get(index);
                         if (stack == null || stack.isEmpty()) continue;
-                        visitor.accept(space, stack, space.getX(col, row), space.getY(col, row));
+                        visitor.accept(space, stack, space.getX(col, row), space.getY(col, row), col, row);
                     }
                 }
+            }
+        }
+    }
+
+    /** Walk only one visible space; used by the per-space background pass. */
+    public static void forEachVisibleCell(EmiScreenManager.ScreenSpace targetSpace, CellVisitor visitor) {
+        if (targetSpace == null || visitor == null) return;
+        for (SidebarSide side : SidebarSide.values()) {
+            var panel = EmiScreenManager.getPanelFor(side);
+            if (panel == null || !panel.isVisible()) continue;
+            for (var space : panel.getSpaces()) {
+                if (space != targetSpace || space.pageSize <= 0) continue;
+                var stacks = space.getStacks();
+                if (stacks == null || stacks.isEmpty()) return;
+                boolean isMainSpace = space == panel.space;
+                for (int row = 0; row < space.th; row++) {
+                    int columns = space.getWidth(row);
+                    for (int col = 0; col < columns; col++) {
+                        int local = space.getRawOffset(col, row);
+                        if (local < 0) continue;
+                        int index = local + (isMainSpace ? space.pageSize * panel.page : 0);
+                        if (index < 0 || index >= stacks.size()) continue;
+                        EmiIngredient stack = stacks.get(index);
+                        if (stack == null || stack.isEmpty()) continue;
+                        visitor.accept(space, stack, space.getX(col, row), space.getY(col, row), col, row);
+                    }
+                }
+                return;
             }
         }
     }
