@@ -714,13 +714,30 @@ public final class InputEvents {
 
         // 1. AE terminals keep EMI sync one-way unless the AE search box is focused.
         // Set both sides explicitly so F-search updates the terminal and EMI together.
-        if (AE2Proxy.isMEStorageScreen(screen) && screen instanceof MEStorageScreenAccessor aeSearch) {
+        if (AE2Proxy.isMEStorageScreen(screen)) {
+            if (trySetAeSearchText(screen, text) || trySetExternalSearchField(screen, text)) {
+                SearchHistoryOverlay.applySearch(text, icon);
+                fillSearchHandled = true;
+                event.setCanceled(true);
+                return;
+            }
+            // Fallback when AE widget is not yet fully initialized: still sync EMI side
+            // so the user sees the search term and the next tick can propagate it.
             try {
                 SearchHistoryOverlay.applySearch(text, icon);
                 fillSearchHandled = true;
                 event.setCanceled(true);
                 return;
             } catch (Exception ignored) {}
+        }
+        // 1b. AE affiliated terminals (ExtendedAE, wireless, etc.) that are not
+        // pure MEStorageScreen subclasses. They often reuse the same searchField
+        // naming but are typed as a different screen class.
+        if (trySetAeAffiliatedSearchText(screen, text)) {
+            SearchHistoryOverlay.applySearch(text, icon);
+            fillSearchHandled = true;
+            event.setCanceled(true);
+            return;
         }
 
         // 2. Focused EditBox (most precise, works universally)
@@ -1297,7 +1314,7 @@ public final class InputEvents {
             if (es == null || es.isEmpty()) continue;
             var outputStack = es.getItemStack();
             if (outputStack == null || outputStack.isEmpty()) continue;
-            if (ItemStack.isSameItemSameComponents(stack, outputStack)) return true;
+            if (BomItemStackMatcher.matches(stack, outputStack)) return true;
         }
         return false;
     }
@@ -1308,7 +1325,7 @@ public final class InputEvents {
         for (var output : node.recipe.getOutputs()) {
             var outputStack = output.getItemStack();
             if (outputStack == null || outputStack.isEmpty()) continue;
-            if (ItemStack.isSameItemSameComponents(stack, outputStack)) return true;
+            if (BomItemStackMatcher.matches(stack, outputStack)) return true;
         }
         return false;
     }
@@ -2416,8 +2433,35 @@ public final class InputEvents {
         for (var output : child.recipe.getOutputs()) {
             for (var os : output.getEmiStacks()) {
                 if (os.isEmpty()) continue;
+                ItemStack osStack = os.getItemStack();
                 for (var is : input.getEmiStacks()) {
-                    if (!is.isEmpty() && os.getId().equals(is.getId())) return true;
+                    if (is.isEmpty()) continue;
+                    // Items: use component-aware matching. BomItemStackMatcher keeps
+                    // all NBT/data-components exact except it tolerates durability
+                    // differences for damageable tools (AE stores every damage value
+                    // as a separate key, but crafting accepts any damage).
+                    if (!osStack.isEmpty()) {
+                        ItemStack isStack = is.getItemStack();
+                        if (!isStack.isEmpty()) {
+                            if (BomItemStackMatcher.matches(osStack, isStack)
+                                    || BomItemStackMatcher.matches(isStack, osStack)) {
+                                return true;
+                            }
+                            // ItemStacks present but components differ -> NOT a match.
+                            // Do not fall back to Id-only equality for items with NBT.
+                            continue;
+                        }
+                    }
+                    // Non-item stacks (fluids, gases, etc.): id + EMI equality.
+                    // EmiStack.isEqual is NBT-aware via its Comparison field.
+                    try {
+                        if (os.isEqual(is)) return true;
+                    } catch (Throwable ignored) {}
+                    // Fallback for non-item stacks where isEqual is strict on comparison:
+                    // shared id implies compatible type.
+                    if (osStack.isEmpty() && os.getId().equals(is.getId())) {
+                        return true;
+                    }
                 }
             }
         }
@@ -2776,5 +2820,117 @@ public final class InputEvents {
             cls = cls.getSuperclass();
         }
         return null;
+    }
+
+    /** Robustly fill AE2's search field via accessor, AETextField, and repo hooks. */
+    private static boolean trySetAeSearchText(Screen screen, String text) {
+        if (!(screen instanceof MEStorageScreenAccessor accessor)) {
+            return false;
+        }
+        boolean filled = false;
+        try {
+            var field = accessor.emilink$getSearchField();
+            if (field != null) {
+                field.setValue(text);
+                try {
+                    field.setCursorPosition(text.length());
+                } catch (Throwable ignored) {}
+                filled = true;
+            }
+        } catch (Throwable ignored) {}
+        try {
+            accessor.emilink$setSearchText(text);
+            filled = true;
+        } catch (Throwable ignored) {}
+        return filled;
+    }
+
+    /** Generic reflective fill for screens with a searchField/searchBox/search widget. */
+    private static boolean trySetExternalSearchField(Screen screen, String text) {
+        for (String fieldName : new String[]{"searchField", "searchBox", "search"}) {
+            var field = findScreenField(screen, fieldName);
+            if (field == null) continue;
+            try {
+                field.setAccessible(true);
+                Object widget = field.get(screen);
+                if (widget == null) continue;
+                // AETextField or EditBox path
+                try {
+                    widget.getClass().getMethod("setValue", String.class).invoke(widget, text);
+                    try {
+                        widget.getClass().getMethod("setCursorPosition", int.class)
+                                .invoke(widget, text.length());
+                    } catch (Throwable ignored) {}
+                    return true;
+                } catch (NoSuchMethodException ignored) {}
+                // Some widgets expose setSearchText(String)
+                try {
+                    screen.getClass().getMethod("setSearchText", String.class).invoke(screen, text);
+                    return true;
+                } catch (Throwable ignored2) {}
+            } catch (Throwable ignored) {}
+        }
+        return false;
+    }
+
+    /**
+     * ExtendedAE and other AE2 add-ons often subclass AE's screen without being
+     * MEStorageScreen at compile time. Walk the class hierarchy and try every
+     * known search widget name via reflection.
+     */
+    private static boolean trySetAeAffiliatedSearchText(Screen screen, String text) {
+        if (screen == null || text == null) return false;
+        String className = screen.getClass().getName();
+        boolean looksAeAffiliated =
+                className.startsWith("com.glodblock.github.extendedae")
+                || className.startsWith("appeng.client.gui")
+                || className.contains("extendedae")
+                || className.contains("ae2")
+                || className.contains("Terminal")
+                || className.contains("Storage")
+                || className.contains("Pattern");
+        // Even if heuristic misses, still probe generic search field names once
+        for (String fieldName : new String[]{"searchField", "searchBox", "searchTextField", "search"}) {
+            var field = findScreenField(screen, fieldName);
+            if (field == null) continue;
+            try {
+                field.setAccessible(true);
+                Object widget = field.get(screen);
+                if (widget == null) continue;
+                // Quick filter: affiliated fields are usually AETextField/EditBox-like
+                boolean hasSetValue;
+                try {
+                    widget.getClass().getMethod("setValue", String.class);
+                    hasSetValue = true;
+                } catch (NoSuchMethodException e) {
+                    hasSetValue = false;
+                }
+                if (hasSetValue) {
+                    widget.getClass().getMethod("setValue", String.class).invoke(widget, text);
+                    try {
+                        widget.getClass().getMethod("setCursorPosition", int.class)
+                                .invoke(widget, text.length());
+                    } catch (Throwable ignored) {}
+                    ModLogger.debug("FSearch: affiliated AE fill success class={} field={}",
+                            className, fieldName);
+                    return true;
+                }
+                // Fallback: parent screen owns setSearchText
+                for (Class<?> type = screen.getClass(); type != null; type = type.getSuperclass()) {
+                    try {
+                        type.getDeclaredMethod("setSearchText", String.class)
+                                .invoke(screen, text);
+                        ModLogger.debug("FSearch: affiliated setSearchText success class={}", className);
+                        return true;
+                    } catch (NoSuchMethodException ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+        // If heuristic flagged AE but no field matched, do not claim success
+        // so generic EditBox/children paths still get a chance.
+        if (looksAeAffiliated) {
+            ModLogger.debug("FSearch: affiliated AE probe missed class={}", className);
+        }
+        return false;
     }
 }

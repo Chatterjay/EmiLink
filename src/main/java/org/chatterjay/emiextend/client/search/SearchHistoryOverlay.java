@@ -78,6 +78,69 @@ public final class SearchHistoryOverlay {
         }
         remember(text, icon);
         EmiApi.setSearchText(text);
+        syncExternalSearch(text);
+    }
+
+    private static void syncExternalSearch(String text) {
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            var screen = mc.screen;
+            if (screen == null || screen instanceof net.minecraft.client.gui.screens.ChatScreen) {
+                return;
+            }
+            // AE2 storage terminal: only touch the accessor when AE is present,
+            // and wrap the instanceof in a catch to survive missing AE at runtime.
+            if (org.chatterjay.emiextend.integration.AE2Proxy.isLoaded()) {
+                try {
+                    if (screen instanceof org.chatterjay.emiextend.mixin.MEStorageScreenAccessor aeAccessor) {
+                        try {
+                            var field = aeAccessor.emilink$getSearchField();
+                            if (field != null) {
+                                field.setValue(text);
+                                field.setCursorPosition(text.length());
+                            }
+                            aeAccessor.emilink$setSearchText(text);
+                        } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+            }
+            if (org.chatterjay.emiextend.integration.BDProxy.isBDNetGUI(screen)) {
+                org.chatterjay.emiextend.integration.BDProxy.setSearchText(screen, text);
+            }
+            // Best-effort for affiliated terminals (ExtendedAE, etc.)
+            for (String fieldName : new String[]{"searchField", "searchBox", "searchTextField", "search"}) {
+                var field = findScreenField(screen, fieldName);
+                if (field == null) continue;
+                try {
+                    field.setAccessible(true);
+                    Object widget = field.get(screen);
+                    if (widget == null) continue;
+                    // Only touch widgets that are not already handled (avoid double-set)
+                    if (widget instanceof net.minecraft.client.gui.components.EditBox editBox
+                            && editBox.getValue().equals(text)) {
+                        continue;
+                    }
+                    widget.getClass().getMethod("setValue", String.class).invoke(widget, text);
+                    try {
+                        widget.getClass().getMethod("setCursorPosition", int.class)
+                                .invoke(widget, text.length());
+                    } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    @javax.annotation.Nullable
+    private static java.lang.reflect.Field findScreenField(net.minecraft.client.gui.screens.Screen screen,
+                                                            String name) {
+        Class<?> cls = screen.getClass();
+        while (cls != null && cls != net.minecraft.client.gui.screens.Screen.class) {
+            try {
+                return cls.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {}
+            cls = cls.getSuperclass();
+        }
+        return null;
     }
 
     public static void render(GuiGraphics guiGraphics, int mouseX, int mouseY) {

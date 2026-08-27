@@ -23,6 +23,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.neoforged.fml.ModContainer;
+import org.chatterjay.emiextend.client.util.ModifierKeyUtil;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.common.ModConfigSpec;
@@ -77,9 +78,143 @@ public final class EmiLinkConfigScreen {
                     false);
         }
 
+        private final java.util.Map<String, String> pendingModifierValues = new java.util.HashMap<>();
+        private static final java.util.Set<String> MODIFIER_KEYS = java.util.Set.of(
+                "favoriteDragSelectModifier", "extractModifier", "depositBatchModifier");
+
+        @Override
+        protected void addOptions() {
+            // Invalidate cached labels after Reset/Undo which bypass local cache via
+            // external ConfigValue changes. Must clear before super.rebuild() is triggered.
+            pendingModifierValues.clear();
+            pendingCapture = null;
+            super.addOptions();
+        }
+
+
+
+        private Element createModifierElement(String key, Supplier<String> source,
+                                              Consumer<String> target) {
+            String current = source.get();
+            String pending = pendingModifierValues.get(key);
+            // If underlying ConfigValue changed externally (Reset/Undo/Redo), discard stale cache
+            if (pending == null || (pendingCapture == null || !pendingCapture.cfgKey.equals(key)) && !pending.equals(current)) {
+                pendingModifierValues.put(key, current);
+                pending = current;
+            }
+            Component label = ModifierKeyUtil.describe(pending);
+            Button widget = Button.builder(label, btn -> {
+                btn.setMessage(Component.literal("§e[ §l按任意键… §r§e]"));
+                btn.active = false;
+                requestModifierCapture(btn, key, source, target);
+            }).width(WIDGET_WIDTH).build();
+            widget.setTooltip(Tooltip.create(getTooltipComponent(key, null)));
+            return new Element(getTranslationComponent(key), getTooltipComponent(key, null), widget);
+        }
+
+        // Backward-compatible alias
+        private Element createFavoriteDragModifierElement(String key, Supplier<String> source,
+                                                          Consumer<String> target) {
+            return createModifierElement(key, source, target);
+        }
+
+        private void requestModifierCapture(Button btn, String key, Supplier<String> source, Consumer<String> target) {
+            // Register a one-shot key listener on this screen: intercept next key/mouse press
+            // We piggyback on the screen's keyPressed/mouseClicked by installing a temporary overlay handler
+            // Simplest: replace the button's message and wait for next keyPressed on the screen
+            // Capture via an inline helper object stored on the screen
+            pendingCapture = new PendingCapture(btn, key, source, target);
+        }
+
+        @javax.annotation.Nullable
+        private PendingCapture pendingCapture = null;
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (pendingCapture != null && pendingCapture.consumeKey(keyCode, scanCode, modifiers)) {
+                pendingCapture = null;
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (pendingCapture != null && pendingCapture.consumeMouse(button)) {
+                pendingCapture = null;
+                return true;
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        private class PendingCapture {
+            final Button btn;
+            final String cfgKey;
+            final Supplier<String> source;
+            final Consumer<String> target;
+            PendingCapture(Button btn, String cfgKey, Supplier<String> source, Consumer<String> target) {
+                this.btn = btn; this.cfgKey = cfgKey; this.source = source; this.target = target;
+            }
+            boolean consumeKey(int keyCode, int scanCode, int modifiers) {
+                if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+                    // ESC clears the binding (sets OFF) per user request: no dedicated OFF button.
+                    commit("OFF");
+                    return true;
+                }
+                // Distinguish left/right for Shift/Ctrl/Alt/Super so the user can bind either side.
+                String name;
+                if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) name = "key.keyboard.left.shift";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) name = "key.keyboard.right.shift";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL) name = "key.keyboard.left.control";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL) name = "key.keyboard.right.control";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT) name = "key.keyboard.left.alt";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT) name = "key.keyboard.right.alt";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SUPER) name = "key.keyboard.left.win";
+                else if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SUPER) name = "key.keyboard.right.win";
+                else {
+                    com.mojang.blaze3d.platform.InputConstants.Key k = com.mojang.blaze3d.platform.InputConstants.getKey(keyCode, scanCode);
+                    name = k.getName();
+                }
+                commit(name);
+                return true;
+            }
+            boolean consumeMouse(int button) {
+                String name = switch (button) {
+                    case 0 -> "key.mouse.left";
+                    case 1 -> "key.mouse.right";
+                    case 2 -> "key.mouse.middle";
+                    default -> "key.mouse." + (button + 1);
+                };
+                commit(name);
+                return true;
+            }
+            void commit(String name) {
+                String before = source.get();
+                if (!name.equals(before)) {
+                    undoManager.add(v -> {
+                        target.accept(v);
+                        onChanged(cfgKey);
+                        pendingModifierValues.put(cfgKey, v);
+                        btn.setMessage(ModifierKeyUtil.describe(v));
+                    }, name, v -> {
+                        target.accept(v);
+                        onChanged(cfgKey);
+                        pendingModifierValues.put(cfgKey, v);
+                        btn.setMessage(ModifierKeyUtil.describe(v));
+                    }, before);
+                    pendingModifierValues.put(cfgKey, name);
+                }
+                btn.setMessage(ModifierKeyUtil.describe(name));
+                btn.active = true;
+            }
+        }
+
         @Override
         protected Element createStringValue(String key, Predicate<String> tester, Supplier<String> source,
                 Consumer<String> target) {
+            if (MODIFIER_KEYS.contains(key)) {
+                return createModifierElement(key, source, target);
+            }
             if (!isPreviewColorKey(key)) {
                 return super.createStringValue(key, tester, source, target);
             }
@@ -156,6 +291,7 @@ public final class EmiLinkConfigScreen {
         }
         return EmiLinkConfig::getFavoriteProtectionBorderArgb;
     }
+
 
     private abstract static class PreviewContainerWidget extends AbstractContainerWidget {
         private final IntSupplier previewColor;

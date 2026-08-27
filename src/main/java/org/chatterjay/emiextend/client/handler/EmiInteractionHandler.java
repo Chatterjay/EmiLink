@@ -13,6 +13,7 @@ import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import org.chatterjay.emiextend.client.util.ModifierKeyUtil;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.network.chat.Component;
@@ -413,21 +414,11 @@ public final class EmiInteractionHandler {
     }
 
     public static boolean matchesExtractModifier() {
-        return switch (EmiLinkConfig.EXTRACT_MODIFIER.get()) {
-            case SHIFT -> Screen.hasShiftDown();
-            case CONTROL -> Screen.hasControlDown();
-            case ALT -> Screen.hasAltDown();
-            case OFF -> false;
-        };
+        return ModifierKeyUtil.isHeld(EmiLinkConfig.getExtractModifierKeyName());
     }
 
     public static boolean matchesDepositBatchModifier() {
-        return switch (EmiLinkConfig.DEPOSIT_BATCH_MODIFIER.get()) {
-            case SHIFT -> Screen.hasShiftDown();
-            case CONTROL -> Screen.hasControlDown();
-            case ALT -> Screen.hasAltDown();
-            case OFF -> false;
-        };
+        return ModifierKeyUtil.isHeld(EmiLinkConfig.getDepositBatchModifierKeyName());
     }
 
     /**

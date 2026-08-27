@@ -51,9 +51,9 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_CRAFTABLE_NETWORK_BADGES;
     public static final ModConfigSpec.IntValue INITIAL_BADGE_SCAN_LIMIT;
     public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> EXTRACT_MODIFIER;
+    public static final ModConfigSpec.ConfigValue<String> EXTRACT_MODIFIER;
     public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
-    public static final ModConfigSpec.EnumValue<ExtractTrigger> DEPOSIT_BATCH_MODIFIER;
+    public static final ModConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
 
     // ---- Quick Craft ----
     public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
@@ -151,7 +151,8 @@ public final class EmiLinkConfig {
                 .define("enableFavoriteDragSelect", true);
 
         FAVORITE_DRAG_SELECT_MODIFIER = BUILDER
-                .comment("Modifier for favorite drag-select (SHIFT, CONTROL, ALT, or OFF). Left drag favorites and protects; right drag unprotects.")
+                .comment("Modifier for favorite drag-select. Any key or mouse button; OFF disables. " +
+                         "Left-drag favorites and protects, right-drag unprotects.")
                 .translation("emilink.config.emi_ui.favoriteDragSelectModifier")
                 .define("favoriteDragSelectModifier", "ALT");
 
@@ -209,10 +210,9 @@ public final class EmiLinkConfig {
                 .defineInRange("networkBadgeStyle", 1, 1, 2);
 
         EXTRACT_MODIFIER = BUILDER
-                .comment("Modifier for Click-to-extract from AE/BD network. " +
-                         "SHIFT=Shift+Click, CONTROL=Ctrl+Click, ALT=Alt+Click, or OFF to disable")
+                .comment("Modifier for Click-to-extract from AE/BD network. Any key or mouse button; OFF disables.")
                 .translation("emilink.config.ae_network.extractModifier")
-                .defineEnum("extractModifier", ExtractTrigger.SHIFT);
+                .define("extractModifier", "SHIFT");
 
         ENABLE_AE_DEPOSIT = BUILDER
                 .comment("Click on the EMI sidebar with a carried item to deposit into AE. " +
@@ -221,8 +221,9 @@ public final class EmiLinkConfig {
                 .define("enableAeDeposit", true);
 
         DEPOSIT_BATCH_MODIFIER = BUILDER
+                .comment("Modifier for depositing all matching items. Any key or mouse button; OFF disables.")
                 .translation("emilink.config.ae_network.depositBatchModifier")
-                .defineEnum("depositBatchModifier", ExtractTrigger.SHIFT);
+                .define("depositBatchModifier", "SHIFT");
 
         BUILDER.pop();
         BUILDER.push("quick_craft");
@@ -311,11 +312,58 @@ public final class EmiLinkConfig {
     }
 
     public static ExtractTrigger getFavoriteDragSelectModifier() {
+        String raw = getFavoriteDragSelectKeyName();
         try {
-            return ExtractTrigger.valueOf(FAVORITE_DRAG_SELECT_MODIFIER.get().toUpperCase(java.util.Locale.ROOT));
+            return ExtractTrigger.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
         } catch (Exception e) {
             return ExtractTrigger.ALT;
         }
+    }
+
+    /** Raw modifier string normalized for display / key resolution. */
+    public static String getFavoriteDragSelectKeyName() {
+        try {
+            String v = FAVORITE_DRAG_SELECT_MODIFIER.get();
+            if (v == null) return "ALT";
+            String t = v.trim();
+            return t.isEmpty() ? "ALT" : t;
+        } catch (Exception e) {
+            return "ALT";
+        }
+    }
+
+    /** Whether the drag-select modifier is disabled via "OFF". */
+    public static boolean isFavoriteDragSelectOff() {
+        return "OFF".equalsIgnoreCase(getFavoriteDragSelectKeyName());
+    }
+
+    public static String getExtractModifierKeyName() {
+        try {
+            String v = EXTRACT_MODIFIER.get();
+            if (v == null) return "SHIFT";
+            String t = v.trim();
+            return t.isEmpty() ? "SHIFT" : t;
+        } catch (Exception e) { return "SHIFT"; }
+    }
+
+    public static String getDepositBatchModifierKeyName() {
+        try {
+            String v = DEPOSIT_BATCH_MODIFIER.get();
+            if (v == null) return "SHIFT";
+            String t = v.trim();
+            return t.isEmpty() ? "SHIFT" : t;
+        } catch (Exception e) { return "SHIFT"; }
+    }
+
+    /** Legacy accessor kept for compatibility: maps arbitrary key names back to ExtractTrigger where possible. */
+    public static ExtractTrigger getExtractModifier() {
+        try { return ExtractTrigger.valueOf(getExtractModifierKeyName().toUpperCase(java.util.Locale.ROOT)); }
+        catch (Exception e) { return ExtractTrigger.SHIFT; }
+    }
+
+    public static ExtractTrigger getDepositBatchModifier() {
+        try { return ExtractTrigger.valueOf(getDepositBatchModifierKeyName().toUpperCase(java.util.Locale.ROOT)); }
+        catch (Exception e) { return ExtractTrigger.SHIFT; }
     }
 
     public static int getFavoriteProtectionBorderArgb() {

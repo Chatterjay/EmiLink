@@ -60,7 +60,8 @@
   "emilink.config.emi_ui.enableFavoriteDragSelect": "Favorite Drag Protection",
   "emilink.config.emi_ui.enableFavoriteDragSelect.tooltip": "Drag-select EMI sidebar items with the modifier to favorite and protect them.\nDrag-select again to unprotect.",
   "emilink.config.emi_ui.favoriteDragSelectModifier": "Favorite Drag Modifier",
-  "emilink.config.emi_ui.favoriteDragSelectModifier.tooltip": "Left-drag favorites and protects; right-drag unprotects.\nSHIFT, CONTROL, ALT, or OFF.",
+  "emilink.config.emi_ui.favoriteDragSelectModifier.tooltip": "Left-drag to favorite and protect, right-drag to unprotect.\nClick to rebind to any key or mouse button; press ESC to disable (OFF).",
+
   "emilink.config.emi_ui.favoriteProtectionBorderColor": "Protection Border Color",
   "emilink.config.emi_ui.favoriteProtectionBorderColor.tooltip": "RGB color for protected favorite outlines and the drag rectangle border.\nUse six-digit hexadecimal, such as FFD700 or #FFD700.",
   "emilink.config.emi_ui.favoriteProtectionBorderOpacity": "Protection Border Opacity",
@@ -81,11 +82,11 @@
   "emilink.config.ae_network.networkBadgeStyle": "Badge Style",
   "emilink.config.ae_network.networkBadgeStyle.tooltip": "1: bottom-right filled square.\n2: top-left hollow border.",
   "emilink.config.ae_network.extractModifier": "Extract Modifier",
-  "emilink.config.ae_network.extractModifier.tooltip": "Click EMI stacks to extract from network.\nSHIFT, CONTROL, ALT, or OFF.",
+  "emilink.config.ae_network.extractModifier.tooltip": "Click EMI stacks to extract from network.\nClick to rebind to any key or mouse button; press ESC to disable (OFF).",
   "emilink.config.ae_network.enableAeDeposit": "Deposit from EMI Sidebar",
   "emilink.config.ae_network.enableAeDeposit.tooltip": "Click the EMI sidebar with a carried item.\nRequires a wireless terminal or open AE terminal.",
   "emilink.config.ae_network.depositBatchModifier": "Batch Deposit Modifier",
-  "emilink.config.ae_network.depositBatchModifier.tooltip": "Modifier for depositing all matching items.\nSHIFT, CONTROL, ALT, or OFF.",
+  "emilink.config.ae_network.depositBatchModifier.tooltip": "Deposit all matching items.\nClick to rebind to any key or mouse button; press ESC to disable (OFF).",
 
   "emilink.config.quick_craft.enableQuickCraft": "BOM Automatic Workbench Crafting",
   "emilink.config.quick_craft.enableQuickCraft.tooltip": "Recursively execute the BOM tree and fill the workbench automatically.",

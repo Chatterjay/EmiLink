@@ -99,13 +99,17 @@ public class EmiAE2 {
                         )
                         .then(Commands.literal("shiftclick")
                                 .executes(ctx -> {
-                                    var current = EmiLinkConfig.EXTRACT_MODIFIER.get();
-                                    var options = EmiLinkConfig.ExtractTrigger.values();
-                                    var next = options[(current.ordinal() + 1) % options.length];
+                                    String current = EmiLinkConfig.getExtractModifierKeyName();
+                                    String next;
+                                    String up = current.toUpperCase(java.util.Locale.ROOT);
+                                    if ("SHIFT".equals(up)) next = "CONTROL";
+                                    else if ("CONTROL".equals(up) || "CTRL".equals(up) || "CTL".equals(up)) next = "ALT";
+                                    else if ("ALT".equals(up)) next = "OFF";
+                                    else next = "SHIFT";
                                     EmiLinkConfig.EXTRACT_MODIFIER.set(next);
                                     EmiLinkConfig.SPEC.save();
                                     ctx.getSource().sendSuccess(
-                                            () -> Component.translatable("emilink.command.extract", next.name()),
+                                            () -> Component.translatable("emilink.command.extract", next),
                                             false
                                     );
                                     return 1;

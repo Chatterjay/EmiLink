@@ -8,6 +8,7 @@ import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
 import org.chatterjay.emiextend.client.FavoriteProtection;
+import org.chatterjay.emiextend.client.util.ModifierKeyUtil;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.util.ModLogger;
 
@@ -276,12 +277,7 @@ public final class FavoriteDragSelectHandler {
     }
 
     private static boolean isModifierHeld() {
-        return switch (EmiLinkConfig.getFavoriteDragSelectModifier()) {
-            case SHIFT -> Screen.hasShiftDown();
-            case CONTROL -> Screen.hasControlDown();
-            case ALT -> Screen.hasAltDown();
-            case OFF -> false;
-        };
+        return ModifierKeyUtil.isHeld(EmiLinkConfig.getFavoriteDragSelectKeyName());
     }
 
     private static java.util.List<EmiIngredient> collectVisibleStacks(int x1, int y1, int x2, int y2) {
