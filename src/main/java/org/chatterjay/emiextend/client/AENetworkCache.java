@@ -2,17 +2,15 @@
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
-import dev.emi.emi.api.render.EmiTooltipComponents;
 import dev.emi.emi.api.stack.EmiStack;
 import io.netty.buffer.Unpooled;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -22,7 +20,6 @@ import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.util.ModLogger;
-import org.chatterjay.emiextend.util.BomItemStackMatcher;
 import net.neoforged.bus.api.SubscribeEvent;
 
 import java.nio.file.Path;
@@ -30,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,12 +44,19 @@ public final class AENetworkCache {
      * One-shot AE query state for quick-craft preflight. Results are visible to
      * normal cache readers while the scope is active, but are never persisted.
      */
-    private static final Set<ItemStack> ephemeralKeys = new HashSet<>();
-    private static final Map<ItemStack, CachedInfo> ephemeralCache = new HashMap<>();
+    private static final Set<CacheKey> ephemeralKeys = new HashSet<>();
+    private static final Map<CacheKey, CachedInfo> ephemeralCache = new HashMap<>();
 
-    /** Items pending server query. Value is true when craftability should be queried too. */
-    private static final Map<ItemStack, Boolean> pendingBatch = new HashMap<>();
+    /** Items pending server query. */
+    private static final Map<CacheKey, PendingQuery> pendingBatch = new HashMap<>();
     private static long lastBatchFlushTime = 0;
+
+    /**
+     * A transfer packet and its follow-up cache query must not race each other.
+     * The configured batch interval also controls this priority refresh window.
+     * The default is five seconds.
+     */
+    private static long networkRefreshAt = Long.MAX_VALUE;
 
     /** Tracks terminal open/close state for initial scan detection. */
     private static boolean wasInTerminal = false;
@@ -83,15 +86,24 @@ public final class AENetworkCache {
 
     /** Queue a single item, optionally skipping expensive AE craftability checks. */
     public static void submitForBatch(ItemStack stack, boolean queryCraftability) {
+        submitForBatch(stack, queryCraftability, false);
+    }
+
+    /** Queue an item and optionally force a refresh even while its cache entry is fresh. */
+    private static void submitForBatch(ItemStack stack, boolean queryCraftability, boolean forceRefresh) {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
         if (stack == null || stack.isEmpty()) return;
-        var key = normalizeKey(stack);
-        pendingBatch.put(key, pendingBatch.getOrDefault(key, false) || queryCraftability);
+        var keyStack = normalizeKey(stack);
+        var key = cacheKey(keyStack);
+        var previous = pendingBatch.get(key);
+        pendingBatch.put(key, new PendingQuery(keyStack,
+                queryCraftability || (previous != null && previous.queryCraftability()),
+                forceRefresh || (previous != null && previous.forceRefresh())));
     }
 
     /**
-     * Queue an item for badge rendering. Badges query counts first and only ask
-     * AE for craftability later when the item is not stored.
+     * Queue an item for overlay rendering. Overlays query counts first and only
+     * ask AE for craftability later when the item is not stored.
      */
     public static void submitForBadge(ItemStack stack) {
         submitForBatch(stack, false);
@@ -103,7 +115,7 @@ public final class AENetworkCache {
         if (stacks == null || stacks.isEmpty()) return;
         for (var stack : stacks) {
             if (stack == null || stack.isEmpty()) continue;
-            ephemeralKeys.add(normalizeKey(stack));
+            ephemeralKeys.add(cacheKey(normalizeKey(stack)));
         }
         ModLogger.debug("AE cache: began ephemeral query keys={}", ephemeralKeys.size());
     }
@@ -130,6 +142,7 @@ public final class AENetworkCache {
     /** Immediately flush the pending batch (used after initial scan collection). */
     public static void flushBatchNow() {
         if (!EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()) return;
+        networkRefreshAt = Long.MAX_VALUE;
         if (!pendingBatch.isEmpty()) {
             lastBatchFlushTime = System.currentTimeMillis();
             flushBatch();
@@ -163,11 +176,12 @@ public final class AENetworkCache {
             var cache = entry.getValue().cache;
             buf.writeVarInt(cache.size());
             for (var mapEntry : cache.entrySet()) {
-                ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, mapEntry.getKey());
-                buf.writeVarLong(mapEntry.getValue().count());
-                buf.writeBoolean(mapEntry.getValue().craftable());
-                buf.writeBoolean(mapEntry.getValue().craftabilityKnown());
-                buf.writeVarLong(mapEntry.getValue().timestamp());
+                CachedEntry cached = mapEntry.getValue();
+                ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, cached.stack());
+                buf.writeVarLong(cached.info().count());
+                buf.writeBoolean(cached.info().craftable());
+                buf.writeBoolean(cached.info().craftabilityKnown());
+                buf.writeVarLong(cached.info().timestamp());
             }
         }
 
@@ -203,7 +217,10 @@ public final class AENetworkCache {
                         boolean craftable = buf.readBoolean();
                         boolean craftabilityKnown = hasVersion ? buf.readBoolean() : true;
                         long timestamp = buf.readVarLong();
-                        state.cache.put(stack, new CachedInfo(count, craftable, craftabilityKnown, timestamp));
+                        stack = normalizeKey(stack);
+                        var key = cacheKey(stack);
+                        state.cache.put(key, new CachedEntry(stack,
+                                new CachedInfo(count, craftable, craftabilityKnown, timestamp)));
                     } catch (Exception e) {
                         // Item no longer in registry (mod removed) — skip silently
                     }
@@ -234,6 +251,7 @@ public final class AENetworkCache {
         pendingBatch.clear();
         clearEphemeralQuery();
         lastBatchFlushTime = 0;
+        networkRefreshAt = Long.MAX_VALUE;
         wasInTerminal = false;
         needsInitialScan = false;
         cacheDirty = false;
@@ -259,6 +277,7 @@ public final class AENetworkCache {
         pendingBatch.clear();
         clearEphemeralQuery();
         lastBatchFlushTime = 0;
+        networkRefreshAt = Long.MAX_VALUE;
         wasInTerminal = false;
         needsInitialScan = false;
         cacheDirty = true;
@@ -299,8 +318,42 @@ public final class AENetworkCache {
         }
     }
 
+    /**
+     * ItemStack intentionally uses identity equality in this Minecraft version.
+     * This value object supplies content equality without scanning the cache.
+     */
+    private static final class CacheKey {
+        private final Item item;
+        private final DataComponentMap components;
+        private final int hashCode;
+
+        private CacheKey(Item item, DataComponentMap components) {
+            this.item = item;
+            this.components = components;
+            this.hashCode = 31 * (31 + item.hashCode()) + components.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof CacheKey key)) return false;
+            return item == key.item && components.equals(key.components);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+    }
+
+    private record CachedEntry(ItemStack stack, CachedInfo info) {
+    }
+
+    private record PendingQuery(ItemStack stack, boolean queryCraftability, boolean forceRefresh) {
+    }
+
     private static class ServerState {
-        final Map<ItemStack, CachedInfo> cache = new HashMap<>();
+        final Map<CacheKey, CachedEntry> cache = new HashMap<>();
     }
 
     /** Whether the player can actually query the AE network (needs an open AE2 terminal). */
@@ -319,6 +372,7 @@ public final class AENetworkCache {
                 wasInTerminal = false;
                 needsInitialScan = false;
                 pendingBatch.clear();
+                networkRefreshAt = Long.MAX_VALUE;
                 current.cache.clear();
                 clearEphemeralQuery();
                 accessCheckScreen = null;
@@ -326,44 +380,58 @@ public final class AENetworkCache {
             return;
         }
 
-        // Only send queries when actually in an AE2 terminal
-        if (!canQueryNetwork(mc)) {
+        boolean terminalAccess = canQueryNetwork(mc);
+        boolean wirelessAccess = !terminalAccess && computeAEAccess(mc);
+        if (!terminalAccess && !wirelessAccess) {
             if (wasInTerminal) {
                 wasInTerminal = false;
                 needsInitialScan = false;
             }
             if (!pendingBatch.isEmpty()) {
                 pendingBatch.clear();
+                networkRefreshAt = Long.MAX_VALUE;
                 ModLogger.debug("Batch: cleared pending (not in terminal)");
             }
             return;
         }
 
-        // Detect terminal just opened → signal mixin to collect visible items
-        if (!wasInTerminal) {
-            wasInTerminal = true;
-            needsInitialScan = true;
-            lastBatchFlushTime = 0;
-        }
+        if (terminalAccess) {
+            // Detect terminal just opened → signal mixin to collect visible items
+            if (!wasInTerminal) {
+                wasInTerminal = true;
+                needsInitialScan = true;
+                lastBatchFlushTime = 0;
+            }
 
-        // Collect hovered item into the pending batch — throttled to reduce per-frame EMI overhead
-        if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
-            var hovered = EmiApi.getHoveredStack(true);
-            if (hovered != null && !hovered.isEmpty()) {
-                var stack = hovered.getStack().getEmiStacks().stream()
-                        .map(EmiStack::getItemStack)
-                        .filter(s -> !s.isEmpty())
-                        .findFirst()
-                        .orElse(ItemStack.EMPTY);
-                if (!stack.isEmpty()) {
-                    submitForBatch(stack, true);
+            // Collect hovered item into the pending batch — throttled to reduce per-frame EMI overhead
+            if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
+                var hovered = EmiApi.getHoveredStack(true);
+                if (hovered != null && !hovered.isEmpty()) {
+                    var stack = hovered.getStack().getEmiStacks().stream()
+                            .map(EmiStack::getItemStack)
+                            .filter(s -> !s.isEmpty())
+                            .findFirst()
+                            .orElse(ItemStack.EMPTY);
+                    if (!stack.isEmpty()) {
+                        submitForBatch(stack, true);
+                    }
                 }
             }
+        } else if (wasInTerminal) {
+            // Keep direct wireless refreshes alive without starting a full sidebar scan.
+            wasInTerminal = false;
+            needsInitialScan = false;
         }
 
         // Flush batch on timer
         long now = System.currentTimeMillis();
-        if (now - lastBatchFlushTime >= batchFlushMs() && !pendingBatch.isEmpty()) {
+        if (networkRefreshAt != Long.MAX_VALUE && now >= networkRefreshAt) {
+            networkRefreshAt = Long.MAX_VALUE;
+            lastBatchFlushTime = now;
+            ModLogger.debug("Batch: flushing priority network refresh after transfer");
+            flushBatch(true);
+        } else if (networkRefreshAt == Long.MAX_VALUE
+                && now - lastBatchFlushTime >= batchFlushMs() && !pendingBatch.isEmpty()) {
             flushBatch();
             lastBatchFlushTime = now;
         }
@@ -377,16 +445,28 @@ public final class AENetworkCache {
 
     /**
      * Filter pending batch to items that aren't cached (or whose cache is expired),
-     * then send the batch query to the server.
+     * then send the batch query to the server. A priority-only flush sends only
+     * entries marked by a completed network transfer and leaves ordinary hover
+     * queries queued for the regular batch interval.
      */
     private static void flushBatch() {
+        flushBatch(false);
+    }
+
+    private static void flushBatch(boolean priorityOnly) {
         var countOnly = new ArrayList<ItemStack>();
         var withCraftability = new ArrayList<ItemStack>();
+        var flushedKeys = new ArrayList<CacheKey>();
         for (var entry : pendingBatch.entrySet()) {
-            var it = entry.getKey();
-            boolean queryCraftability = entry.getValue();
+            if (priorityOnly && !entry.getValue().forceRefresh()) continue;
+
+            var it = entry.getValue().stack();
+            boolean queryCraftability = entry.getValue().queryCraftability();
+            boolean forceRefresh = entry.getValue().forceRefresh();
+            flushedKeys.add(entry.getKey());
             var cached = findCached(it);
-            if (cached == null
+            if (forceRefresh
+                    || cached == null
                     || cached.isExpired(cached.count() == 0 && (!cached.craftabilityKnown() || !cached.craftable()))
                     || (queryCraftability && !cached.craftabilityKnown())) {
                 if (queryCraftability) {
@@ -396,10 +476,13 @@ public final class AENetworkCache {
                 }
             }
         }
-        pendingBatch.clear();
+        for (var key : flushedKeys) {
+            pendingBatch.remove(key);
+        }
 
         if (countOnly.isEmpty() && withCraftability.isEmpty()) {
-            ModLogger.debug("Batch: flush skipped (all items already cached)");
+            ModLogger.debug("Batch: {} flush skipped (all items already cached)",
+                    priorityOnly ? "priority" : "regular");
             return;
         }
 
@@ -410,8 +493,8 @@ public final class AENetworkCache {
             if (!withCraftability.isEmpty()) {
                 ClientPacketHelper.sendToServer(new AEBatchQueryPacket(withCraftability, true));
             }
-            ModLogger.debug("Batch: flushed {} count-only items and {} craftability items",
-                    countOnly.size(), withCraftability.size());
+            ModLogger.debug("Batch: flushed {} count-only items and {} craftability items ({})",
+                    countOnly.size(), withCraftability.size(), priorityOnly ? "priority" : "regular");
         } catch (Exception e) {
             ModLogger.warn("AEQuery: server doesn't have EmiLink, disabling cache");
             current.cache.clear();
@@ -424,24 +507,24 @@ public final class AENetworkCache {
 
     public static void receiveResponse(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {
         if (stack == null || stack.isEmpty()) return;
-        var key = normalizeKey(stack);
-        boolean ephemeral = containsMatching(ephemeralKeys, key);
+        var keyStack = normalizeKey(stack);
+        var key = cacheKey(keyStack);
+        boolean ephemeral = ephemeralKeys.contains(key);
         ModLogger.debug("AE cache: response item={} count={} ephemeralMatch={} ephemeralKeys={} craftable={} known={}",
                 stack.getHoverName().getString(), count, ephemeral, ephemeralKeys.size(), craftable, craftabilityKnown);
         if (ephemeral) {
-            removeMatching(ephemeralCache, key);
             ephemeralCache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
             return;
         }
-        current.cache.put(key, new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis()));
+        current.cache.put(key, new CachedEntry(keyStack,
+                new CachedInfo(count, craftable, craftabilityKnown, System.currentTimeMillis())));
         cacheDirty = true;
 
         if (!craftabilityKnown
-                && count <= 0
                 && EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
                 && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get()
                 && hasAEAccess()) {
-            submitForBatch(key, true);
+            submitForBatch(keyStack, true);
         }
     }
 
@@ -449,74 +532,43 @@ public final class AENetworkCache {
     public static void invalidateEntries(java.util.Collection<ItemStack> stacks) {
         for (var stack : stacks) {
             if (stack == null || stack.isEmpty()) continue;
-            ephemeralKeys.removeIf(entry -> ItemStack.isSameItemSameComponents(entry, stack));
-            ephemeralCache.entrySet().removeIf(entry ->
-                    ItemStack.isSameItemSameComponents(entry.getKey(), stack));
-            current.cache.entrySet().removeIf(entry ->
-                    ItemStack.isSameItemSameComponents(entry.getKey(), stack));
+            var key = cacheKey(normalizeKey(stack));
+            ephemeralKeys.remove(key);
+            ephemeralCache.remove(key);
+            current.cache.remove(key);
         }
         cacheDirty = true;
     }
 
-    public static void addToTooltip(ItemStack stack, List<ClientTooltipComponent> list) {
+    /**
+     * Re-query one item after a successful network transfer. The transfer itself
+     * is sent immediately by the caller, so the query is deferred briefly to
+     * ensure the server processes the transfer first. Repeated transfers in the
+     * same interaction are merged into one forced query.
+     */
+    public static void refreshAfterNetworkChange(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return;
-        var cached = findCached(stack);
-        if (cached == null) return;
-        if (cached.count() <= 0 && !cached.craftable()) return;
-
-        if (cached.count() > 0) {
-            list.add(EmiTooltipComponents.of(
-                    Component.translatable("ae_tooltip.count", formatNetworkAmount(cached.count()))
-                            .withStyle(ChatFormatting.GRAY)));
+        if (!hasAEAccess()) {
+            ModLogger.debug("AE cache: deferred refresh for {} (no AE terminal or wireless terminal)",
+                    stack.getHoverName().getString());
+            return;
         }
-        if (cached.craftabilityKnown() && cached.craftable()) {
-            list.add(EmiTooltipComponents.of(
-                    Component.translatable("ae_tooltip.craftable")
-                            .withStyle(ChatFormatting.GREEN)));
-        }
+        boolean queryCraftability = EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
+                && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get();
+        submitForBatch(stack, queryCraftability, true);
+        long refreshDelay = batchFlushMs();
+        networkRefreshAt = System.currentTimeMillis() + refreshDelay;
+        ModLogger.debug("AE cache: scheduled refresh after network change for {} in {}ms",
+                stack.getHoverName().getString(), refreshDelay);
     }
 
     /**
-     * Public result record for badge rendering.
+     * Public result record for network overlay rendering.
      */
     public record CachedResult(long count, boolean craftable, boolean found) {}
 
-    public static String formatNetworkAmount(long count) {
-        if (count <= 0) {
-            return "0";
-        }
-        try {
-            Class<?> converter = Class.forName("appeng.util.ReadableNumberConverter");
-            return (String) converter.getMethod("format", long.class, int.class).invoke(null, count, 4);
-        } catch (Throwable ignored) {
-            return fallbackFormatNetworkAmount(count);
-        }
-    }
-
-    private static String fallbackFormatNetworkAmount(long count) {
-        if (count < 1_000L) {
-            return Long.toString(count);
-        }
-        if (count < 1_000_000L) {
-            return compactAmount(count, 1_000L, "K");
-        }
-        if (count < 1_000_000_000L) {
-            return compactAmount(count, 1_000_000L, "M");
-        }
-        return compactAmount(count, 1_000_000_000L, "G");
-    }
-
-    private static String compactAmount(long count, long unit, String suffix) {
-        long whole = count / unit;
-        long tenths = (count % unit) * 10 / unit;
-        if (whole >= 10 || tenths == 0) {
-            return whole + suffix;
-        }
-        return whole + "." + tenths + suffix;
-    }
-
     /**
-     * Public accessor for corner badge rendering. Returns cached AE network info
+     * Public accessor for network overlay rendering. Returns cached AE network info
      * for the given stack, or {@code CachedResult(0, false, false)} if not cached.
      */
     public static CachedResult getCachedResult(ItemStack stack) {
@@ -545,31 +597,16 @@ public final class AENetworkCache {
     }
 
     /**
-     * Cache lookup. ItemStack.hashCode/equals in 1.21.1 ignores count,
-     * so keys stored with copyWithCount(1) are found by any count variant.
-     * Falls back to linear scan for collision/component edge cases.
+     * Cache lookup by content key. This stays O(1) per visible item while still
+     * matching the complete component set. {@link #normalizeKey} removes only
+     * vanilla DAMAGE for damageable items, preserving all other components.
      */
     private static CachedInfo findCached(ItemStack stack) {
-        var ephemeral = ephemeralCache.get(stack);
-        if (ephemeral != null) return ephemeral;
-
-        var direct = current.cache.get(stack);
-        if (direct != null) return direct;
-
-        // Some AE/EMI stacks carry equivalent component data in distinct
-        // ItemStack instances. Keep the preflight lookup resilient to that
-        // representation difference, including damaged tools.
-        for (var entry : ephemeralCache.entrySet()) {
-            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
-                return entry.getValue();
-            }
-        }
-        for (var entry : current.cache.entrySet()) {
-            if (BomItemStackMatcher.matches(entry.getKey(), stack)) {
-                return entry.getValue();
-            }
-        }
-        return null;
+        var key = lookupKey(stack);
+        var e = ephemeralCache.get(key);
+        if (e != null) return e;
+        var d = current.cache.get(key);
+        return d == null ? null : d.info();
     }
 
     /** Quick check if the cache has any entries (avoids iterating visible items). */
@@ -579,21 +616,26 @@ public final class AENetworkCache {
     }
 
     private static ItemStack normalizeKey(ItemStack stack) {
-        return stack.copyWithCount(1);
-    }
-
-    private static boolean containsMatching(Set<ItemStack> stacks, ItemStack target) {
-        if (stacks.contains(target)) return true;
-        for (var stack : stacks) {
-            if (ItemStack.isSameItemSameComponents(stack, target)) {
-                return true;
-            }
+        ItemStack copy = stack.copyWithCount(1);
+        if (copy.isDamageableItem()) {
+            copy.remove(net.minecraft.core.component.DataComponents.DAMAGE);
         }
-        return false;
+        return copy;
     }
 
-    private static void removeMatching(Map<ItemStack, CachedInfo> cache, ItemStack target) {
-        cache.entrySet().removeIf(entry -> ItemStack.isSameItemSameComponents(entry.getKey(), target));
+    private static CacheKey cacheKey(ItemStack stack) {
+        return new CacheKey(stack.getItem(), stack.getComponents());
+    }
+
+    /**
+     * Build a lookup key without copying ordinary stacks every render frame.
+     * A copy is needed only when the damage component must be ignored.
+     */
+    private static CacheKey lookupKey(ItemStack stack) {
+        if (stack.isDamageableItem() && stack.has(net.minecraft.core.component.DataComponents.DAMAGE)) {
+            return cacheKey(normalizeKey(stack));
+        }
+        return cacheKey(stack);
     }
 
     public static boolean hasAEAccess() {

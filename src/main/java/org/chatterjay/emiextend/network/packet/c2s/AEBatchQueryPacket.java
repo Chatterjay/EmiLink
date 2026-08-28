@@ -72,9 +72,15 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
         try {
             var menu = player.containerMenu;
             Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
-            if (!aeBaseMenuClass.isInstance(menu)) return;
-
-            Object grid = AE2GridQueryUtil.resolveGrid(aeBaseMenuClass, menu);
+            Object grid = aeBaseMenuClass.isInstance(menu)
+                    ? AE2GridQueryUtil.resolveGrid(aeBaseMenuClass, menu)
+                    : null;
+            if (grid == null) {
+                // A direct refresh can happen from a normal inventory screen.
+                // In that case use the player's wireless terminal instead of
+                // requiring an AEBaseMenu just to query one changed item.
+                grid = AEDepositPacket.resolveGridFromWirelessTerminal(player);
+            }
             if (grid == null) return;
 
             Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
@@ -104,8 +110,9 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
         }
 
         if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
-            ModLogger.debug("AEBatchQuery: sending response entries={} queryCraftability={} durabilityCompatible={} stacks={}",
-                    results.size(), queryCraftability, durabilityCompatible, stacks.size());
+            ModLogger.debug("AEBatchQuery: sending response entries={} queryCraftability={} durabilityCompatible={} stacks={} menu={}",
+                    results.size(), queryCraftability, durabilityCompatible, stacks.size(),
+                    player.containerMenu.getClass().getName());
             PacketDistributor.sendToPlayer(sp, new AEBatchQueryResponsePacket(results));
         }
     }

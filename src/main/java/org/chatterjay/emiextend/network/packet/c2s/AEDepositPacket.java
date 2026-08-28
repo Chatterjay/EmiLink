@@ -145,13 +145,7 @@ public record AEDepositPacket(ItemStack stack, int slotIndex, boolean dropOnFail
 
     static Object resolveInventoryFromWirelessTerminal(Player player, Class<?> aeItemKeyClass) {
         try {
-            ItemStack terminal = findWirelessTerminal(player);
-            if (terminal == null || terminal.isEmpty()) return null;
-
-            java.util.function.Consumer<?> noop = msg -> {};
-            Object grid = terminal.getItem().getClass()
-                    .getMethod("getLinkedGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class)
-                    .invoke(terminal.getItem(), terminal, player.level(), noop);
+            Object grid = resolveGridFromWirelessTerminal(player);
             if (grid == null) return null;
 
             Object storageSvc = AE2GridQueryUtil.callMethodOnBestMatch(grid, "getStorageService", "getStorageGrid");
@@ -160,6 +154,22 @@ public record AEDepositPacket(ItemStack stack, int slotIndex, boolean dropOnFail
             return AE2GridQueryUtil.callMethodOnBestMatch(storageSvc, "getInventory");
         } catch (Exception e) {
             ModLogger.warn("AEDeposit: wireless terminal error: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** Resolve the AE grid linked to the player's wireless terminal. */
+    static Object resolveGridFromWirelessTerminal(Player player) {
+        try {
+            ItemStack terminal = findWirelessTerminal(player);
+            if (terminal == null || terminal.isEmpty()) return null;
+
+            java.util.function.Consumer<?> noop = msg -> {};
+            return terminal.getItem().getClass()
+                    .getMethod("getLinkedGrid", ItemStack.class, net.minecraft.world.level.Level.class, java.util.function.Consumer.class)
+                    .invoke(terminal.getItem(), terminal, player.level(), noop);
+        } catch (Exception e) {
+            ModLogger.warn("AEDeposit: wireless grid error: {}", e.getMessage());
             return null;
         }
     }

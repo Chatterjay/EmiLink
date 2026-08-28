@@ -50,7 +50,6 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
     public static final ModConfigSpec.BooleanValue ENABLE_CRAFTABLE_NETWORK_BADGES;
     public static final ModConfigSpec.IntValue INITIAL_BADGE_SCAN_LIMIT;
-    public static final ModConfigSpec.IntValue NETWORK_BADGE_STYLE;
     public static final ModConfigSpec.ConfigValue<String> EXTRACT_MODIFIER;
     public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ModConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
@@ -89,13 +88,13 @@ public final class EmiLinkConfig {
         NEGATIVE_CACHE_TTL_MS = BUILDER
                 .comment("Negative cache (item not found) TTL in milliseconds (100-120000)")
                 .translation("emilink.config.cache.negativeCacheTTLMs")
-                .defineInRange("negativeCacheTTLMs", 10_000L, 100L, 120_000L);
+                .defineInRange("negativeCacheTTLMs", 5_000L, 100L, 120_000L);
 
         BATCH_FLUSH_MS = BUILDER
-                .comment("Batch query flush interval in milliseconds (200-10000). " +
+                .comment("Batch query flush interval in milliseconds (100-10000). " +
                          "How often pending AE queries are batched and sent to the server.")
                 .translation("emilink.config.cache.batchFlushMs")
-                .defineInRange("batchFlushMs", 5_000L, 200L, 10_000L);
+                .defineInRange("batchFlushMs", 5_000L, 100L, 10_000L);
 
         BUILDER.pop();
         BUILDER.push("emi_ui");
@@ -185,14 +184,13 @@ public final class EmiLinkConfig {
                 .define("enableAeNetworkLookup", true);
 
         ENABLE_NETWORK_BADGES = BUILDER
-                .comment("Show AE network status corner badges on EMI item icons " +
-                         "(green=in stock, yellow=craftable only)")
+                .comment("Show AE network overlays on EMI item icons: bottom text (count or 'craft') and top-right craftable cross")
                 .translation("emilink.config.ae_network.enableNetworkBadges")
                 .define("enableNetworkBadges", false);
 
         ENABLE_CRAFTABLE_NETWORK_BADGES = BUILDER
-                .comment("Also query AE craftability for yellow EMI badges. " +
-                         "Disable this on large AE networks to avoid expensive craftable checks when opening terminals.")
+                .comment("Also query AE craftability for the craftable cross and 'craft' label. " +
+                         "Disable this on large AE networks to show only stock counts.")
                 .translation("emilink.config.ae_network.enableCraftableNetworkBadges")
                 .define("enableCraftableNetworkBadges", false);
 
@@ -201,13 +199,6 @@ public final class EmiLinkConfig {
                          "Set to 0 to disable the initial badge scan.")
                 .translation("emilink.config.ae_network.initialBadgeScanLimit")
                 .defineInRange("initialBadgeScanLimit", 24, 0, 512);
-
-        NETWORK_BADGE_STYLE = BUILDER
-                .comment("Badge rendering style when network badges are enabled: " +
-                         "1 = bottom-right 6x6 filled square, " +
-                         "2 = top-left 6x6 hollow border")
-                .translation("emilink.config.ae_network.networkBadgeStyle")
-                .defineInRange("networkBadgeStyle", 1, 1, 2);
 
         EXTRACT_MODIFIER = BUILDER
                 .comment("Modifier for Click-to-extract from AE/BD network. Any key or mouse button; OFF disables.")
@@ -278,11 +269,10 @@ public final class EmiLinkConfig {
         validated = true;
 
         validateLong(CACHE_TTL_MS, "cache.cacheTTLMs", 5_000L, 100L, 60_000L);
-        validateLong(NEGATIVE_CACHE_TTL_MS, "cache.negativeCacheTTLMs", 10_000L, 100L, 120_000L);
-        validateLong(BATCH_FLUSH_MS, "cache.batchFlushMs", 5_000L, 200L, 10_000L);
+        validateLong(NEGATIVE_CACHE_TTL_MS, "cache.negativeCacheTTLMs", 5_000L, 100L, 120_000L);
+        validateLong(BATCH_FLUSH_MS, "cache.batchFlushMs", 5_000L, 100L, 10_000L);
         validateInt(FAVORITE_PAGE_COUNT, "emi_ui.favoritePageCount", 5, 1, 50);
         validateInt(INITIAL_BADGE_SCAN_LIMIT, "ae_network.initialBadgeScanLimit", 24, 0, 512);
-        validateInt(NETWORK_BADGE_STYLE, "ae_network.networkBadgeStyle", 1, 1, 2);
         validateInt(QUICK_CRAFT_BATCHES_PER_TICK, "quick_craft.batchesPerTick", 64, 1, 256);
     }
 

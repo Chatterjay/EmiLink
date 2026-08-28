@@ -196,6 +196,7 @@ public final class EmiInteractionHandler {
                             sent = ClientPacketHelper.sendToServer(new AEDepositPacket(carried.copy(), -1));
                         }
                         if (sent) {
+                            AENetworkCache.refreshAfterNetworkChange(carried);
                             cs.getMenu().setCarried(ItemStack.EMPTY);
                         }
                         return sent;
@@ -283,6 +284,7 @@ public final class EmiInteractionHandler {
         if (!ClientPacketHelper.sendToServer(new AEExtractPacket(stack.copyWithCount(1), 1))) {
             return false;
         }
+        AENetworkCache.refreshAfterNetworkChange(stack);
         org.chatterjay.emiextend.util.ModLogger.debug(
                 "AE_EMI_CTRL_CRAFT ctrl-hover extract item={} stored={} craftable={}",
                 stack.getHoverName().getString(), cached.count(), cached.craftable());
@@ -460,9 +462,7 @@ public final class EmiInteractionHandler {
         }
     }
 
-    /**
-     * Inject AE network info tooltip. Returns the modified tooltip list.
-     */
+    /** Add EmiLink-specific recipe hints without adding network state to tooltips. */
     public static List<ClientTooltipComponent> addAeTooltipInfo(
             EmiIngredient hovered, int mouseX, int mouseY, List<ClientTooltipComponent> original) {
         if (original == null || original.isEmpty()) return original;
@@ -476,23 +476,6 @@ public final class EmiInteractionHandler {
             result.add(EmiTooltipComponents.of(
                     Component.translatable("emilink.tooltip.quick_craft")));
         }
-
-        var space = EmiScreenManager.getHoveredSpace(mouseX, mouseY);
-        if (space == null) return result;
-        if (!AE2Proxy.isLoaded()) return result;
-        if (!AENetworkCache.hasAEAccess()) return result;
-
-        var stack = hovered.getEmiStacks().stream()
-                .map(EmiStack::getItemStack)
-                .filter(s -> !s.isEmpty())
-                .findFirst()
-                .orElse(ItemStack.EMPTY);
-        if (stack.isEmpty()) return result;
-
-        if (result == original) {
-            result = new ArrayList<>(original);
-        }
-        AENetworkCache.addToTooltip(stack, result);
         return result;
     }
 
@@ -515,7 +498,11 @@ public final class EmiInteractionHandler {
         var player = Minecraft.getInstance().player;
         if (player == null) return false;
         if (!hasWirelessTerminal(player)) return false;
-        return EAEPProxy.pullFromNetwork(itemStack);
+        boolean sent = EAEPProxy.pullFromNetwork(itemStack);
+        if (sent) {
+            AENetworkCache.refreshAfterNetworkChange(itemStack);
+        }
+        return sent;
     }
 
     // ---- BD handler ----
