@@ -6,7 +6,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.chatterjay.emiextend.EmiAE2;
-import org.chatterjay.emiextend.client.BDShortcutHandler;
+import org.chatterjay.emiextend.client.AENetworkCache;
 
 public record ServerHasModPacket() implements CustomPacketPayload {
     public static final Type<ServerHasModPacket> TYPE =
@@ -19,7 +19,7 @@ public record ServerHasModPacket() implements CustomPacketPayload {
             );
 
     public static void handle(final ServerHasModPacket packet, final IPayloadContext context) {
-        context.enqueueWork(() -> BDShortcutHandler.serverHasMod = true);
+        context.enqueueWork(AENetworkCache::onServerCapabilityConfirmed);
     }
 
     @Override

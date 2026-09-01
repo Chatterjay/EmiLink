@@ -184,12 +184,12 @@ public final class EmiLinkConfig {
                 .define("enableAeNetworkLookup", true);
 
         ENABLE_NETWORK_BADGES = BUILDER
-                .comment("Show AE network overlays on EMI item icons: bottom text (count or 'craft') and top-right craftable cross")
+                .comment("Show AE network overlays on EMI item icons: bottom stock count and top-right craftable cross")
                 .translation("emilink.config.ae_network.enableNetworkBadges")
                 .define("enableNetworkBadges", false);
 
         ENABLE_CRAFTABLE_NETWORK_BADGES = BUILDER
-                .comment("Also query AE craftability for the craftable cross and 'craft' label. " +
+                .comment("Also query AE craftability for the top-right cross. " +
                          "Disable this on large AE networks to show only stock counts.")
                 .translation("emilink.config.ae_network.enableCraftableNetworkBadges")
                 .define("enableCraftableNetworkBadges", false);

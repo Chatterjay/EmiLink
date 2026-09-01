@@ -61,6 +61,10 @@ public final class AENetworkCache {
     /** Tracks terminal open/close state for initial scan detection. */
     private static boolean wasInTerminal = false;
     private static boolean needsInitialScan = false;
+    private static Screen initialScanScreen = null;
+
+    /** Server capability handshake has not completed while joining a world. */
+    private static boolean serverCapabilityKnown = false;
 
     /** Per-frame cache: screen that hasAEAccess() was last computed for. */
     private static Screen accessCheckScreen = null;
@@ -137,6 +141,30 @@ public final class AENetworkCache {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Arm the first sidebar scan from the EMI render path as well as the tick
+     * path. This covers the frame where EMI finishes building its index after
+     * the AE terminal was already open.
+     */
+    public static void requestInitialScanIfNeeded() {
+        var mc = Minecraft.getInstance();
+        if (!canQueryNetwork(mc) || mc.screen == null) return;
+        if (!wasInTerminal || initialScanScreen != mc.screen) {
+            wasInTerminal = true;
+            initialScanScreen = mc.screen;
+            needsInitialScan = true;
+            lastBatchFlushTime = 0;
+            ModLogger.debug("Initial scan: armed for AE screen {}", mc.screen.getClass().getName());
+        }
+    }
+
+    /** Called when the server confirms that EmiLink packet handlers are available. */
+    public static void onServerCapabilityConfirmed() {
+        serverCapabilityKnown = true;
+        BDShortcutHandler.serverHasMod = true;
+        ModLogger.debug("Server capability confirmed; keeping persisted AE cache");
     }
 
     /** Immediately flush the pending batch (used after initial scan collection). */
@@ -245,6 +273,7 @@ public final class AENetworkCache {
     @SubscribeEvent
     public static void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         BDShortcutHandler.serverHasMod = false;
+        serverCapabilityKnown = false;
         currentServerId = resolveServerId();
         serverStates.remove(currentServerId);
         current = serverStates.computeIfAbsent(currentServerId, k -> new ServerState());
@@ -254,6 +283,7 @@ public final class AENetworkCache {
         networkRefreshAt = Long.MAX_VALUE;
         wasInTerminal = false;
         needsInitialScan = false;
+        initialScanScreen = null;
         cacheDirty = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
@@ -264,10 +294,12 @@ public final class AENetworkCache {
     @SubscribeEvent
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         BDShortcutHandler.serverHasMod = false;
+        serverCapabilityKnown = false;
         saveToDisk();
         pendingBatch.clear();
         clearEphemeralQuery();
         accessCheckScreen = null;
+        initialScanScreen = null;
         ModLogger.debug("Client network logout: reset EmiLink server capability state");
     }
 
@@ -280,6 +312,7 @@ public final class AENetworkCache {
         networkRefreshAt = Long.MAX_VALUE;
         wasInTerminal = false;
         needsInitialScan = false;
+        initialScanScreen = null;
         cacheDirty = true;
         accessCheckScreen = null;
         hoverTickCounter = 0;
@@ -295,6 +328,7 @@ public final class AENetworkCache {
         lastBatchFlushTime = 0;
         wasInTerminal = false;
         needsInitialScan = false;
+        initialScanScreen = null;
         cacheDirty = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
@@ -368,9 +402,16 @@ public final class AENetworkCache {
         var mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen == null) return;
         if (!BDShortcutHandler.serverHasMod) {
+            // The capability packet is sent after the client login event. Do
+            // not mistake this short handshake window for a server without
+            // EmiLink and erase the cache loaded from disk.
+            if (!serverCapabilityKnown) {
+                return;
+            }
             if (wasInTerminal || !pendingBatch.isEmpty() || current.cache.size() > 0) {
                 wasInTerminal = false;
                 needsInitialScan = false;
+                initialScanScreen = null;
                 pendingBatch.clear();
                 networkRefreshAt = Long.MAX_VALUE;
                 current.cache.clear();
@@ -386,6 +427,7 @@ public final class AENetworkCache {
             if (wasInTerminal) {
                 wasInTerminal = false;
                 needsInitialScan = false;
+                initialScanScreen = null;
             }
             if (!pendingBatch.isEmpty()) {
                 pendingBatch.clear();
@@ -399,6 +441,7 @@ public final class AENetworkCache {
             // Detect terminal just opened → signal mixin to collect visible items
             if (!wasInTerminal) {
                 wasInTerminal = true;
+                initialScanScreen = mc.screen;
                 needsInitialScan = true;
                 lastBatchFlushTime = 0;
             }
@@ -421,6 +464,7 @@ public final class AENetworkCache {
             // Keep direct wireless refreshes alive without starting a full sidebar scan.
             wasInTerminal = false;
             needsInitialScan = false;
+            initialScanScreen = null;
         }
 
         // Flush batch on timer

@@ -3,10 +3,12 @@ package org.chatterjay.emiextend.mixin;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.runtime.EmiDrawContext;
+import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.AENetworkCache;
+import org.chatterjay.emiextend.client.NetworkBadgeRenderState;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.util.ModLogger;
@@ -21,10 +23,10 @@ import java.util.List;
 /**
  * Mixin into EMI's ScreenSpace (sidebar item grid) to draw AE network overlays.
  * <p>
- * Bottom: text overlay left-aligned at the bottom of the 16x16 icon (craft / count).
+ * Bottom: the AE network item count, left-aligned at the bottom of the 16x16 icon.
  * Top-right: AE-style craftable plus sign when the item has a pattern.
  * <ul>
- *   <li>craftable && count == 0  -> bottom "craft", plus on top-right</li>
+ *   <li>craftable && count == 0  -> plus on top-right</li>
  *   <li>craftable && count > 0   -> bottom abbreviated count (k/m/g/t), plus on top-right</li>
  *   <li>!craftable && count > 0  -> bottom abbreviated count only</li>
  *   <li>otherwise                -> no overlay</li>
@@ -48,6 +50,18 @@ public abstract class EmiScreenSpaceMixin {
     @Shadow
     public abstract int getY(int col, int row);
 
+    @Inject(method = "render", at = @At("HEAD"), remap = false)
+    private void emilink$beginSidebarRender(EmiDrawContext context, int mouseX, int mouseY,
+                                             float delta, int scrollOffset, CallbackInfo ci) {
+        NetworkBadgeRenderState.beginSidebarRender();
+    }
+
+    @Inject(method = "render", at = @At("RETURN"), remap = false)
+    private void emilink$endSidebarRender(EmiDrawContext context, int mouseX, int mouseY,
+                                           float delta, int scrollOffset, CallbackInfo ci) {
+        NetworkBadgeRenderState.endSidebarRender();
+    }
+
 
     /**
      * Head injection: on terminal open, collect all visible uncached items into the pending
@@ -60,12 +74,16 @@ public abstract class EmiScreenSpaceMixin {
                                      float delta, int scrollOffset, CallbackInfo ci) {
         if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
         if (!AENetworkCache.hasAEAccess()) return;
+        AENetworkCache.requestInitialScanIfNeeded();
+        var stacks = getStacks();
+        // EMI can render the sidebar before its index has any cells. Keep the
+        // one-shot flag pending so the next populated render performs the scan.
+        if (stacks.isEmpty() || th <= 0) return;
         if (!AENetworkCache.consumeInitialScanFlag()) return;
 
         int scanLimit = EmiLinkConfig.INITIAL_BADGE_SCAN_LIMIT.get();
         if (scanLimit <= 0) return;
 
-        var stacks = getStacks();
         int index = scrollOffset;
 
         int submitted = 0;
@@ -108,7 +126,6 @@ public abstract class EmiScreenSpaceMixin {
                                             float delta, int scrollOffset, CallbackInfo ci) {
         if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
         if (!AENetworkCache.hasAEAccess()) return;
-        if (!AENetworkCache.hasAnyCached()) return;
 
         var stacks = getStacks();
         int index = scrollOffset;
@@ -145,15 +162,15 @@ public abstract class EmiScreenSpaceMixin {
                 if (itemStack == null) continue;
 
                 var result = AENetworkCache.getCachedResult(itemStack);
-                if (!result.found() || (result.count() <= 0 && !result.craftable())) continue;
-                cacheHits++;
-
-                String text = result.count() > 0 ? formatShortCount(result.count()) : "craft";
-                int color = result.count() > 0 ? 0xFFFFFFFF : 0xFFFFD740;
-                context.raw().drawString(font, text,
-                        (x + 1) * 2,
-                        (y + 11) * 2, color, true);
-                if (result.craftable()) drawTopRightPlus(context, x, y);
+                if (result.found() && result.count() > 0) {
+                    cacheHits++;
+                    context.raw().drawString(font, formatShortCount(result.count()),
+                            (x + 1) * 2,
+                            (y + 11) * 2, 0xFFFFFFFF, true);
+                }
+                if (result.craftable()) {
+                    drawTopRightPlus(context, x, y, hasRecipeFavoriteMarker(ingredient));
+                }
                 if (result.craftable()) craftableItems++;
             }
         }
@@ -202,17 +219,25 @@ public abstract class EmiScreenSpaceMixin {
      * Top-right craftable marker: an AE-style white plus at the top-right corner
      * of the 16x16 icon.
      */
-    private static void drawTopRightPlus(EmiDrawContext context, int x, int y) {
+    private static void drawTopRightPlus(EmiDrawContext context, int x, int y,
+                                         boolean hasRecipeFavoriteMarker) {
         int scale = 2;
         int ox = (x + 12) * scale;
-        int oy = (y + 1) * scale;
-        int black = 0xFF000000;
+        // EMI reserves the first 4 pixels in this corner for the recipe-favorite
+        // marker. Stack our 3x3 pattern marker directly below it when present.
+        int markerY = y + (hasRecipeFavoriteMarker ? 5 : 1);
+        int oy = markerY * scale;
         int white = 0xFFFFFFFF;
-        // A compact 3x3 plus. The one-pixel shadow keeps it readable over
-        // bright item textures without covering a large part of the icon.
-        context.fill(ox + 2, oy + 2, 6, 6, black);
+        // A compact 3x3 white plus. Do not draw a full backing square: its
+        // uncovered corner remains as a black block over some item textures.
         context.fill(ox, oy + 2, 6, 2, white);
         context.fill(ox + 2, oy, 2, 6, white);
+    }
+
+    private static boolean hasRecipeFavoriteMarker(EmiIngredient ingredient) {
+        return ingredient instanceof EmiFavorite favorite
+                && favorite.getRecipe() != null
+                && !(favorite instanceof EmiFavorite.Craftable);
     }
 
     /**

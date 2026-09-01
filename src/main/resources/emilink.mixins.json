@@ -12,6 +12,7 @@
     "CraftConfirmScreenMixin",
     "CraftingCPUScreenMixin",
     "EmiEncodePatternHandlerMixin",
+    "EmiItemStackRenderMixin",
     "EmiScreenBaseMixin",
     "EmiScreenManagerMixin",
     "EmiPlayerInventoryMixin",
