@@ -57,6 +57,9 @@ public final class AENetworkCache {
      * The default is five seconds.
      */
     private static long networkRefreshAt = Long.MAX_VALUE;
+    private static int indexScanCursor;
+    private static long lastIndexScanAt;
+    private static Screen indexScanScreen;
 
     /** Tracks terminal open/close state for initial scan detection. */
     private static boolean wasInTerminal = false;
@@ -111,6 +114,15 @@ public final class AENetworkCache {
      */
     public static void submitForBadge(ItemStack stack) {
         submitForBatch(stack, false);
+    }
+
+    /** Queue a visible badge for the low-latency transfer refresh lane. */
+    public static void submitVisibleBadge(ItemStack stack) {
+        boolean queryCraftability = EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
+                && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get();
+        submitForBatch(stack, queryCraftability, true);
+        long due = System.currentTimeMillis() + 250L;
+        networkRefreshAt = Math.min(networkRefreshAt, due);
     }
 
     /** Begin a temporary query scope whose results should be discarded after use. */
@@ -284,6 +296,9 @@ public final class AENetworkCache {
         wasInTerminal = false;
         needsInitialScan = false;
         initialScanScreen = null;
+        indexScanCursor = 0;
+        lastIndexScanAt = 0;
+        indexScanScreen = null;
         cacheDirty = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
@@ -460,6 +475,7 @@ public final class AENetworkCache {
                     }
                 }
             }
+            scanIndexBadgeChunk(mc);
         } else if (wasInTerminal) {
             // Keep direct wireless refreshes alive without starting a full sidebar scan.
             wasInTerminal = false;
@@ -485,6 +501,36 @@ public final class AENetworkCache {
             saveToDisk();
             lastAutoSaveTime = now;
         }
+    }
+
+    /**
+     * Warm the badge cache independently of the current sidebar scroll
+     * position. EMI only renders visible cells, so relying on render-time
+     * discovery leaves off-screen items permanently unqueried.
+     */
+    private static void scanIndexBadgeChunk(Minecraft mc) {
+        long now = System.currentTimeMillis();
+        if (now - lastIndexScanAt < 250L) return;
+        lastIndexScanAt = now;
+        if (indexScanScreen != mc.screen) {
+            indexScanScreen = mc.screen;
+            indexScanCursor = 0;
+        }
+        var stacks = EmiApi.getIndexStacks();
+        if (stacks == null || stacks.isEmpty()) return;
+        int budget = 32;
+        for (int i = 0; i < budget && indexScanCursor < stacks.size(); i++, indexScanCursor++) {
+            var ingredient = stacks.get(indexScanCursor);
+            if (ingredient == null || ingredient.isEmpty()) continue;
+            var item = ingredient.getEmiStacks().stream()
+                    .map(EmiStack::getItemStack)
+                    .filter(s -> !s.isEmpty())
+                    .findFirst().orElse(ItemStack.EMPTY);
+            if (!item.isEmpty() && !getCachedResult(item).found()) {
+                submitForBadge(item);
+            }
+        }
+        if (indexScanCursor >= stacks.size()) indexScanCursor = 0;
     }
 
     /**
@@ -599,8 +645,13 @@ public final class AENetworkCache {
         }
         boolean queryCraftability = EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
                 && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get();
+        // Keep the last value visible while the server processes the transfer.
+        // The forced query below replaces it atomically when the response
+        // arrives, avoiding a count/marker blink during the refresh window.
         submitForBatch(stack, queryCraftability, true);
-        long refreshDelay = batchFlushMs();
+        // A full batch interval is appropriate for passive sidebar scans, but
+        // is too sluggish after an explicit user transfer.
+        long refreshDelay = Math.min(batchFlushMs(), 250L);
         networkRefreshAt = System.currentTimeMillis() + refreshDelay;
         ModLogger.debug("AE cache: scheduled refresh after network change for {} in {}ms",
                 stack.getHoverName().getString(), refreshDelay);
@@ -610,6 +661,13 @@ public final class AENetworkCache {
      * Public result record for network overlay rendering.
      */
     public record CachedResult(long count, boolean craftable, boolean found) {}
+
+    /** Visible badges poll more frequently than the general persisted cache TTL. */
+    public static boolean shouldRefreshVisible(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        var cached = findCached(stack);
+        return cached == null || System.currentTimeMillis() - cached.timestamp() >= 1_000L;
+    }
 
     /**
      * Public accessor for network overlay rendering. Returns cached AE network info

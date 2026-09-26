@@ -162,6 +162,11 @@ public abstract class EmiScreenSpaceMixin {
                 if (itemStack == null) continue;
 
                 var result = AENetworkCache.getCachedResult(itemStack);
+                if (AENetworkCache.shouldRefreshVisible(itemStack)) {
+                    // Keep visible cells self-healing after network changes or
+                    // cache expiry; do not wait for a hover or a sidebar scroll.
+                    AENetworkCache.submitVisibleBadge(itemStack);
+                }
                 if (result.found() && result.count() > 0) {
                     cacheHits++;
                     context.raw().drawString(font, formatShortCount(result.count()),

@@ -10,6 +10,7 @@ import dev.emi.emi.bom.BoM;
 import dev.emi.emi.bom.MaterialNode;
 import dev.emi.emi.registry.EmiRecipeFiller;
 import dev.emi.emi.runtime.EmiFavorite;
+import dev.emi.emi.config.SidebarType;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -51,6 +52,7 @@ public final class InputEvents {
     private static final int CRAFTING_TRACKER_FALLBACK_FILTER_SLOTS = 9;
 
     private static boolean fillSearchHandled = false;
+    private static long suppressFillSearchCharacterUntil;
 
     /** Active BOM crafting job. AE batches may be submitted several at a time. */
     private static CraftingJob currentJob = null;
@@ -181,11 +183,12 @@ public final class InputEvents {
 
     @SubscribeEvent
     public static void onCharTypedPre(ScreenEvent.CharacterTyped.Pre event) {
-        if (fillSearchHandled) {
-            fillSearchHandled = false;
+        if (fillSearchHandled && System.currentTimeMillis() <= suppressFillSearchCharacterUntil) {
             if (event.getCodePoint() == 'f' || event.getCodePoint() == 'F') {
                 event.setCanceled(true);
             }
+        } else {
+            fillSearchHandled = false;
         }
     }
 
@@ -692,7 +695,16 @@ public final class InputEvents {
     }
 
     private static void onFillSearchKey(ScreenEvent.KeyPressed.Pre event) {
-        var hovered = EmiApi.getHoveredStack(true);
+        var screen = Minecraft.getInstance().screen;
+        if (screen == null || screen instanceof ChatScreen) return;
+
+        var mouse = getCurrentGuiMousePosition();
+        boolean aeStorageScreen = AE2Proxy.isMEStorageScreen(screen);
+        if (aeStorageScreen && !isHoveredEmiSidebar(mouse.x(), mouse.y())) {
+            return;
+        }
+
+        var hovered = EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false);
         if (hovered == null || hovered.isEmpty()) return;
 
         var ingredient = hovered.getStack();
@@ -708,16 +720,12 @@ public final class InputEvents {
         var text = alt ? "@" + first.getId().getNamespace() : first.getName().getString();
         if (text.isEmpty()) return;
 
-        var screen = Minecraft.getInstance().screen;
-        if (screen == null) return;
-        if (screen instanceof ChatScreen) return;
-
         // 1. AE terminals keep EMI sync one-way unless the AE search box is focused.
         // Set both sides explicitly so F-search updates the terminal and EMI together.
         if (AE2Proxy.isMEStorageScreen(screen)) {
             if (trySetAeSearchText(screen, text) || trySetExternalSearchField(screen, text)) {
                 SearchHistoryOverlay.applySearch(text, icon);
-                fillSearchHandled = true;
+                markFillSearchHandled();
                 event.setCanceled(true);
                 return;
             }
@@ -725,7 +733,7 @@ public final class InputEvents {
             // so the user sees the search term and the next tick can propagate it.
             try {
                 SearchHistoryOverlay.applySearch(text, icon);
-                fillSearchHandled = true;
+                markFillSearchHandled();
                 event.setCanceled(true);
                 return;
             } catch (Exception ignored) {}
@@ -735,7 +743,7 @@ public final class InputEvents {
         // naming but are typed as a different screen class.
         if (trySetAeAffiliatedSearchText(screen, text)) {
             SearchHistoryOverlay.applySearch(text, icon);
-            fillSearchHandled = true;
+            markFillSearchHandled();
             event.setCanceled(true);
             return;
         }
@@ -745,7 +753,7 @@ public final class InputEvents {
             focusedEb.setValue(text);
             focusedEb.setCursorPosition(text.length());
             SearchHistoryOverlay.applySearch(text, icon);
-            fillSearchHandled = true;
+            markFillSearchHandled();
             event.setCanceled(true);
             return;
         }
@@ -753,7 +761,7 @@ public final class InputEvents {
         // 3. BD-specific (non-standard search API)
         if (BDProxy.isBDNetGUI(screen) && BDProxy.setSearchText(screen, text)) {
             SearchHistoryOverlay.applySearch(text, icon);
-            fillSearchHandled = true;
+            markFillSearchHandled();
             event.setCanceled(true);
             return;
         }
@@ -764,7 +772,7 @@ public final class InputEvents {
                 eb.setValue(text);
                 eb.setCursorPosition(text.length());
                 SearchHistoryOverlay.applySearch(text, icon);
-                fillSearchHandled = true;
+                markFillSearchHandled();
                 event.setCanceled(true);
                 return;
             }
@@ -782,7 +790,7 @@ public final class InputEvents {
                 var setValue = widget.getClass().getMethod("setValue", String.class);
                 setValue.invoke(widget, text);
                 SearchHistoryOverlay.applySearch(text, icon);
-                fillSearchHandled = true;
+                markFillSearchHandled();
                 event.setCanceled(true);
                 return;
             } catch (Exception ignored) {}
@@ -790,10 +798,28 @@ public final class InputEvents {
 
         // 6. EMI search fallback
         SearchHistoryOverlay.applySearch(text, icon);
-        fillSearchHandled = true;
+        markFillSearchHandled();
         if (event != null) {
             event.setCanceled(true);
         }
+    }
+
+    private static void markFillSearchHandled() {
+        fillSearchHandled = true;
+        suppressFillSearchCharacterUntil = System.currentTimeMillis() + 500L;
+    }
+
+    private static boolean isHoveredEmiSidebar(double mouseX, double mouseY) {
+        int x = (int) mouseX;
+        int y = (int) mouseY;
+        var panel = EmiScreenManager.getHoveredPanel(x, y);
+        if (panel == null || !panel.isVisible()) return false;
+        var panelType = panel.getType();
+        if (panelType != SidebarType.INDEX && panelType != SidebarType.FAVORITES) return false;
+        var space = panel.getHoveredSpace(x, y);
+        if (space == null || !space.contains(x, y)) return false;
+        var type = space.getType();
+        return type == SidebarType.INDEX || type == SidebarType.FAVORITES;
     }
 
     /** Check if screen is any supported pattern encoding terminal (AE2, ExtendedAE, or RS) */
@@ -2378,6 +2404,8 @@ public final class InputEvents {
 
         var space = dev.emi.emi.screen.EmiScreenManager.getHoveredSpace(event.getMouseX(), event.getMouseY());
         if (space == null) return;
+        var hovered = dev.emi.emi.api.EmiApi.getHoveredStack(event.getMouseX(), event.getMouseY(), false);
+        if (hovered == null || hovered.isEmpty()) return;
         if (mc.player == null || !org.chatterjay.emiextend.client.handler.EmiInteractionHandler.hasWirelessTerminal(mc.player)) return;
         // Keep EMI's cursor-delete action when it is actually configured.
         if (org.chatterjay.emiextend.client.handler.EmiInteractionHandler.emiOwnsCursorDelete()) return;

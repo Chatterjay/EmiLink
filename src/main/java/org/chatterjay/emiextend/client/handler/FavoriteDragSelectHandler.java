@@ -17,14 +17,13 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Modifier + left-drag over an EMI sidebar batch-favorites every stack in the
- * rectangle; modifier + right-drag removes protection from those stacks.
+ * Modifier + left-drag over an EMI sidebar toggles protection for every stack
+ * in the rectangle, batch-favoriting stacks when protection is enabled.
  * The selection owns the EMI drag while the modifier is held, including on the
  * favorites sidebar, so EMI cannot reorder or activate the underlying stack.
  */
 public final class FavoriteDragSelectHandler {
     private static boolean active = false;
-    private static boolean protectMode = false;
     private static int startX, startY, currentX, currentY;
     private static final long DELETE_DOUBLE_PRESS_WINDOW_MS = 400L;
     private static String pendingDeleteId;
@@ -179,7 +178,7 @@ public final class FavoriteDragSelectHandler {
     /** Returns true when the press was consumed as the start of a drag selection. */
     public static boolean onMousePressed(Screen screen, double mouseX, double mouseY, int button) {
         if (!EmiLinkConfig.ENABLE_FAVORITE_DRAG_SELECT.get()) return false;
-        if (button != 0 && button != 1) return false;
+        if (button != 0) return false;
         if (!isModifierHeld()) return false;
         if (screen == null || EmiScreenManager.isDisabled()) return false;
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox) return false;
@@ -191,12 +190,11 @@ public final class FavoriteDragSelectHandler {
 
         var hoveredSpace = panel.getHoveredSpace(mx, my);
         active = true;
-        protectMode = button == 0;
         startX = currentX = mx;
         startY = currentY = my;
         clearEmiDragState();
-        ModLogger.debug("FavoriteDragSelect: started mode={} at ({},{}), space type={}",
-                protectMode ? "protect" : "unprotect", mx, my,
+        ModLogger.debug("FavoriteDragSelect: started mode=toggle at ({},{}), space type={}",
+                mx, my,
                 hoveredSpace == null ? "none" : hoveredSpace.getType());
         return true;
     }
@@ -214,7 +212,7 @@ public final class FavoriteDragSelectHandler {
         if (!active) return false;
         active = false;
         clearEmiDragState();
-        if ((button != 0 && button != 1) || protectMode != (button == 0)) {
+        if (button != 0) {
             ModLogger.debug("FavoriteDragSelect: released with mismatched button {}, discarding", button);
             return true;
         }
@@ -228,11 +226,12 @@ public final class FavoriteDragSelectHandler {
         int protectedCount = 0;
         int unprotected = 0;
         var selectedStacks = collectVisibleStacks(x1, y1, x2, y2);
-        if (protectMode) {
+        boolean protect = selectedStacks.stream().anyMatch(stack -> !FavoriteProtection.isProtected(stack));
+        if (protect) {
             lastProtectedSelectionIds.clear();
         }
         for (EmiIngredient stack : selectedStacks) {
-            if (protectMode) {
+            if (protect) {
                 String id = getStackId(stack);
                 if (id != null) lastProtectedSelectionIds.add(id);
                 boolean alreadyFavorited = false;
@@ -254,7 +253,7 @@ public final class FavoriteDragSelectHandler {
                 unprotected++;
             }
         }
-        if (protectMode) {
+        if (protect) {
             FavoriteProtection.protectAll(selectedStacks);
         } else {
             FavoriteProtection.unprotectAll(selectedStacks);

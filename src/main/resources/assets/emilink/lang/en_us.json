@@ -56,9 +56,9 @@
   "emilink.config.emi_ui.enableCopyHoveredStackId": "Copy Hovered Stack ID",
   "emilink.config.emi_ui.enableCopyHoveredStackId.tooltip": "When enabled, Ctrl+C over an EMI stack copies its id, such as minecraft:dirt.\nDisabled by default to avoid conflicting with normal text copy.",
   "emilink.config.emi_ui.enableFavoriteDragSelect": "Favorite Drag Protection",
-  "emilink.config.emi_ui.enableFavoriteDragSelect.tooltip": "Drag-select EMI sidebar items with the modifier to favorite and protect them.\nDrag-select again to unprotect.",
+  "emilink.config.emi_ui.enableFavoriteDragSelect.tooltip": "Modifier + left-drag toggles protection: protect all if any selection is unprotected; otherwise unprotect all.",
   "emilink.config.emi_ui.favoriteDragSelectModifier": "Favorite Drag Modifier",
-  "emilink.config.emi_ui.favoriteDragSelectModifier.tooltip": "Left-drag to favorite and protect, right-drag to unprotect.\nClick to rebind to any key or mouse button; press ESC to disable (OFF).",
+  "emilink.config.emi_ui.favoriteDragSelectModifier.tooltip": "Modifier + left-drag toggles protection.\nProtects unprotected selections or unprotects protected selections; press ESC to disable (OFF).",
 
   "emilink.config.emi_ui.favoriteProtectionBorderColor": "Protection Border Color",
   "emilink.config.emi_ui.favoriteProtectionBorderColor.tooltip": "RGB color for protected favorite outlines and the drag rectangle border.\nUse six-digit hexadecimal, such as FFD700 or #FFD700.",

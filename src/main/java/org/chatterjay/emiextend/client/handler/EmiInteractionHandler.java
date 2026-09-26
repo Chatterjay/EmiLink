@@ -180,6 +180,13 @@ public final class EmiInteractionHandler {
             if (mc.player != null && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
                 var carried = cs.getMenu().getCarried();
                 if (!carried.isEmpty() && hasWirelessTerminal(mc.player) && !emiOwnsCursorDelete()) {
+                    // An empty EMI sidebar/index cell is handled by EMI's native
+                    // cursor action (for example, dropping the carried stack).
+                    // Only deposit when an actual EMI stack is under the cursor.
+                    var hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
+                    if (hovered == null || hovered.isEmpty()) {
+                        return false;
+                    }
                     var space = EmiScreenManager.getHoveredSpace((int) mouseX, (int) mouseY);
                     if (space != null) {
                         boolean matchAll = matchesDepositBatchModifier();

@@ -150,8 +150,7 @@ public final class EmiLinkConfig {
                 .define("enableFavoriteDragSelect", true);
 
         FAVORITE_DRAG_SELECT_MODIFIER = BUILDER
-                .comment("Modifier for favorite drag-select. Any key or mouse button; OFF disables. " +
-                         "Left-drag favorites and protects, right-drag unprotects.")
+                .comment("Modifier + left-drag toggles favorite protection: unprotected selections are protected, protected selections are unprotected.")
                 .translation("emilink.config.emi_ui.favoriteDragSelectModifier")
                 .define("favoriteDragSelectModifier", "ALT");
 
