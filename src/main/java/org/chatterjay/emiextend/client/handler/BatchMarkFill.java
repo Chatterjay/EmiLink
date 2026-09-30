@@ -26,7 +26,21 @@ import org.chatterjay.emiextend.util.ModLogger;
  */
 public final class BatchMarkFill {
 
+    /** True when the press that started the current drag was inside the favorites bar. */
+    private static boolean dragStartedInFavorites = false;
+
     private BatchMarkFill() {}
+
+    /**
+     * Remember where a stack drag starts. Marks belong to the favorites bar, so a
+     * drag started anywhere else (for example the index view) must not trigger the
+     * batch fill.
+     */
+    public static void onMousePressed(double mouseX, double mouseY) {
+        var panel = dev.emi.emi.screen.EmiScreenManager.getHoveredPanel((int) mouseX, (int) mouseY);
+        dragStartedInFavorites = panel != null && panel.isVisible()
+                && panel.getType() == dev.emi.emi.config.SidebarType.FAVORITES;
+    }
 
     /**
      * Handles a release that drops a marked stack onto a slot.
@@ -40,6 +54,7 @@ public final class BatchMarkFill {
         // With the fill disabled the drop stays a single mark and EMI performs it.
         if (!EmiLinkConfig.ENABLE_BATCH_MARK_FILL.get()) return false;
         if (button != 0 || dragged == null || dragged.isEmpty()) return false;
+        if (!dragStartedInFavorites) return false;
 
         var handled = EmiApi.getHandledScreen();
         // Only take over when EMI would drop onto this container itself. With an

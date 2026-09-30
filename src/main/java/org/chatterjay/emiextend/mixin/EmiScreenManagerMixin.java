@@ -255,6 +255,13 @@ public class EmiScreenManagerMixin {
         }
     }
 
+    /** Remember whether this press started inside the favorites bar (batch mark origin). */
+    @Inject(method = "mouseClicked", at = @At("HEAD"), require = 0)
+    private static void emilink$rememberBatchMarkDragOrigin(double mouseX, double mouseY, int button,
+                                                            CallbackInfoReturnable<Boolean> cir) {
+        BatchMarkFill.onMousePressed(mouseX, mouseY);
+    }
+
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$clickSearchHistory(double mouseX, double mouseY, int button,
                                                    CallbackInfoReturnable<Boolean> cir) {

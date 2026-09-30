@@ -214,6 +214,12 @@ public final class FavoriteDragSelectHandler {
         if (panel == null || !panel.isVisible()) return false;
 
         var hoveredSpace = panel.getHoveredSpace(mx, my);
+        // Batch marking belongs to the favorites bar only, so the index view never
+        // shows or edits marks.
+        if (requested == DragMode.MARK
+                && (hoveredSpace == null || hoveredSpace.getType() != SidebarType.FAVORITES)) {
+            return false;
+        }
         active = true;
         mode = requested;
         startX = currentX = mx;
@@ -250,7 +256,7 @@ public final class FavoriteDragSelectHandler {
         int x2 = Math.max(startX, (int) mouseX);
         int y2 = Math.max(startY, (int) mouseY);
 
-        var selectedStacks = collectVisibleStacks(x1, y1, x2, y2);
+        var selectedStacks = collectVisibleStacks(x1, y1, x2, y2, finished == DragMode.MARK);
         if (finished == DragMode.MARK) {
             return finishMarkSelection(selectedStacks, x1, y1, x2, y2);
         }
@@ -332,9 +338,11 @@ public final class FavoriteDragSelectHandler {
         return ModifierKeyUtil.isHeld(EmiLinkConfig.getFavoriteDragSelectKeyName());
     }
 
-    private static java.util.List<EmiIngredient> collectVisibleStacks(int x1, int y1, int x2, int y2) {
+    private static java.util.List<EmiIngredient> collectVisibleStacks(int x1, int y1, int x2, int y2,
+                                                                     boolean favoritesOnly) {
         java.util.List<EmiIngredient> result = new ArrayList<>();
         forEachVisibleCell((space, stack, x, y, col, row) -> {
+            if (favoritesOnly && space.getType() != SidebarType.FAVORITES) return;
             if (isCellSelected(x, y, x1, y1, x2, y2)) result.add(stack);
         });
         return result;
