@@ -2,7 +2,6 @@
 package org.chatterjay.emiextend.client;
 
 import dev.emi.emi.api.EmiApi;
-import dev.emi.emi.api.stack.EmiStack;
 import io.netty.buffer.Unpooled;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -465,13 +464,11 @@ public final class AENetworkCache {
             if (++hoverTickCounter % HOVER_SAMPLE_INTERVAL == 0) {
                 var hovered = EmiApi.getHoveredStack(true);
                 if (hovered != null && !hovered.isEmpty()) {
-                    var stack = hovered.getStack().getEmiStacks().stream()
-                            .map(EmiStack::getItemStack)
-                            .filter(s -> !s.isEmpty())
-                            .findFirst()
-                            .orElse(ItemStack.EMPTY);
-                    if (!stack.isEmpty()) {
-                        submitForBatch(stack, true);
+                    // Resolve through the AE key helper so hovered fluids and
+                    // other non-item keys are sampled too.
+                    var key = AENetworkKeyHelper.resolve(hovered.getStack());
+                    if (key != null) {
+                        submitForBatch(key.stack(), true);
                     }
                 }
             }
@@ -522,12 +519,9 @@ public final class AENetworkCache {
         for (int i = 0; i < budget && indexScanCursor < stacks.size(); i++, indexScanCursor++) {
             var ingredient = stacks.get(indexScanCursor);
             if (ingredient == null || ingredient.isEmpty()) continue;
-            var item = ingredient.getEmiStacks().stream()
-                    .map(EmiStack::getItemStack)
-                    .filter(s -> !s.isEmpty())
-                    .findFirst().orElse(ItemStack.EMPTY);
-            if (!item.isEmpty() && !getCachedResult(item).found()) {
-                submitForBadge(item);
+            var key = AENetworkKeyHelper.resolve(ingredient);
+            if (key != null && !getCachedResult(key.stack()).found()) {
+                submitForBadge(key.stack());
             }
         }
         if (indexScanCursor >= stacks.size()) indexScanCursor = 0;

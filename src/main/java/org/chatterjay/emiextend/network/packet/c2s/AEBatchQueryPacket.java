@@ -84,6 +84,10 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
             if (grid == null) return;
 
             Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
+            Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
+            var itemKeyOf = aeItemKeyClass.getMethod("of", ItemStack.class);
+            var unwrapGenericStack = genericStackClass.getMethod("unwrapItemStack", ItemStack.class);
+            var genericStackWhat = genericStackClass.getMethod("what");
 
             for (var stack : stacks) {
                 if (stack == null || stack.isEmpty()) continue;
@@ -92,15 +96,27 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
                 boolean craftable = false;
 
                 try {
-                    Object aeKey = aeItemKeyClass.getMethod("of", ItemStack.class).invoke(null, stack);
-                    if (aeKey != null) {
-                        count = durabilityCompatible && stack.isDamageableItem()
-                                ? AE2GridQueryUtil.queryItemCountForBom(grid, aeKey, stack)
-                                : AE2GridQueryUtil.queryItemCount(grid, aeKey);
-                        craftable = queryCraftability && AE2GridQueryUtil.queryCraftability(grid, aeKey);
+                    // Non-item AE keys (fluids, chemicals, ...) reach the server
+                    // wrapped in an ItemStack so the client can cache them
+                    // without holding AE2 types. Unwrap them back into a key.
+                    Object genericStack = unwrapGenericStack.invoke(null, stack);
+                    if (genericStack != null) {
+                        Object aeKey = genericStackWhat.invoke(genericStack);
+                        if (aeKey != null) {
+                            count = AE2GridQueryUtil.queryItemCount(grid, aeKey);
+                            craftable = queryCraftability && AE2GridQueryUtil.queryCraftability(grid, aeKey);
+                        }
+                    } else {
+                        Object aeKey = itemKeyOf.invoke(null, stack);
+                        if (aeKey != null) {
+                            count = durabilityCompatible && stack.isDamageableItem()
+                                    ? AE2GridQueryUtil.queryItemCountForBom(grid, aeKey, stack)
+                                    : AE2GridQueryUtil.queryItemCount(grid, aeKey);
+                            craftable = queryCraftability && AE2GridQueryUtil.queryCraftability(grid, aeKey);
+                        }
                     }
                 } catch (Exception e) {
-                    // skip item
+                    // skip entry
                 }
 
                 results.add(new AEBatchQueryResponsePacket.Entry(stack, count, craftable, queryCraftability));

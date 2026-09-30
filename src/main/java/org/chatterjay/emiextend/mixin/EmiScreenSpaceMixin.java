@@ -6,8 +6,8 @@ import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.screen.EmiScreenManager.ScreenSpace;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.client.AENetworkCache;
+import org.chatterjay.emiextend.client.AENetworkKeyHelper;
 import org.chatterjay.emiextend.client.NetworkBadgeRenderState;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.integration.AE2Proxy;
@@ -99,10 +99,10 @@ public abstract class EmiScreenSpaceMixin {
                 }
                 EmiIngredient ingredient = stacks.get(index);
                 index++;
-                ItemStack itemStack = resolveItemStack(ingredient);
-                if (itemStack == null) continue;
-                if (!AENetworkCache.getCachedResult(itemStack).found()) {
-                    AENetworkCache.submitForBadge(itemStack);
+                var key = resolveNetworkKey(ingredient);
+                if (key == null) continue;
+                if (!AENetworkCache.getCachedResult(key.stack()).found()) {
+                    AENetworkCache.submitForBadge(key.stack());
                     submitted++;
                     if (submitted >= scanLimit) {
                         AENetworkCache.flushBatchNow();
@@ -158,18 +158,19 @@ public abstract class EmiScreenSpaceMixin {
                 EmiIngredient ingredient = stacks.get(index++);
                 itemsRendered++;
 
-                ItemStack itemStack = resolveItemStack(ingredient);
-                if (itemStack == null) continue;
+                var key = resolveNetworkKey(ingredient);
+                if (key == null) continue;
 
-                var result = AENetworkCache.getCachedResult(itemStack);
-                if (AENetworkCache.shouldRefreshVisible(itemStack)) {
+                var result = AENetworkCache.getCachedResult(key.stack());
+                if (AENetworkCache.shouldRefreshVisible(key.stack())) {
                     // Keep visible cells self-healing after network changes or
                     // cache expiry; do not wait for a hover or a sidebar scroll.
-                    AENetworkCache.submitVisibleBadge(itemStack);
+                    AENetworkCache.submitVisibleBadge(key.stack());
                 }
                 if (result.found() && result.count() > 0) {
                     cacheHits++;
-                    context.raw().drawString(font, formatShortCount(result.count()),
+                    context.raw().drawString(font,
+                            formatShortCount(key.displayCount(result.count()), key.unitSymbol()),
                             (x + 1) * 2,
                             (y + 11) * 2, 0xFFFFFFFF, true);
                 }
@@ -200,6 +201,12 @@ public abstract class EmiScreenSpaceMixin {
             return true;
         }
         return false;
+    }
+
+    /** Compact AE-style count, with the key's unit (for example "B") appended when it has one. */
+    private static String formatShortCount(long count, String unitSymbol) {
+        String text = formatShortCount(count);
+        return unitSymbol == null || unitSymbol.isEmpty() ? text : text + unitSymbol;
     }
 
     private static String formatShortCount(long count) {
@@ -246,18 +253,15 @@ public abstract class EmiScreenSpaceMixin {
     }
 
     /**
-     * Extract the first real ItemStack from an EmiIngredient without allocating a stream.
-     * Most sidebar items are plain EmiStack instances, checked first.
+     * Resolve the AE network key used by the cache for this cell. Items resolve
+     * to their own ItemStack; fluids and other AE key types resolve to an AE2
+     * wrapped key so the same cache and query pipeline applies to both.
      */
-    private static ItemStack resolveItemStack(EmiIngredient ingredient) {
+    private static AENetworkKeyHelper.NetworkKey resolveNetworkKey(EmiIngredient ingredient) {
         if (ingredient instanceof EmiStack es) {
-            ItemStack stack = es.getItemStack();
-            if (!stack.isEmpty()) return stack;
+            var key = AENetworkKeyHelper.resolve(es);
+            if (key != null) return key;
         }
-        for (var es : ingredient.getEmiStacks()) {
-            ItemStack stack = es.getItemStack();
-            if (!stack.isEmpty()) return stack;
-        }
-        return null;
+        return AENetworkKeyHelper.resolve(ingredient);
     }
 }
