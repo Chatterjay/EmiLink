@@ -50,6 +50,7 @@ public class EmiAE2 {
         if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             registerConfigScreenReflectively(container);
             registerAeClientHandlersIfLoaded();
+            registerClientTooltipHints();
         }
         modBus.addListener((ModConfigEvent.Loading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
@@ -244,6 +245,11 @@ public class EmiAE2 {
         registerStaticEventHandler("org.chatterjay.emiextend.client.AEQuickCraftDelayHandler");
         registerStaticEventHandler("org.chatterjay.emiextend.client.AENetworkCache");
         registerStaticEventHandler("org.chatterjay.emiextend.client.InputEvents");
+    }
+
+    /** Client-only: selection hints inside every item tooltip, not just the EMI sidebar. */
+    private static void registerClientTooltipHints() {
+        registerStaticEventHandler("org.chatterjay.emiextend.client.handler.TooltipHints");
     }
 
     private static void registerStaticEventHandler(String className) {

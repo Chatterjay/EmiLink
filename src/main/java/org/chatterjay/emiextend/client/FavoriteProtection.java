@@ -27,6 +27,13 @@ public final class FavoriteProtection {
         return id != null && PROTECTED.contains(id);
     }
 
+    /** Id based lookup, used by tooltips that only have an ItemStack at hand. */
+    public static boolean isProtectedId(String id) {
+        if (id == null) return false;
+        load();
+        return PROTECTED.contains(id);
+    }
+
     public static void protect(EmiIngredient stack) {
         String id = getId(stack);
         if (id == null) return;

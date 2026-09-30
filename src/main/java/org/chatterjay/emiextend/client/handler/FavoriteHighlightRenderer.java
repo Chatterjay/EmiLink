@@ -270,6 +270,14 @@ public final class FavoriteHighlightRenderer {
             EmiIngredient hovered, List<ClientTooltipComponent> original) {
         if (original == null || original.isEmpty()) return original;
 
+        // Item backed stacks are covered by the item tooltip event, which also
+        // reaches the same item outside the EMI sidebar. Only non-item stacks
+        // (fluids, chemicals, ...) need this sidebar-only path.
+        var stacks = hovered == null ? null : hovered.getEmiStacks();
+        if (stacks == null || stacks.isEmpty() || !stacks.get(0).getItemStack().isEmpty()) {
+            return original;
+        }
+
         List<ClientTooltipComponent> result = original;
         if (EmiLinkConfig.ENABLE_FAVORITE_DRAG_SELECT.get() && FavoriteProtection.isProtected(hovered)) {
             result = new ArrayList<>(result);
