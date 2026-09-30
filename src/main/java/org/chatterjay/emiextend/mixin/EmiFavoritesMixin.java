@@ -44,6 +44,9 @@ public abstract class EmiFavoritesMixin {
                 && !(favorite instanceof EmiFavorite.Craftable)
                 && !(favorite instanceof EmiFavorite.Synthetic)
                 && BookmarkPageHelper.removeFavoriteAsGap(favorite, pageSize)) {
+            // This path removes the favorite without going through
+            // EmiFavorites.removeFavorite, so drop the batch mark here as well.
+            BatchMark.unmarkId(EmiStackId.of(favorite));
             ci.cancel();
         } else if (pageSize > 0 && BookmarkPageHelper.addOrMoveFavoriteToPage(stack, null, BomTreePageHelper.getActiveFavoritePage(), pageSize)) {
             ci.cancel();
@@ -61,6 +64,9 @@ public abstract class EmiFavoritesMixin {
                 && !(favorite instanceof EmiFavorite.Craftable)
                 && !(favorite instanceof EmiFavorite.Synthetic)
                 && BookmarkPageHelper.removeFavoriteAsGap(favorite, pageSize)) {
+            // This path removes the favorite without going through
+            // EmiFavorites.removeFavorite, so drop the batch mark here as well.
+            BatchMark.unmarkId(EmiStackId.of(favorite));
             ci.cancel();
         } else if (pageSize > 0 && BookmarkPageHelper.addOrMoveFavoriteToPage(stack, context, BomTreePageHelper.getActiveFavoritePage(), pageSize)) {
             ci.cancel();

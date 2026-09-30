@@ -125,7 +125,12 @@ public abstract class EmiScreenSpaceMixin {
     private void emilink$renderBadgeOverlay(EmiDrawContext context, int mouseX, int mouseY,
                                             float delta, int scrollOffset, CallbackInfo ci) {
         if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
-        if (!AENetworkCache.hasAEAccess()) return;
+        if (!AENetworkCache.hasAEAccess()) {
+            if (badgeLogRateLimit()) {
+                ModLogger.debug("Network overlay skipped: {}", AENetworkCache.describeAccessState());
+            }
+            return;
+        }
 
         var stacks = getStacks();
         int index = scrollOffset;

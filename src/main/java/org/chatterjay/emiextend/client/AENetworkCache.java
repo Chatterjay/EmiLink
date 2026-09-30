@@ -83,6 +83,9 @@ public final class AENetworkCache {
 
     private static Path cachePath;
 
+    /** Last registry access seen while in a level, used by the logout save. */
+    private static RegistryAccess lastRegistryAccess;
+
     private AENetworkCache() {}
 
     /** Queue a single item for the next batch query. */
@@ -175,7 +178,16 @@ public final class AENetworkCache {
     public static void onServerCapabilityConfirmed() {
         serverCapabilityKnown = true;
         BDShortcutHandler.serverHasMod = true;
-        ModLogger.debug("Server capability confirmed; keeping persisted AE cache");
+        // Until this packet arrives every query is rejected, so any access result
+        // computed during that window is stale. Drop it and scan the terminal that
+        // is already open instead of making the player reopen the screen.
+        accessCheckScreen = null;
+        accessCheckResult = false;
+        if (Minecraft.getInstance().screen != null) {
+            needsInitialScan = true;
+            lastBatchFlushTime = 0;
+        }
+        ModLogger.debug("Server capability confirmed; AE access re-evaluated");
     }
 
     /** Immediately flush the pending batch (used after initial scan collection). */
@@ -203,32 +215,40 @@ public final class AENetworkCache {
 
     private static void saveToDisk() {
         if (!cacheDirty) return;
+        // The logout save fires while the client level may already be gone, so
+        // remember the last registry access instead of skipping the save.
         var level = Minecraft.getInstance().level;
-        if (level == null) return;
-        RegistryAccess ra = level.registryAccess();
+        RegistryAccess ra = level != null ? level.registryAccess() : lastRegistryAccess;
+        if (ra == null) return;
 
-        var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), ra);
-        buf.writeVarInt(-1);
-        buf.writeVarInt(serverStates.size());
-        for (var entry : serverStates.entrySet()) {
-            buf.writeUtf(entry.getKey());
-            var cache = entry.getValue().cache;
-            buf.writeVarInt(cache.size());
-            for (var mapEntry : cache.entrySet()) {
-                CachedEntry cached = mapEntry.getValue();
-                ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, cached.stack());
-                buf.writeVarLong(cached.info().count());
-                buf.writeBoolean(cached.info().craftable());
-                buf.writeBoolean(cached.info().craftabilityKnown());
-                buf.writeVarLong(cached.info().timestamp());
+        try {
+            var buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), ra);
+            buf.writeVarInt(-1);
+            buf.writeVarInt(serverStates.size());
+            for (var entry : serverStates.entrySet()) {
+                buf.writeUtf(entry.getKey());
+                var cache = entry.getValue().cache;
+                buf.writeVarInt(cache.size());
+                for (var mapEntry : cache.entrySet()) {
+                    CachedEntry cached = mapEntry.getValue();
+                    ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, cached.stack());
+                    buf.writeVarLong(cached.info().count());
+                    buf.writeBoolean(cached.info().craftable());
+                    buf.writeBoolean(cached.info().craftabilityKnown());
+                    buf.writeVarLong(cached.info().timestamp());
+                }
             }
-        }
 
-        byte[] data = new byte[buf.readableBytes()];
-        buf.readBytes(data);
-        DiskCacheIO.save(cachePath(), data);
-        ModLogger.debug("Cache saved ({} servers)", serverStates.size());
-        cacheDirty = false;
+            byte[] data = new byte[buf.readableBytes()];
+            buf.readBytes(data);
+            DiskCacheIO.save(cachePath(), data);
+            ModLogger.debug("Cache saved ({} servers)", serverStates.size());
+            cacheDirty = false;
+        } catch (Throwable error) {
+            // A single entry that cannot be serialized must not break the render
+            // path or discard the file that is already on disk.
+            ModLogger.warn("Cache save failed: {}", error.toString());
+        }
     }
 
     private static void loadFromDisk() {
@@ -238,6 +258,7 @@ public final class AENetworkCache {
         var level = Minecraft.getInstance().level;
         if (level == null) return;
         RegistryAccess ra = level.registryAccess();
+        lastRegistryAccess = ra;
 
         try {
             var buf = new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(data), ra);
@@ -261,11 +282,17 @@ public final class AENetworkCache {
                         state.cache.put(key, new CachedEntry(stack,
                                 new CachedInfo(count, craftable, craftabilityKnown, timestamp)));
                     } catch (Exception e) {
-                        // Item no longer in registry (mod removed) — skip silently
+                        // The stream position is unknown once an entry fails to
+                        // decode (mod removed, unknown key), so everything after it
+                        // in this file has to be discarded: continuing would parse
+                        // garbage into bogus entries.
+                        ModLogger.warn("Cache load stopped at server '{}' entry {}/{}: {}",
+                                sid, j, entryCount, e.getMessage());
+                        break;
                     }
                 }
                 serverStates.put(sid, state);
-                totalEntries += entryCount;
+                totalEntries += state.cache.size();
             }
             // Point current if we just loaded our server
             var loaded = serverStates.get(currentServerId);
@@ -414,6 +441,9 @@ public final class AENetworkCache {
 
     public static void tick() {
         var mc = Minecraft.getInstance();
+        if (mc.level != null) {
+            lastRegistryAccess = mc.level.registryAccess();
+        }
         if (mc.player == null || mc.screen == null) return;
         if (!BDShortcutHandler.serverHasMod) {
             // The capability packet is sent after the client login event. Do
@@ -742,6 +772,22 @@ public final class AENetworkCache {
         accessCheckScreen = mc.screen;
         accessCheckResult = computeAEAccess(mc);
         return accessCheckResult;
+    }
+
+    /**
+     * Short human readable state of the access gate, for the rate limited debug
+     * log of the badge overlay.
+     */
+    public static String describeAccessState() {
+        var mc = Minecraft.getInstance();
+        return "serverHasMod=" + BDShortcutHandler.serverHasMod
+                + " capabilityKnown=" + serverCapabilityKnown
+                + " ae2=" + AE2Proxy.isLoaded()
+                + " screen=" + (mc.screen == null ? "none" : mc.screen.getClass().getSimpleName())
+                + " cachedForScreen=" + (mc.screen == accessCheckScreen)
+                + " cachedResult=" + accessCheckResult
+                + " lookups=" + EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()
+                + " cacheEntries=" + current.cache.size();
     }
 
     private static boolean computeAEAccess(Minecraft mc) {
