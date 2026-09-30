@@ -12,6 +12,8 @@ import dev.emi.emi.runtime.EmiFavorite;
 import dev.emi.emi.runtime.EmiFavorites;
 import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomTreePageHelper;
+import org.chatterjay.emiextend.client.BatchMark;
+import org.chatterjay.emiextend.client.EmiStackId;
 import org.chatterjay.emiextend.client.FavoriteProtection;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
@@ -92,9 +94,23 @@ public abstract class EmiFavoritesMixin {
             if (favorite.strictEquals(stack) && favorite.getRecipe() == EmiApi.getRecipeContext(stack)) {
                 favorites.set(i, BookmarkPageHelper.emptyPlaceholder());
                 BookmarkPageHelper.compactAllPages(BookmarkPageHelper.getLastPageSize());
+                // A stack that is no longer favorited must not stay batch marked.
+                BatchMark.unmarkId(EmiStackId.of(stack));
                 cir.setReturnValue(true);
                 return;
             }
+        }
+    }
+
+    /**
+     * Covers the removals EMI performs itself: once the favorite is gone, the
+     * batch mark of that stack is dropped as well.
+     */
+    @Inject(method = "removeFavorite", at = @At("RETURN"))
+    private static void emilink$dropBatchMarkOnUnfavorite(EmiIngredient stack,
+                                                          CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ()) {
+            BatchMark.unmarkId(EmiStackId.of(stack));
         }
     }
 

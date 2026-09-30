@@ -85,6 +85,16 @@ public final class BatchMark {
         return cleared;
     }
 
+    /** Remove a single mark by id. Returns true when the mark existed. */
+    public static boolean unmarkId(String id) {
+        if (id == null) return false;
+        load();
+        if (!MARKED.remove(id)) return false;
+        save();
+        ModLogger.debug("BatchMark: unmarked {} (no longer favorited)", id);
+        return true;
+    }
+
     /** Marked ids in selection order, optionally skipping one entry. */
     public static List<String> orderedIds(String skipId) {
         load();
