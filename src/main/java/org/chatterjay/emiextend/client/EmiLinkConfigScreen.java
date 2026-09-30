@@ -276,18 +276,30 @@ public final class EmiLinkConfigScreen {
 
     private static boolean isPreviewColorKey(String key) {
         return "favoriteProtectionBorderColor".equals(key)
-                || "favoriteProtectionBackgroundColor".equals(key);
+                || "favoriteProtectionBackgroundColor".equals(key)
+                || "batchMarkBorderColor".equals(key)
+                || "batchMarkBackgroundColor".equals(key);
     }
 
     private static boolean isPreviewOpacityKey(String key) {
         return "favoriteProtectionBorderOpacity".equals(key)
-                || "favoriteProtectionBackgroundOpacity".equals(key);
+                || "favoriteProtectionBackgroundOpacity".equals(key)
+                || "batchMarkBorderOpacity".equals(key)
+                || "batchMarkBackgroundOpacity".equals(key);
     }
 
     private static IntSupplier previewSupplier(String key) {
         if ("favoriteProtectionBackgroundColor".equals(key)
                 || "favoriteProtectionBackgroundOpacity".equals(key)) {
             return EmiLinkConfig::getFavoriteProtectionBackgroundArgb;
+        }
+        if ("batchMarkBackgroundColor".equals(key)
+                || "batchMarkBackgroundOpacity".equals(key)) {
+            return EmiLinkConfig::getBatchMarkBackgroundArgb;
+        }
+        if ("batchMarkBorderColor".equals(key)
+                || "batchMarkBorderOpacity".equals(key)) {
+            return EmiLinkConfig::getBatchMarkBorderArgb;
         }
         return EmiLinkConfig::getFavoriteProtectionBorderArgb;
     }

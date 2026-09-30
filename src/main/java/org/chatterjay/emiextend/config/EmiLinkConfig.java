@@ -23,6 +23,7 @@ public final class EmiLinkConfig {
 
     // ---- General ----
     public static final ModConfigSpec.BooleanValue DEBUG_MODE;
+    public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
     // ---- Cache ----
     public static final ModConfigSpec.LongValue CACHE_TTL_MS;
@@ -44,6 +45,13 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.IntValue FAVORITE_PROTECTION_BORDER_OPACITY;
     public static final ModConfigSpec.ConfigValue<String> FAVORITE_PROTECTION_BACKGROUND_COLOR;
     public static final ModConfigSpec.IntValue FAVORITE_PROTECTION_BACKGROUND_OPACITY;
+    public static final ModConfigSpec.BooleanValue ENABLE_BATCH_MARK;
+    public static final ModConfigSpec.ConfigValue<String> BATCH_MARK_BORDER_COLOR;
+    public static final ModConfigSpec.IntValue BATCH_MARK_BORDER_OPACITY;
+    public static final ModConfigSpec.ConfigValue<String> BATCH_MARK_BACKGROUND_COLOR;
+    public static final ModConfigSpec.IntValue BATCH_MARK_BACKGROUND_OPACITY;
+    public static final ModConfigSpec.BooleanValue ENABLE_BATCH_MARK_FILL;
+    public static final ModConfigSpec.BooleanValue SHARED_EDGE_SPLIT;
 
     // ---- AE / Network Storage ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
@@ -62,9 +70,6 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
     public static final ModConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
 
-    // ---- Network ----
-    public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
-
     public static boolean isAutomaticWorkbenchCraftingEnabled() {
         return ENABLE_QUICK_CRAFT_TAB.get();
     }
@@ -76,6 +81,11 @@ public final class EmiLinkConfig {
                 .comment("Enable debug logging and debug chat messages")
                 .translation("emilink.config.general.debugMode")
                 .define("debugMode", false);
+
+        ENABLE_DEBUG_PACKET_LIMIT = BUILDER
+                .comment("Limit debug-related packets to 1 per tick to prevent congestion")
+                .translation("emilink.config.general.enableDebugPacketLimit")
+                .define("enableDebugPacketLimit", true);
 
         BUILDER.pop();
         BUILDER.push("cache");
@@ -174,6 +184,46 @@ public final class EmiLinkConfig {
                 .translation("emilink.config.emi_ui.favoriteProtectionBackgroundOpacity")
                 .defineInRange("favoriteProtectionBackgroundOpacity", 36, 0, 255);
 
+        ENABLE_BATCH_MARK = BUILDER
+                .comment("Enable modifier + right-drag batch marking of EMI sidebar stacks. " +
+                         "Dropping one marked stack onto a filter slot fills the remaining marks " +
+                         "into the following slots, in the order they were selected.")
+                .translation("emilink.config.emi_ui.enableBatchMark")
+                .define("enableBatchMark", true);
+
+        BATCH_MARK_BORDER_COLOR = BUILDER
+                .comment("RGB hex color for batch-marked outlines, for example 00C8FF or #00C8FF")
+                .translation("emilink.config.emi_ui.batchMarkBorderColor")
+                .define("batchMarkBorderColor", "00C8FF");
+
+        BATCH_MARK_BORDER_OPACITY = BUILDER
+                .comment("Opacity of batch-marked outlines, from 0 to 255")
+                .translation("emilink.config.emi_ui.batchMarkBorderOpacity")
+                .defineInRange("batchMarkBorderOpacity", 230, 0, 255);
+
+        BATCH_MARK_BACKGROUND_COLOR = BUILDER
+                .comment("RGB hex color for the batch-mark background, for example 00C8FF or #00C8FF")
+                .translation("emilink.config.emi_ui.batchMarkBackgroundColor")
+                .define("batchMarkBackgroundColor", "00C8FF");
+
+        BATCH_MARK_BACKGROUND_OPACITY = BUILDER
+                .comment("Opacity of the batch-mark background, from 0 to 255")
+                .translation("emilink.config.emi_ui.batchMarkBackgroundOpacity")
+                .defineInRange("batchMarkBackgroundOpacity", 36, 0, 255);
+
+        ENABLE_BATCH_MARK_FILL = BUILDER
+                .comment("After dropping one marked stack onto a filter slot, fill the remaining " +
+                         "marks into the following slots. Disable to only mark the dropped slot.")
+                .translation("emilink.config.emi_ui.enableBatchMarkFill")
+                .define("enableBatchMarkFill", true);
+
+        SHARED_EDGE_SPLIT = BUILDER
+                .comment("Draw a border shared by favorite protection and batch marking half in " +
+                         "each colour so both outlines connect. Disable to draw shared borders in " +
+                         "the batch mark colour only.")
+                .translation("emilink.config.emi_ui.sharedEdgeSplit")
+                .define("sharedEdgeSplit", true);
+
         BUILDER.pop();
         BUILDER.push("ae_network");
 
@@ -241,14 +291,6 @@ public final class EmiLinkConfig {
                 .comment("Enable Ctrl+Shift+Drop to discard all stacks matching the hovered slot item")
                 .translation("emilink.config.inventory.enableDiscardMatchingKey")
                 .define("enableDiscardMatchingKey", true);
-
-        BUILDER.pop();
-        BUILDER.push("debug");
-
-        ENABLE_DEBUG_PACKET_LIMIT = BUILDER
-                .comment("Limit debug-related packets to 1 per tick to prevent congestion")
-                .translation("emilink.config.debug.enableDebugPacketLimit")
-                .define("enableDebugPacketLimit", true);
 
         BUILDER.pop();
     }
@@ -363,6 +405,16 @@ public final class EmiLinkConfig {
     public static int getFavoriteProtectionBackgroundArgb() {
         return toArgb(FAVORITE_PROTECTION_BACKGROUND_COLOR.get(),
                 FAVORITE_PROTECTION_BACKGROUND_OPACITY.get(), 0xFFD700);
+    }
+
+    public static int getBatchMarkBorderArgb() {
+        return toArgb(BATCH_MARK_BORDER_COLOR.get(),
+                BATCH_MARK_BORDER_OPACITY.get(), 0x00C8FF);
+    }
+
+    public static int getBatchMarkBackgroundArgb() {
+        return toArgb(BATCH_MARK_BACKGROUND_COLOR.get(),
+                BATCH_MARK_BACKGROUND_OPACITY.get(), 0x00C8FF);
     }
 
     private static int toArgb(String value, int opacity, int fallbackRgb) {
