@@ -29,6 +29,7 @@ import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.client.AENetworkCache;
+import org.chatterjay.emiextend.client.AENetworkKeyHelper;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
@@ -212,12 +213,16 @@ public final class EmiInteractionHandler {
             }
         }
 
-        var itemStack = getItemStack(EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false));
-        if (itemStack == null) return false;
+        var hovered = EmiApi.getHoveredStack((int) mouseX, (int) mouseY, false);
 
+        // Middle click orders the hovered stack. Resolve it before the item-only
+        // path so fluids and other AE keys can be ordered too.
         if (button == 2) {
-            return handleMiddleClick(itemStack);
+            return handleMiddleClick(hovered);
         }
+
+        var itemStack = getItemStack(hovered);
+        if (itemStack == null) return false;
 
         if (button == 0 && matchesExtractModifier()) {
             return doShiftClickExtract(itemStack);
@@ -495,10 +500,24 @@ public final class EmiInteractionHandler {
 
     // ---- AE2 / EAEP handlers ----
 
-    private static boolean handleMiddleClick(ItemStack itemStack) {
+    /**
+     * Middle click opens the ExtendedAE Plus craft screen for the hovered stack.
+     * The AE key is resolved through AE2's own EMI converters, so every key type
+     * (items, fluids, chemicals) can be ordered, not just items.
+     */
+    private static boolean handleMiddleClick(EmiStackInteraction hovered) {
         var player = Minecraft.getInstance().player;
         if (player == null || !hasWirelessTerminal(player)) return false;
-        return EAEPProxy.openCraftScreen(itemStack);
+        if (hovered == null || hovered.isEmpty()) return false;
+
+        Object genericStack = AENetworkKeyHelper.singleUnitGenericStack(hovered.getStack());
+        if (genericStack != null && EAEPProxy.openCraftScreenForStack(genericStack)) {
+            return true;
+        }
+
+        // Fallback for an ExtendedAE Plus build that only accepts an item stack.
+        ItemStack itemStack = getItemStack(hovered);
+        return itemStack != null && EAEPProxy.openCraftScreen(itemStack);
     }
 
     private static boolean handleShiftClickAE2(ItemStack itemStack) {

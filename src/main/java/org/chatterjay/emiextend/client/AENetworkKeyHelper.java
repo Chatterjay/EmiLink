@@ -6,6 +6,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.chatterjay.emiextend.util.ModLogger;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -66,6 +67,7 @@ public final class AENetworkKeyHelper {
     private static Method keyTypeMethod;
     private static Method unitSymbolMethod;
     private static Method convertersMethod;
+    private static Constructor<?> genericStackConstructor;
     private static Class<?> aeItemKeyClass;
 
     /**
@@ -183,6 +185,58 @@ public final class AENetworkKeyHelper {
             return new NetworkKey(wrapped, amountPerUnit, unitSymbol);
         } catch (Throwable error) {
             ModLogger.debug("NetworkKey: AE key conversion failed for {}: {}",
+                    emiStack.getId(), error.toString());
+            return null;
+        }
+    }
+
+    /**
+     * Build an AE {@code GenericStack} holding one unit of the given ingredient.
+     * <p>
+     * Used by actions that need the real AE key rather than an ItemStack, such as
+     * ordering from the EMI sidebar: those must work for fluids and chemicals too,
+     * not only for items. Returns null when no AE key can be derived or AE2 is not
+     * available.
+     */
+    @javax.annotation.Nullable
+    public static Object singleUnitGenericStack(EmiIngredient ingredient) {
+        if (ingredient == null || ingredient.isEmpty()) {
+            return null;
+        }
+        if (ingredient instanceof EmiStack stack) {
+            return singleUnitGenericStack(stack);
+        }
+        for (var stack : ingredient.getEmiStacks()) {
+            Object genericStack = singleUnitGenericStack(stack);
+            if (genericStack != null) {
+                return genericStack;
+            }
+        }
+        return null;
+    }
+
+    /** Single unit AE {@code GenericStack} for one EMI stack. */
+    @javax.annotation.Nullable
+    public static Object singleUnitGenericStack(EmiStack emiStack) {
+        if (emiStack == null || emiStack.isEmpty() || !initReflection()) {
+            return null;
+        }
+        try {
+            Object genericStack = toGenericStackMethod.invoke(null, emiStack);
+            if (genericStack == null) {
+                return null;
+            }
+            Object aeKey = genericStackWhatMethod.invoke(genericStack);
+            if (aeKey == null) {
+                return null;
+            }
+            if (genericStackConstructor == null) {
+                genericStackConstructor = Class.forName("appeng.api.stacks.GenericStack")
+                        .getConstructor(Class.forName("appeng.api.stacks.AEKey"), long.class);
+            }
+            return genericStackConstructor.newInstance(aeKey, 1L);
+        } catch (Throwable error) {
+            ModLogger.debug("NetworkKey: GenericStack build failed for {}: {}",
                     emiStack.getId(), error.toString());
             return null;
         }

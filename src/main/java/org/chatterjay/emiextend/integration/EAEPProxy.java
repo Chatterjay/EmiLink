@@ -50,6 +50,24 @@ public class EAEPProxy {
         return sendPacket(stack, "com.extendedae_plus.network.OpenCraftFromJeiC2SPacket");
     }
 
+    /**
+     * Same as {@link #openCraftScreen(ItemStack)}, but for a prebuilt AE
+     * {@code GenericStack}. ExtendedAE Plus accepts any AE key here, so fluids and
+     * chemicals can be ordered from the EMI sidebar as well as items.
+     */
+    public static boolean openCraftScreenForStack(Object genericStack) {
+        if (!isLoaded() || genericStack == null) return false;
+        try {
+            var clazz = Class.forName("com.extendedae_plus.network.OpenCraftFromJeiC2SPacket");
+            var ctor = clazz.getConstructor(genericStack.getClass());
+            var packet = ctor.newInstance(genericStack);
+            PacketDistributor.sendToServer((CustomPacketPayload) packet);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static boolean pullFromNetwork(ItemStack stack) {
         return sendPacket(stack, "com.extendedae_plus.network.PullFromJeiOrCraftC2SPacket");
     }
