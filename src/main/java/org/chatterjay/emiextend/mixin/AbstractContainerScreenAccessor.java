@@ -11,4 +11,11 @@ public interface AbstractContainerScreenAccessor {
     @Accessor("hoveredSlot")
     @Nullable
     Slot emilink$getHoveredSlot();
+
+    /** GUI origin of the container, used to place drop targets on the screen. */
+    @Accessor("leftPos")
+    int emilink$getLeftPos();
+
+    @Accessor("topPos")
+    int emilink$getTopPos();
 }

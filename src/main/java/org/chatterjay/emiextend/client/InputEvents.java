@@ -889,7 +889,7 @@ public final class InputEvents {
         }
     }
 
-    /** N key (configurable): fill the first compatible ghost/filter slot with the hovered item. */
+    /** N key (configurable): mark a ghost/filter slot with the hovered EMI item. */
     private static void onQuickFillSlotKey(ScreenEvent.KeyPressed.Pre event) {
         if (tryQuickFillSlot()) {
             event.setCanceled(true);
@@ -903,28 +903,81 @@ public final class InputEvents {
         return tryQuickFillSlot();
     }
 
+    /**
+     * N key — put the EMI ingredient under the cursor into a markable slot of the
+     * current screen.
+     * <p>
+     * Markable slots are resolved through EMI's own drag-and-drop registry, so every
+     * screen that supports drag-marking behaves the same here: AE2 pattern and filter
+     * slots (items, fluids and chemicals), ExtendedAE, Refined Storage and any other
+     * mod registering a drop handler. Screens without a handler keep the dedicated
+     * fallbacks below.
+     */
     private static boolean tryQuickFillSlot() {
-        var mc = Minecraft.getInstance();
-        if (!(mc.screen instanceof AbstractContainerScreen<?> containerScreen)) return false;
-
-        var emiStack = getQuickFillEmiStack();
-        if (emiStack == null || emiStack.isEmpty()) {
-            ModLogger.debug("QuickFillSlot: no EMI stack under cursor screen={}", safeClassName(mc.screen));
+        EmiIngredient ingredient = getQuickFillIngredient();
+        if (ingredient == null || ingredient.isEmpty()) {
+            ModLogger.debug("QuickFillSlot: no EMI ingredient under cursor screen={}",
+                    safeClassName(Minecraft.getInstance().screen));
             return false;
         }
 
-        if (tryFillCraftingTrackerLocatorSlot(mc.screen, containerScreen, emiStack)) {
+        if (tryDropOnEmiTargets(ingredient)) {
             return true;
         }
 
+        return tryDirectFilterFallbacks(ingredient);
+    }
+
+    /**
+     * Offer the ingredient to EMI's drag-and-drop handlers: first at the cursor, so
+     * hovering a specific target marks that one, then on the first empty slot that
+     * accepts it. Uses EMI's handled screen, so it also works while the recipe or BoM
+     * overlay covers the container.
+     */
+    private static boolean tryDropOnEmiTargets(EmiIngredient ingredient) {
+        var handled = EmiApi.getHandledScreen();
+        if (handled == null) {
+            // Mod GUIs without a container may still expose bounds based drop targets.
+            var screen = Minecraft.getInstance().screen;
+            if (screen == null) return false;
+            var mouse = getCurrentGuiMousePosition();
+            return EmiSlotDropHelper.dropOnScreen(screen, ingredient, (int) mouse.x(), (int) mouse.y());
+        }
+
+        var mouse = getCurrentGuiMousePosition();
+        int mouseX = (int) mouse.x();
+        int mouseY = (int) mouse.y();
+
+        // Treat the cursor as a target only outside the EMI sidebar, so picking up a
+        // sidebar stack cannot mark a slot that happens to sit behind the panel.
+        if (!isHoveredEmiSidebar(mouseX, mouseY)
+                && EmiSlotDropHelper.dropOnScreen(handled, ingredient, mouseX, mouseY)) {
+            return true;
+        }
+
+        return EmiSlotDropHelper.fillFirstEmptySlot(handled, ingredient, 0) >= 0;
+    }
+
+    /**
+     * Fallbacks for screens without an EMI drop handler: Crafting Tracker ghost
+     * filters and AE2 fake slots are filled directly.
+     */
+    private static boolean tryDirectFilterFallbacks(EmiIngredient ingredient) {
+        var handled = EmiApi.getHandledScreen();
+        if (handled == null) return false;
+
+        EmiStack emiStack = firstStack(ingredient);
+        if (emiStack == null || emiStack.isEmpty()) return false;
+
+        if (tryFillCraftingTrackerLocatorSlot(handled, handled, emiStack)) {
+            return true;
+        }
         if (!AE2Proxy.isLoaded()) {
             return false;
         }
-
-        for (var slot : containerScreen.getMenu().slots) {
-            if (!slot.getItem().isEmpty()) continue;
-
-            if (AE2Proxy.isLoaded() && AEQuickFillHelper.tryFillFakeSlot(slot, emiStack)) {
+        for (var slot : handled.getMenu().slots) {
+            if (!slot.isActive() || slot.hasItem()) continue;
+            if (AEQuickFillHelper.tryFillFakeSlot(slot, emiStack)) {
                 return true;
             }
         }
@@ -985,26 +1038,53 @@ public final class InputEvents {
         }
     }
 
-    private static EmiStack getQuickFillEmiStack() {
+    /** EMI ingredient under the cursor, falling back to a picked-up or dragged stack. */
+    private static EmiIngredient getQuickFillIngredient() {
         var mouse = getCurrentGuiMousePosition();
-        EmiStack stack;
+        EmiIngredient found = firstIngredient(EmiApi.getHoveredStack(true));
+        if (found != null) return found;
 
-        stack = firstStack(EmiApi.getHoveredStack(true));
-        if (stack != null && !stack.isEmpty()) return stack;
+        found = firstIngredient(EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (found != null) return found;
 
-        stack = firstStack(EmiApi.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
-        if (stack != null && !stack.isEmpty()) return stack;
+        found = firstIngredient(EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
+        if (found != null) return found;
 
-        stack = firstStack(EmiScreenManager.getHoveredStack((int) mouse.x(), (int) mouse.y(), false));
-        if (stack != null && !stack.isEmpty()) return stack;
+        found = firstIngredient(EmiScreenManager.getHoveredStack(
+                EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false));
+        if (found != null) return found;
 
-        stack = firstStack(EmiScreenManager.getHoveredStack(EmiScreenManager.lastMouseX, EmiScreenManager.lastMouseY, false));
-        if (stack != null && !stack.isEmpty()) return stack;
+        found = firstIngredient(EmiScreenManager.draggedStack);
+        if (found != null) return found;
 
-        stack = firstStack(EmiScreenManager.draggedStack);
-        if (stack != null && !stack.isEmpty()) return stack;
+        found = firstIngredient(EmiScreenManager.pressedStack);
+        if (found != null) return found;
 
-        return firstStack(EmiScreenManager.pressedStack);
+        // Last resort: the item carried on the cursor, so picking an item up and
+        // hovering the target slot marks it directly.
+        var handled = EmiApi.getHandledScreen();
+        if (handled != null) {
+            ItemStack carried = handled.getMenu().getCarried();
+            if (!carried.isEmpty()) {
+                return firstIngredient(EmiStack.of(carried));
+            }
+        }
+        return null;
+    }
+
+    private static EmiIngredient firstIngredient(EmiStackInteraction hovered) {
+        if (hovered == null || hovered.isEmpty()) return null;
+        return firstIngredient(hovered.getStack());
+    }
+
+    /**
+     * Keep the ingredient instead of its first stack: drop handlers pick the
+     * representation they support, which matters for fluids and chemicals.
+     */
+    private static EmiIngredient firstIngredient(EmiIngredient ingredient) {
+        if (ingredient == null || ingredient.isEmpty()) return null;
+        var stacks = ingredient.getEmiStacks();
+        return stacks == null || stacks.isEmpty() ? null : ingredient;
     }
 
     public static boolean tryQuickCraftVisibleBomGoalFromButton() {
