@@ -67,22 +67,56 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
         if (player == null || stacks == null || stacks.isEmpty()) return;
         if (!AE2Proxy.isLoaded()) return;
 
-        var results = new ArrayList<AEBatchQueryResponsePacket.Entry>();
+        List<AEBatchQueryResponsePacket.Entry> results = List.of();
+        String source = "none";
 
         try {
-            var menu = player.containerMenu;
             Class<?> aeBaseMenuClass = Class.forName("appeng.menu.AEBaseMenu");
+            var menu = player.containerMenu;
             Object grid = aeBaseMenuClass.isInstance(menu)
                     ? AE2GridQueryUtil.resolveGrid(aeBaseMenuClass, menu)
                     : null;
-            if (grid == null) {
-                // A direct refresh can happen from a normal inventory screen.
-                // In that case use the player's wireless terminal instead of
-                // requiring an AEBaseMenu just to query one changed item.
-                grid = AEDepositPacket.resolveGridFromWirelessTerminal(player);
-            }
-            if (grid == null) return;
 
+            if (grid != null) {
+                results = queryBatch(grid, stacks, queryCraftability, durabilityCompatible);
+                source = "menu:" + menu.getClass().getSimpleName();
+            }
+
+            if (!hasAnyData(results)) {
+                // A machine menu can resolve to a grid that is not the network the
+                // player works with (subnets, unconnected machines). Answering with
+                // those zeros would blank out every badge until the terminal is
+                // reopened, so retry through the wireless terminal instead.
+                Object wireless = AEDepositPacket.resolveGridFromWirelessTerminal(player);
+                if (wireless != null && wireless != grid) {
+                    var fallback = queryBatch(wireless, stacks, queryCraftability, durabilityCompatible);
+                    if (hasAnyData(fallback)) {
+                        results = fallback;
+                        source = "wireless";
+                    } else if (results.isEmpty()) {
+                        results = fallback;
+                        source = "wireless:empty";
+                    }
+                }
+            }
+        } catch (Exception e) {
+            ModLogger.debug("AEBatchQuery: error resolving grid: {}", e.getMessage());
+        }
+
+        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            ModLogger.debug("AEBatchQuery: sending response source={} entries={} queryCraftability={} durabilityCompatible={} stacks={} menu={}",
+                    source, results.size(), queryCraftability, durabilityCompatible, stacks.size(),
+                    player.containerMenu.getClass().getName());
+            PacketDistributor.sendToPlayer(sp, new AEBatchQueryResponsePacket(results));
+        }
+    }
+
+    /** Run one batch against a resolved grid. Entries that fail are skipped, never cached as zero. */
+    private static List<AEBatchQueryResponsePacket.Entry> queryBatch(Object grid, List<ItemStack> stacks,
+                                                                    boolean queryCraftability,
+                                                                    boolean durabilityCompatible) {
+        var results = new ArrayList<AEBatchQueryResponsePacket.Entry>();
+        try {
             Class<?> aeItemKeyClass = Class.forName("appeng.api.stacks.AEItemKey");
             Class<?> genericStackClass = Class.forName("appeng.api.stacks.GenericStack");
             var itemKeyOf = aeItemKeyClass.getMethod("of", ItemStack.class);
@@ -116,21 +150,24 @@ public record AEBatchQueryPacket(List<ItemStack> stacks, boolean queryCraftabili
                         }
                     }
                 } catch (Exception e) {
-                    // skip entry
+                    // Skip the failed entry: reporting zero here would poison the
+                    // client cache with a value that is not known to be correct.
+                    continue;
                 }
 
                 results.add(new AEBatchQueryResponsePacket.Entry(stack, count, craftable, queryCraftability));
             }
         } catch (Exception e) {
-            ModLogger.debug("AEBatchQuery: error resolving grid: {}", e.getMessage());
+            ModLogger.debug("AEBatchQuery: key reflection unavailable: {}", e.getMessage());
         }
+        return results;
+    }
 
-        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
-            ModLogger.debug("AEBatchQuery: sending response entries={} queryCraftability={} durabilityCompatible={} stacks={} menu={}",
-                    results.size(), queryCraftability, durabilityCompatible, stacks.size(),
-                    player.containerMenu.getClass().getName());
-            PacketDistributor.sendToPlayer(sp, new AEBatchQueryResponsePacket(results));
+    private static boolean hasAnyData(List<AEBatchQueryResponsePacket.Entry> entries) {
+        for (var entry : entries) {
+            if (entry.count() > 0 || entry.craftable()) return true;
         }
+        return false;
     }
 
     public static void handle(final AEBatchQueryPacket packet, final IPayloadContext context) {
