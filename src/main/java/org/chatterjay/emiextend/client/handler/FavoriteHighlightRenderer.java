@@ -94,11 +94,14 @@ public final class FavoriteHighlightRenderer {
         FavoriteDragSelectHandler.forEachVisibleCell((space, stack, x, y, col, row) -> {
             boolean favoritesSpace = isFavoritesSpace(space);
             boolean protectedCell = protectEnabled && FavoriteProtection.isProtected(stack);
-            // Marks live in the favorites bar only; the index view stays untouched.
-            boolean markedCell = markEnabled && favoritesSpace && BatchMark.isMarked(stack);
+            // Stored marks are shown wherever the stack appears, so the index view
+            // reflects them as well; only the selection gesture is limited to the
+            // favorites bar.
+            boolean markedCell = markEnabled && BatchMark.isMarked(stack);
             if (dragProtect || dragMark) {
                 boolean inside = FavoriteDragSelectHandler.isCellSelected(x, y, x1, y1, x2, y2);
                 if (dragProtect) protectedCell |= inside;
+                // The live preview matches what the release will actually mark.
                 if (dragMark) markedCell |= inside && favoritesSpace;
             }
             if (!protectedCell && !markedCell) return;
@@ -251,11 +254,10 @@ public final class FavoriteHighlightRenderer {
                                   boolean dragActive, int x1, int y1, int x2, int y2) {
         FavoriteDragSelectHandler.forEachVisibleCell(targetSpace, (space, stack, x, y, col, row) -> {
             if (space != targetSpace) return;
-            boolean member = markLayer
-                    ? isFavoritesSpace(space) && BatchMark.isMarked(stack)
-                    : FavoriteProtection.isProtected(stack);
+            boolean member = markLayer ? BatchMark.isMarked(stack) : FavoriteProtection.isProtected(stack);
             if (!member && dragActive) {
-                member = FavoriteDragSelectHandler.isCellSelected(x, y, x1, y1, x2, y2);
+                member = FavoriteDragSelectHandler.isCellSelected(x, y, x1, y1, x2, y2)
+                        && (!markLayer || isFavoritesSpace(space));
             }
             if (member) {
                 guiGraphics.fill(x, y, x + CELL, y + CELL, backgroundColor);
@@ -275,10 +277,7 @@ public final class FavoriteHighlightRenderer {
                     Component.translatable("emilink.tooltip.favorite_protected")
                             .withStyle(ChatFormatting.GOLD)));
         }
-        // The mark hint belongs to the favorites bar as well, so it is only shown
-        // for favorites rather than for the same item in the index view.
-        if (EmiLinkConfig.ENABLE_BATCH_MARK.get() && BatchMark.isMarked(hovered)
-                && hovered instanceof dev.emi.emi.runtime.EmiFavorite) {
+        if (EmiLinkConfig.ENABLE_BATCH_MARK.get() && BatchMark.isMarked(hovered)) {
             if (result == original) {
                 result = new ArrayList<>(result);
             }
