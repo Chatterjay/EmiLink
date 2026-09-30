@@ -26,6 +26,7 @@ import org.chatterjay.emiextend.client.bookmark.BookmarkPageHelper;
 import org.chatterjay.emiextend.client.bookmark.BomFavoriteQuickCraftButton;
 import org.chatterjay.emiextend.client.DragFillTarget;
 import org.chatterjay.emiextend.client.InputEvents;
+import org.chatterjay.emiextend.client.handler.BatchMarkFill;
 import org.chatterjay.emiextend.client.handler.FavoriteDragSelectHandler;
 import org.chatterjay.emiextend.client.handler.FavoriteHighlightRenderer;
 import org.chatterjay.emiextend.client.handler.EmiInteractionHandler;
@@ -134,6 +135,23 @@ public class EmiScreenManagerMixin {
         }
         if (filtered != null) {
             cir.setReturnValue(List.copyOf(filtered));
+        }
+    }
+
+    /**
+     * Batch marking: when a marked sidebar stack is dropped onto a filter slot,
+     * EmiLink performs that drop and then fills the remaining marks into the
+     * following slots. The dropped stack and the pressed stack are cleared here
+     * because EMI's own cleanup runs in a finally block that is skipped when this
+     * injection cancels the release.
+     */
+    @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, require = 0)
+    private static void emilink$batchMarkDrop(double mouseX, double mouseY, int button,
+                                              CallbackInfoReturnable<Boolean> cir) {
+        if (BatchMarkFill.tryHandleMarkedDrop(mouseX, mouseY, button, draggedStack)) {
+            pressedStack = EmiStack.EMPTY;
+            draggedStack = EmiStack.EMPTY;
+            cir.setReturnValue(true);
         }
     }
 
@@ -310,7 +328,7 @@ public class EmiScreenManagerMixin {
     private static List<ClientTooltipComponent> emilink$addAeTooltipInfo(EmiIngredient hov) {
         List<ClientTooltipComponent> tooltip = EmiInteractionHandler.addAeTooltipInfo(
                 hov, lastMouseX, lastMouseY, hov.getTooltip());
-        return FavoriteHighlightRenderer.appendProtectedTooltip(hov, tooltip);
+        return FavoriteHighlightRenderer.appendSelectionTooltip(hov, tooltip);
     }
 
     @Redirect(method = "renderDraggedStack",

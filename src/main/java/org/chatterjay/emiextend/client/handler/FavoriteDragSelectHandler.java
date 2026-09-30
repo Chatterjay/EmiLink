@@ -7,6 +7,7 @@ import dev.emi.emi.runtime.EmiFavorites;
 import dev.emi.emi.screen.EmiScreenManager;
 import net.minecraft.client.gui.screens.Screen;
 import org.lwjgl.glfw.GLFW;
+import org.chatterjay.emiextend.client.BatchMark;
 import org.chatterjay.emiextend.client.FavoriteProtection;
 import org.chatterjay.emiextend.client.util.ModifierKeyUtil;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
@@ -17,13 +18,23 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Modifier + left-drag over an EMI sidebar toggles protection for every stack
- * in the rectangle, batch-favoriting stacks when protection is enabled.
- * The selection owns the EMI drag while the modifier is held, including on the
- * favorites sidebar, so EMI cannot reorder or activate the underlying stack.
+ * Modifier + left-drag over an EMI sidebar toggles protection for every stack in
+ * the rectangle, batch-favoriting stacks when protection is enabled. Modifier +
+ * right-drag marks stacks for the batch filter fill instead. The selection owns
+ * the EMI drag while the modifier is held, including on the favorites sidebar, so
+ * EMI cannot reorder or activate the underlying stack.
  */
 public final class FavoriteDragSelectHandler {
+
+    /** Which selection the current drag performs. */
+    public enum DragMode {
+        NONE,
+        PROTECT,
+        MARK
+    }
+
     private static boolean active = false;
+    private static DragMode mode = DragMode.NONE;
     private static int startX, startY, currentX, currentY;
     private static final long DELETE_DOUBLE_PRESS_WINDOW_MS = 400L;
     private static String pendingDeleteId;
@@ -34,6 +45,11 @@ public final class FavoriteDragSelectHandler {
 
     public static boolean isActive() {
         return active;
+    }
+
+    /** Selection performed by the active drag, or NONE when no drag is running. */
+    public static DragMode mode() {
+        return mode;
     }
 
     public static int dragStartX() {
@@ -177,8 +193,17 @@ public final class FavoriteDragSelectHandler {
 
     /** Returns true when the press was consumed as the start of a drag selection. */
     public static boolean onMousePressed(Screen screen, double mouseX, double mouseY, int button) {
-        if (!EmiLinkConfig.ENABLE_FAVORITE_DRAG_SELECT.get()) return false;
-        if (button != 0) return false;
+        // Left-drag toggles favorite protection, right-drag toggles batch marks.
+        DragMode requested;
+        if (button == 0) {
+            if (!EmiLinkConfig.ENABLE_FAVORITE_DRAG_SELECT.get()) return false;
+            requested = DragMode.PROTECT;
+        } else if (button == 1) {
+            if (!EmiLinkConfig.ENABLE_BATCH_MARK.get()) return false;
+            requested = DragMode.MARK;
+        } else {
+            return false;
+        }
         if (!isModifierHeld()) return false;
         if (screen == null || EmiScreenManager.isDisabled()) return false;
         if (screen.getFocused() instanceof net.minecraft.client.gui.components.EditBox) return false;
@@ -190,11 +215,12 @@ public final class FavoriteDragSelectHandler {
 
         var hoveredSpace = panel.getHoveredSpace(mx, my);
         active = true;
+        mode = requested;
         startX = currentX = mx;
         startY = currentY = my;
         clearEmiDragState();
-        ModLogger.debug("FavoriteDragSelect: started mode=toggle at ({},{}), space type={}",
-                mx, my,
+        ModLogger.debug("FavoriteDragSelect: started mode={} at ({},{}), space type={}",
+                requested, mx, my,
                 hoveredSpace == null ? "none" : hoveredSpace.getType());
         return true;
     }
@@ -211,8 +237,10 @@ public final class FavoriteDragSelectHandler {
     public static boolean onMouseReleased(double mouseX, double mouseY, int button) {
         if (!active) return false;
         active = false;
+        DragMode finished = mode;
+        mode = DragMode.NONE;
         clearEmiDragState();
-        if (button != 0) {
+        if (button != (finished == DragMode.MARK ? 1 : 0)) {
             ModLogger.debug("FavoriteDragSelect: released with mismatched button {}, discarding", button);
             return true;
         }
@@ -222,10 +250,14 @@ public final class FavoriteDragSelectHandler {
         int x2 = Math.max(startX, (int) mouseX);
         int y2 = Math.max(startY, (int) mouseY);
 
+        var selectedStacks = collectVisibleStacks(x1, y1, x2, y2);
+        if (finished == DragMode.MARK) {
+            return finishMarkSelection(selectedStacks, x1, y1, x2, y2);
+        }
+
         int favored = 0;
         int protectedCount = 0;
         int unprotected = 0;
-        var selectedStacks = collectVisibleStacks(x1, y1, x2, y2);
         boolean protect = selectedStacks.stream().anyMatch(stack -> !FavoriteProtection.isProtected(stack));
         if (protect) {
             lastProtectedSelectionIds.clear();
@@ -267,6 +299,27 @@ public final class FavoriteDragSelectHandler {
         }
         ModLogger.debug("FavoriteDragSelect: finished rect=({},{})-({},{}), favored={} protected={} unprotected={} deleteGroup={}",
                 x1, y1, x2, y2, favored, protectedCount, unprotected, lastProtectedSelectionIds.size());
+        return true;
+    }
+
+    /**
+     * Toggle the marks for the selection: everything is marked when at least one
+     * entry is unmarked, otherwise the whole selection is unmarked.
+     */
+    private static boolean finishMarkSelection(java.util.List<EmiIngredient> selectedStacks,
+                                               int x1, int y1, int x2, int y2) {
+        if (selectedStacks.isEmpty()) {
+            ModLogger.debug("FavoriteDragSelect: batch mark selection was empty");
+            return true;
+        }
+        boolean mark = selectedStacks.stream().anyMatch(stack -> !BatchMark.isMarked(stack));
+        if (mark) {
+            BatchMark.markAll(selectedStacks);
+        } else {
+            BatchMark.unmarkAll(selectedStacks);
+        }
+        ModLogger.debug("FavoriteDragSelect: batch mark rect=({},{})-({},{}) marked={} selected={} total={}",
+                x1, y1, x2, y2, mark, selectedStacks.size(), BatchMark.size());
         return true;
     }
 
