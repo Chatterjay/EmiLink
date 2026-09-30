@@ -7,6 +7,7 @@
   "emilink.tooltip.deposit": "存入网络",
   "emilink.tooltip.deposit_all": "存入所有同类",
   "emilink.tooltip.favorite_protected": "§6受保护 | 修饰右键拖选解除",
+  "emilink.tooltip.batch_marked": "§b已批量标记 | 修饰右键拖选解除",
   "emilink.tooltip.quick_craft": "使用 BOM 快速合成按钮执行此合成树",
   "emilink.tooltip.favorite_bom_quick_craft": "左键执行此合成树",
   "emilink.tooltip.wrap_as_book.on": "成书包裹：开启",
@@ -19,6 +20,7 @@
   "emilink.command.wrap_book": "EmiLink 成书包裹模式：%s",
   "emilink.command.extract": "EmiLink 提取修饰键：%s",
   "emilink.command.clear_cache": "AE 网络缓存已清除",
+  "emilink.command.clear_marks": "已清空 EmiLink 批量标记：%s 项",
 
   "emilink.configuration.title": "EmiLink 配置",
   "emilink.configuration.general": "常规",
@@ -27,7 +29,6 @@
   "emilink.configuration.ae_network": "AE 网络",
   "emilink.configuration.quick_craft": "快速合成",
   "emilink.configuration.inventory": "物品栏",
-  "emilink.configuration.debug": "调试",
 
   "emilink.config.general.debugMode": "调试模式",
   "emilink.config.general.debugMode.tooltip": "输出调试日志。\n同时显示调试聊天消息。",
@@ -68,6 +69,21 @@
   "emilink.config.emi_ui.favoriteProtectionBackgroundOpacity": "保护背景不透明度",
   "emilink.config.emi_ui.favoriteProtectionBackgroundOpacity.tooltip": "框选矩形背景的不透明度。\n范围：0-255，0 为完全透明，255 为完全不透明。",
 
+  "emilink.config.emi_ui.enableBatchMark": "批量标记框选",
+  "emilink.config.emi_ui.enableBatchMark.tooltip": "修饰键 + 右键拖选可批量标记侧栏物品。\n把其中一个已标记物品拖到标记槽后，\n其余标记会按选择顺序填入后续空槽。",
+  "emilink.config.emi_ui.batchMarkBorderColor": "标记边框颜色",
+  "emilink.config.emi_ui.batchMarkBorderColor.tooltip": "批量标记边框与拖选矩形边框的 RGB 颜色。\n使用六位十六进制，例如 00C8FF 或 #00C8FF。",
+  "emilink.config.emi_ui.batchMarkBorderOpacity": "标记边框不透明度",
+  "emilink.config.emi_ui.batchMarkBorderOpacity.tooltip": "批量标记边框与拖选矩形边框的不透明度。\n范围 0-255，0 为全透明，255 为不透明。",
+  "emilink.config.emi_ui.batchMarkBackgroundColor": "标记背景颜色",
+  "emilink.config.emi_ui.batchMarkBackgroundColor.tooltip": "批量标记背景的 RGB 颜色。\n使用六位十六进制，例如 00C8FF 或 #00C8FF。",
+  "emilink.config.emi_ui.batchMarkBackgroundOpacity": "标记背景不透明度",
+  "emilink.config.emi_ui.batchMarkBackgroundOpacity.tooltip": "批量标记背景的不透明度。\n范围 0-255，0 为全透明，255 为不透明。",
+  "emilink.config.emi_ui.enableBatchMarkFill": "拖放后批量填入",
+  "emilink.config.emi_ui.enableBatchMarkFill.tooltip": "把其中一个已标记物品拖到标记槽后，\n其余标记会按顺序填入后续空槽。\n关闭后只标记你拖放的那一格。",
+  "emilink.config.emi_ui.sharedEdgeSplit": "共用边框对半分色",
+  "emilink.config.emi_ui.sharedEdgeSplit.tooltip": "保护与批量标记共用的边框各取一半颜色，\n让两个框选相互衔接。\n关闭后共用边框只画标记颜色。",
+
   "emilink.config.ae_network.enableAeNetworkLookup": "读取 AE 网络",
   "emilink.config.ae_network.enableAeNetworkLookup.tooltip": "默认开启，读取 AE 网络库存和可合成状态并显示在 EMI 覆盖层及交互中。关闭后不发送 AE 查询，也不显示网络信息。",
   "emilink.config.ae_network.enableNetworkBadges": "网络角标",
@@ -93,6 +109,6 @@
   "emilink.config.inventory.enableDiscardMatchingKey": "丢弃同类物品",
   "emilink.config.inventory.enableDiscardMatchingKey.tooltip": "悬停槽位物品后按 Ctrl+Shift+原版丢弃键。\n会跳过 IPN 锁定槽位。",
 
-  "emilink.config.debug.enableDebugPacketLimit": "调试包限流",
-  "emilink.config.debug.enableDebugPacketLimit.tooltip": "限制调试数据包发送频率。\n用于避免日志测试时刷包。"
+  "emilink.config.general.enableDebugPacketLimit": "调试包限流",
+  "emilink.config.general.enableDebugPacketLimit.tooltip": "限制调试数据包发送频率。\n用于避免日志测试时刷包。"
 }

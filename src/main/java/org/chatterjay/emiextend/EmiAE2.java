@@ -97,6 +97,16 @@ public class EmiAE2 {
                                     return 1;
                                 })
                         )
+                        .then(Commands.literal("clearmarks")
+                                .executes(ctx -> {
+                                    int cleared = org.chatterjay.emiextend.client.BatchMark.clear();
+                                    ctx.getSource().sendSuccess(
+                                            () -> Component.translatable("emilink.command.clear_marks", cleared),
+                                            false
+                                    );
+                                    return 1;
+                                })
+                        )
                         .then(Commands.literal("shiftclick")
                                 .executes(ctx -> {
                                     String current = EmiLinkConfig.getExtractModifierKeyName();

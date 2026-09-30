@@ -7,6 +7,7 @@
   "emilink.tooltip.deposit": "Deposit into network",
   "emilink.tooltip.deposit_all": "Deposit all matching",
   "emilink.tooltip.favorite_protected": "§6Protected | Modifier + Right Drag to Unprotect",
+  "emilink.tooltip.batch_marked": "§bBatch marked | Modifier + Right Drag to Unmark",
   "emilink.tooltip.quick_craft": "Use the BOM quick-craft button to craft this tree",
   "emilink.tooltip.favorite_bom_quick_craft": "Left-click to quick craft this BOM tree",
   "emilink.tooltip.wrap_as_book.on": "Wrap as Book: On",
@@ -19,6 +20,7 @@
   "emilink.command.wrap_book": "EmiLink wrap-as-book mode: %s",
   "emilink.command.extract": "EmiLink extract modifier: %s",
   "emilink.command.clear_cache": "AE network cache cleared",
+  "emilink.command.clear_marks": "EmiLink batch marks cleared: %s",
 
   "emilink.configuration.title": "EmiLink Config",
   "emilink.configuration.general": "General",
@@ -27,7 +29,6 @@
   "emilink.configuration.ae_network": "AE Network",
   "emilink.configuration.quick_craft": "Quick Craft",
   "emilink.configuration.inventory": "Inventory",
-  "emilink.configuration.debug": "Debug",
 
   "emilink.config.general.debugMode": "Debug Mode",
   "emilink.config.general.debugMode.tooltip": "Print debug logs.\nAlso shows debug chat messages.",
@@ -69,6 +70,21 @@
   "emilink.config.emi_ui.favoriteProtectionBackgroundOpacity": "Protection Background Opacity",
   "emilink.config.emi_ui.favoriteProtectionBackgroundOpacity.tooltip": "Opacity for the drag-selection rectangle background.\nRange: 0-255, where 0 is transparent and 255 is opaque.",
 
+  "emilink.config.emi_ui.enableBatchMark": "Batch Mark Selection",
+  "emilink.config.emi_ui.enableBatchMark.tooltip": "Modifier + right-drag marks sidebar stacks.\nDropping one marked stack onto a filter slot fills the remaining marks\ninto the following slots, in the order they were selected.",
+  "emilink.config.emi_ui.batchMarkBorderColor": "Mark Border Color",
+  "emilink.config.emi_ui.batchMarkBorderColor.tooltip": "RGB color for batch-marked outlines and the drag rectangle border.\nUse six-digit hexadecimal, such as 00C8FF or #00C8FF.",
+  "emilink.config.emi_ui.batchMarkBorderOpacity": "Mark Border Opacity",
+  "emilink.config.emi_ui.batchMarkBorderOpacity.tooltip": "Opacity for batch-marked outlines and the drag rectangle border.\nRange: 0-255, where 0 is transparent and 255 is opaque.",
+  "emilink.config.emi_ui.batchMarkBackgroundColor": "Mark Background Color",
+  "emilink.config.emi_ui.batchMarkBackgroundColor.tooltip": "RGB color for the batch-mark background.\nUse six-digit hexadecimal, such as 00C8FF or #00C8FF.",
+  "emilink.config.emi_ui.batchMarkBackgroundOpacity": "Mark Background Opacity",
+  "emilink.config.emi_ui.batchMarkBackgroundOpacity.tooltip": "Opacity for the batch-mark background.\nRange: 0-255, where 0 is transparent and 255 is opaque.",
+  "emilink.config.emi_ui.enableBatchMarkFill": "Batch Fill After Drop",
+  "emilink.config.emi_ui.enableBatchMarkFill.tooltip": "Drop one marked stack onto a filter slot to fill the remaining\nmarks into the following slots.\nDisabled: only the dropped slot is marked.",
+  "emilink.config.emi_ui.sharedEdgeSplit": "Split Shared Borders",
+  "emilink.config.emi_ui.sharedEdgeSplit.tooltip": "Draw a border shared by protection and batch marking half in\neach colour, so both outlines connect.\nDisabled: shared borders use the mark colour only.",
+
   "emilink.config.ae_network.enableAeNetworkLookup": "Read AE Network",
   "emilink.config.ae_network.enableAeNetworkLookup.tooltip": "Enabled by default. Reads AE stored and craftable states for EMI overlays and interactions. When disabled, no AE queries are sent and network information is hidden.",
   "emilink.config.ae_network.enableNetworkBadges": "Network Badges",
@@ -94,6 +110,6 @@
   "emilink.config.inventory.enableDiscardMatchingKey": "Discard Matching Items",
   "emilink.config.inventory.enableDiscardMatchingKey.tooltip": "Hover a slotted item, then press Ctrl+Shift+the vanilla drop key.\nIPN locked slots are skipped.",
 
-  "emilink.config.debug.enableDebugPacketLimit": "Debug Packet Limit",
-  "emilink.config.debug.enableDebugPacketLimit.tooltip": "Limit debug packet frequency.\nUseful when testing noisy logs."
+  "emilink.config.general.enableDebugPacketLimit": "Debug Packet Limit",
+  "emilink.config.general.enableDebugPacketLimit.tooltip": "Limit debug packet frequency.\nUseful when testing noisy logs."
 }
