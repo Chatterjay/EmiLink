@@ -1,7 +1,9 @@
 package org.chatterjay.emiextend.mixin;
 
+import appeng.api.stacks.GenericStack;
 import appeng.integration.modules.emi.EmiEncodePatternHandler;
 import appeng.menu.me.items.PatternEncodingTermMenu;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -14,6 +16,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.List;
 
 @Mixin(value = EmiEncodePatternHandler.class, remap = false, priority = 1500)
 public class EmiEncodePatternHandlerMixin {
@@ -64,10 +68,7 @@ public class EmiEncodePatternHandlerMixin {
                     ModLogger.debug("Pattern written (custom): category={} id={}",
                             emiRecipe.getCategory().getId(), emiRecipe.getId());
                     ProviderSearchHelper.setFromEmiRecipe(emiRecipe);
-                    if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
-                        BookmarkPriorityHandler.applyBookmarkPriority(
-                                menu.getProcessingInputSlots(), emiRecipe.getInputs());
-                    }
+                    // processing pattern: bookmark priority was applied to the inputs (emilink$preferBookmarked)
                 }
                 return;
             }
@@ -89,12 +90,29 @@ public class EmiEncodePatternHandlerMixin {
                 if (name != null && !name.isBlank()) {
                     ProviderSearchHelper.setLastProcessingName(ProviderSearchHelper.resolveKeyToAlias(name));
                 }
-                if (EmiLinkConfig.BOOKMARK_PRIORITY.get()) {
-                    BookmarkPriorityHandler.applyBookmarkPriority(menu.getProcessingInputSlots(), emiRecipe.getInputs());
-                }
+                // processing pattern: bookmark priority was applied to the inputs (emilink$preferBookmarked)
             }
         } catch (Throwable t) {
             ModLogger.warn("EmiEncodePatternHandlerMixin error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
+        }
+    }
+
+    /**
+     * Processing patterns: apply bookmark priority to each input's candidates before AE2 encodes them.
+     * Rewriting the slots afterwards can't work for processing patterns: AE2 skips empty inputs and merges
+     * equal stacks, so slot i is not recipe input i (inputs got overwritten, e.g. a fluid after a merged item).
+     */
+    @ModifyExpressionValue(method = "transferRecipe",
+            at = @At(value = "INVOKE",
+                    target = "Lappeng/integration/modules/emi/EmiStackHelper;ofInputs(Ldev/emi/emi/api/recipe/EmiRecipe;)Ljava/util/List;"),
+            require = 0)
+    private List<List<GenericStack>> emilink$preferBookmarked(List<List<GenericStack>> inputs) {
+        try {
+            if (!EmiLinkConfig.BOOKMARK_PRIORITY.get()) return inputs;
+            return BookmarkPriorityHandler.preferBookmarked(inputs);
+        } catch (Throwable t) {
+            ModLogger.warn("EmiEncodePatternHandlerMixin bookmark priority error: {}: {}", t.getClass().getSimpleName(), t.getMessage());
+            return inputs;
         }
     }
 }
