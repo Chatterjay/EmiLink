@@ -1,8 +1,6 @@
 package org.chatterjay.emiextend.client;
 
 import net.minecraft.world.item.ItemStack;
-import org.chatterjay.emiextend.config.EmiLinkConfig;
-import org.chatterjay.emiextend.integration.AE2Proxy;
 
 /** Shared render state used by the EMI sidebar mixins. */
 public final class NetworkBadgeRenderState {
@@ -12,7 +10,10 @@ public final class NetworkBadgeRenderState {
 
     private NetworkBadgeRenderState() {}
 
-    /** Whether EmiLink owns all amount rendering for the active sidebar frame. */
+    /**
+     * Whether EmiLink replaces the amount EMI would draw for this item stack.
+     * Kept for the item decoration path, which only ever sees an ItemStack.
+     */
     public static boolean shouldReplaceNativeAmount(ItemStack itemStack) {
         if (itemStack == null || itemStack.isEmpty()) {
             return false;
@@ -20,11 +21,22 @@ public final class NetworkBadgeRenderState {
         return ownsSidebarAmount();
     }
 
-    /** Shared condition for both EMI amount rendering paths. */
+    /**
+     * Whether EmiLink replaces the amount EMI would draw for a stack of any type.
+     * Fluids, chemicals and other AE keys have no ItemStack, but their amounts
+     * are drawn through the same EMI helper and must be replaced as well.
+     */
+    public static boolean shouldReplaceAmount() {
+        return ownsSidebarAmount();
+    }
+
+    /**
+     * Shared condition for every EMI amount rendering path. True for EmiLink's
+     * own overlay and for the ExtendedAE Plus fallback, so the native EMI amount
+     * is suppressed in both cases and only the network amount is drawn.
+     */
     public static boolean ownsSidebarAmount() {
-        return AE2Proxy.isLoaded()
-                && EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
-                && AENetworkCache.hasAEAccess();
+        return NetworkStockSource.overlayEnabled();
     }
 
     public static boolean isSidebarRendering() {

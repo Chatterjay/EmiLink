@@ -56,6 +56,7 @@ public final class EmiLinkConfig {
     // ---- AE / Network Storage ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
+    public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_TOOLTIPS;
     public static final ModConfigSpec.BooleanValue ENABLE_CRAFTABLE_NETWORK_BADGES;
     public static final ModConfigSpec.IntValue INITIAL_BADGE_SCAN_LIMIT;
     public static final ModConfigSpec.ConfigValue<String> EXTRACT_MODIFIER;
@@ -236,6 +237,12 @@ public final class EmiLinkConfig {
                 .comment("Show AE network overlays on EMI item icons: bottom stock count and top-right craftable cross")
                 .translation("emilink.config.ae_network.enableNetworkBadges")
                 .define("enableNetworkBadges", false);
+
+        ENABLE_NETWORK_TOOLTIPS = BUILDER
+                .comment("Show stored amount and craftability of AE keys in EMI tooltips, " +
+                         "including fluids, chemicals and other non-item keys")
+                .translation("emilink.config.ae_network.enableNetworkTooltips")
+                .define("enableNetworkTooltips", true);
 
         ENABLE_CRAFTABLE_NETWORK_BADGES = BUILDER
                 .comment("Also query AE craftability for the top-right cross. " +

@@ -9,8 +9,8 @@ import net.minecraft.client.Minecraft;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.client.AENetworkKeyHelper;
 import org.chatterjay.emiextend.client.NetworkBadgeRenderState;
+import org.chatterjay.emiextend.client.NetworkStockSource;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
-import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -72,8 +72,9 @@ public abstract class EmiScreenSpaceMixin {
             remap = false)
     private void emilink$initialScan(EmiDrawContext context, int mouseX, int mouseY,
                                      float delta, int scrollOffset, CallbackInfo ci) {
-        if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
-        if (!AENetworkCache.hasAEAccess()) return;
+        // The initial scan only feeds EmiLink's own cache. An ExtendedAE Plus
+        // source pushes complete snapshots by itself, so there is nothing to warm.
+        if (!NetworkStockSource.isEmiLinkSource() || !NetworkStockSource.overlayEnabled()) return;
         AENetworkCache.requestInitialScanIfNeeded();
         var stacks = getStacks();
         // EMI can render the sidebar before its index has any cells. Keep the
@@ -124,14 +125,16 @@ public abstract class EmiScreenSpaceMixin {
             remap = false)
     private void emilink$renderBadgeOverlay(EmiDrawContext context, int mouseX, int mouseY,
                                             float delta, int scrollOffset, CallbackInfo ci) {
-        if (!AE2Proxy.isLoaded() || !EmiLinkConfig.ENABLE_NETWORK_BADGES.get()) return;
-        if (!AENetworkCache.hasAEAccess()) {
+        if (!NetworkStockSource.overlayEnabled()) {
             if (badgeLogRateLimit()) {
-                ModLogger.debug("Network overlay skipped: {}", AENetworkCache.describeAccessState());
+                ModLogger.debug("Network overlay skipped: source={} {}", NetworkStockSource.describe(),
+                        AENetworkCache.describeAccessState());
             }
             return;
         }
 
+        boolean emiLinkSource = NetworkStockSource.isEmiLinkSource();
+        boolean craftableMarkers = NetworkStockSource.craftableOverlayEnabled();
         var stacks = getStacks();
         int index = scrollOffset;
 
@@ -166,8 +169,8 @@ public abstract class EmiScreenSpaceMixin {
                 var key = resolveNetworkKey(ingredient);
                 if (key == null) continue;
 
-                var result = AENetworkCache.getCachedResult(key.stack());
-                if (AENetworkCache.shouldRefreshVisible(key.stack())) {
+                var result = NetworkStockSource.lookup(key);
+                if (emiLinkSource && AENetworkCache.shouldRefreshVisible(key.stack())) {
                     // Keep visible cells self-healing after network changes or
                     // cache expiry; do not wait for a hover or a sidebar scroll.
                     AENetworkCache.submitVisibleBadge(key.stack());
@@ -175,14 +178,14 @@ public abstract class EmiScreenSpaceMixin {
                 if (result.found() && result.count() > 0) {
                     cacheHits++;
                     context.raw().drawString(font,
-                            formatShortCount(key.displayCount(result.count()), key.unitSymbol()),
+                            formatShortAmount(key, result.count()),
                             (x + 1) * 2,
                             (y + 11) * 2, 0xFFFFFFFF, true);
                 }
-                if (result.craftable()) {
+                if (result.craftable() && craftableMarkers) {
                     drawTopRightPlus(context, x, y, hasRecipeFavoriteMarker(ingredient));
+                    craftableItems++;
                 }
-                if (result.craftable()) craftableItems++;
             }
         }
         context.pop();
@@ -191,8 +194,9 @@ public abstract class EmiScreenSpaceMixin {
         context.enableDepthTest();
         context.disableBlend();
         if (badgeLogRateLimit()) {
-            ModLogger.debug("Network overlay: evaluated={} cached={} craftable={}",
-                    itemsRendered, cacheHits, craftableItems);
+            ModLogger.debug("Network overlay: evaluated={} cached={} craftable={} source={} state={}",
+                    itemsRendered, cacheHits, craftableItems,
+                    NetworkStockSource.describe(), NetworkStockSource.describeSourceState());
         }
     }
 
@@ -208,10 +212,19 @@ public abstract class EmiScreenSpaceMixin {
         return false;
     }
 
-    /** Compact AE-style count, with the key's unit (for example "B") appended when it has one. */
-    private static String formatShortCount(long count, String unitSymbol) {
-        String text = formatShortCount(count);
-        return unitSymbol == null || unitSymbol.isEmpty() ? text : text + unitSymbol;
+    /**
+     * Badge text for any AE key. Items keep their plain count; keys with a larger
+     * base unit (fluids, chemicals) are shown in that unit with its symbol, and a
+     * stack smaller than one unit is written as "<1" so it never reads as empty.
+     */
+    private static String formatShortAmount(AENetworkKeyHelper.NetworkKey key, long rawCount) {
+        if (key.amountPerUnit() <= 1L) {
+            return formatShortCount(rawCount);
+        }
+        long units = key.displayCount(rawCount);
+        String text = units > 0L ? formatShortCount(units) : "<1";
+        String symbol = key.unitSymbol();
+        return symbol == null || symbol.isEmpty() ? text : text + symbol;
     }
 
     private static String formatShortCount(long count) {

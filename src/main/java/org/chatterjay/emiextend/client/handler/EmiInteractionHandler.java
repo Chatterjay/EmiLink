@@ -30,6 +30,7 @@ import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.client.AENetworkCache;
 import org.chatterjay.emiextend.client.AENetworkKeyHelper;
+import org.chatterjay.emiextend.client.NetworkTooltip;
 import org.chatterjay.emiextend.integration.AE2Proxy;
 import org.chatterjay.emiextend.integration.BDProxy;
 import org.chatterjay.emiextend.integration.CuriosProxy;
@@ -474,12 +475,22 @@ public final class EmiInteractionHandler {
         }
     }
 
-    /** Add EmiLink-specific recipe hints without adding network state to tooltips. */
+    /**
+     * Add the AE network amount plus EmiLink's recipe hint to an EMI tooltip.
+     * <p>
+     * Network lines only appear for sidebar stacks, where AE2 does not already
+     * show the amount itself, and go through {@link AENetworkKeyHelper} so every
+     * AE key (items, fluids, chemicals) is covered rather than items only.
+     */
     public static List<ClientTooltipComponent> addAeTooltipInfo(
             EmiIngredient hovered, int mouseX, int mouseY, List<ClientTooltipComponent> original) {
         if (original == null || original.isEmpty()) return original;
 
         List<ClientTooltipComponent> result = original;
+        if (hovered != null && !hovered.isEmpty()
+                && EmiScreenManager.getHoveredSpace(mouseX, mouseY) != null) {
+            result = NetworkTooltip.append(AENetworkKeyHelper.resolve(hovered), result);
+        }
         if (EmiLinkConfig.isAutomaticWorkbenchCraftingEnabled()
                 && EmiLinkConfig.ENABLE_QUICK_CRAFT_TAB.get()
                 && hovered instanceof EmiFavorite.Synthetic synthetic

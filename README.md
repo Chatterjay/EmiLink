@@ -23,6 +23,12 @@
 - AE2 合成计划和 CPU 界面保留 EMI 侧边栏支持。
 - F/Alt+F 搜索支持 AE2、BD、RS、ExtendedAE 和部分兼容终端。
 
+## AE 网络信息
+
+- EMI 侧边栏物品提示中显示 AE 库存数量与可合成状态，物品、流体、化学品等全部 AE key 均支持。
+- 服务端有 EmiLink 时使用 EmiLink 自己的查询与缓存，由 EmiLink 的「读取 AE 网络」「网络角标」「网络信息提示」选项控制。
+- 服务端只有 ExtendedAE Plus（没有 EmiLink）时，直接使用 EAEP 同步到客户端的网络快照，并跟随 EAEP 的 `jeiNetworkOverlayEnabled` 设置。
+
 ## 许可证
 
 本项目使用 AGPL-3.0 许可证。

@@ -1,5 +1,25 @@
 # 更新日志
 
+## [21.1.19] - 2026-10-25
+
+### 新增
+
+- 恢复物品提示中的 AE 库存数量与可合成提示，并扩展到全部 AE key：物品、流体、化学品等非物品同样显示（流体按桶等 AE 单位换算）
+- 新增配置项「网络信息提示」，可单独关闭 EMI 提示中的网络数量
+- 角标渲染同样覆盖全部 AE key：原生数量接管改为在 EMI 统一的数量绘制入口完成，流体、化学品等非物品栈不再与网络角标重复显示，不足一个单位时显示「<1」加单位
+
+### 变更
+
+- ExtendedAE Plus 支持升级到 1.6.3，改用其客户端网络快照（NetworkItemCache）
+- 服务端有 ExtendedAE Plus 而没有 EmiLink 时，EMI 的库存角标改由 EAEP 快照渲染，并直接跟随 EAEP 的 jeiNetworkOverlayEnabled 设置
+- 服务端有 EmiLink 时仍使用 EmiLink 自己的缓存与配置，不受 EAEP 影响
+
+### 修复
+
+- EAEP 数据源判定加强：EAEP 的快照只在其客户端缓存确实有键时才作为数据源，快照为空（服务端发来 clear，通常是没有已绑定的无线终端）时不再抢占数量显示，并在调试日志中给出提示
+- 新增 EAEP 诊断：调试日志与 `/emilink eaepstatus` 会输出同步状态、条目数、键数与键样本，便于定位"有 EAEP 但没有数量"的问题
+- 修复启动崩溃：AE2 及其附属模组会在 mixin 准备阶段之前就加载 `dev.emi.emi.api.EmiApi`，导致必需的 mixin 配置抛出 `MixinTargetAlreadyLoadedException`；现将 EmiApiMixin 拆到独立的可选配置 `emilink_emi_api.mixins.json`，目标已被提前加载时只跳过该 mixin，不再中断启动
+
 ## [21.1.17] - 2026-09-30
 
 ### 新增

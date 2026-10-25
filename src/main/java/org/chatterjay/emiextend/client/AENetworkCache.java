@@ -118,6 +118,15 @@ public final class AENetworkCache {
         submitForBatch(stack, false);
     }
 
+    /**
+     * Queue the hovered tooltip key. A tooltip shows both the stored amount and
+     * the craftable hint, so craftability is queried together with the count;
+     * the configured batch interval keeps that extra work bounded.
+     */
+    public static void submitTooltipQuery(ItemStack stack) {
+        submitForBatch(stack, true);
+    }
+
     /** Queue a visible badge for the low-latency transfer refresh lane. */
     public static void submitVisibleBadge(ItemStack stack) {
         boolean queryCraftability = EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
@@ -328,6 +337,7 @@ public final class AENetworkCache {
         cacheDirty = false;
         accessCheckScreen = null;
         hoverTickCounter = 0;
+        org.chatterjay.emiextend.integration.EAEPNetworkBridge.clearMemo();
         ModLogger.debug("Client network login: reset EmiLink server capability state");
         loadFromDisk();
     }
@@ -341,6 +351,7 @@ public final class AENetworkCache {
         clearEphemeralQuery();
         accessCheckScreen = null;
         initialScanScreen = null;
+        org.chatterjay.emiextend.integration.EAEPNetworkBridge.clearMemo();
         ModLogger.debug("Client network logout: reset EmiLink server capability state");
     }
 

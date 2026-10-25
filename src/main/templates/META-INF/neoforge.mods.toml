@@ -13,6 +13,12 @@ logoFile = "emilink.png"
 [[mixins]]
 config = "${mod_id}.mixins.json"
 
+# Optional config: a target class that another mod already loaded (AE2 and its
+# addons probe EMI classes very early) then skips only this mixin instead of
+# aborting startup.
+[[mixins]]
+config = "${mod_id}_emi_api.mixins.json"
+
 [[dependencies."${mod_id}"]]
 modId = "neoforge"
 type = "required"

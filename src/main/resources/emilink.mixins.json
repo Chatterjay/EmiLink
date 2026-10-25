@@ -34,7 +34,7 @@
     "SFMTextEditorMouseMixin",
     "SFMTextEditorKeyboardMixin",
     "EmiRecipeFillerMixin",
-    "EmiApiMixin"
+    "EmiRenderHelperMixin"
   ],
   "mixins": [
     "AEBaseMenuMixin",

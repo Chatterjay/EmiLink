@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "org.chatterjay.emiextend.mixin",
+  "plugin": "org.chatterjay.emiextend.mixin.MixinConditionalPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "EmiApiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
