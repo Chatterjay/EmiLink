@@ -55,6 +55,7 @@ public abstract class EmiScreenSpaceStacksMixin {
 
     @Inject(method = "getStacks", at = @At("RETURN"), cancellable = true, remap = false)
     private void emilink$separateStacks(CallbackInfoReturnable<List<? extends EmiIngredient>> cir) {
+        if (!EmiLinkConfig.isClientConfigLoaded()) return;
         try {
             var type = getType();
             if (type == SidebarType.INDEX

@@ -59,8 +59,17 @@ public final class NetworkStockSource {
         return eaepDecision;
     }
 
+    /**
+     * Every entry point checks the config first: NeoForge never loads configs
+     * when another mod fails during construction, and reading a value then throws.
+     */
+    private static boolean configReady() {
+        return EmiLinkConfig.isClientConfigLoaded();
+    }
+
     /** Whether the EMI overlay (icon amount + craftable cross) should be drawn. */
     public static boolean overlayEnabled() {
+        if (!configReady()) return false;
         if (isEmiLinkSource()) {
             return AE2Proxy.isLoaded()
                     && EmiLinkConfig.ENABLE_NETWORK_BADGES.get()
@@ -71,6 +80,7 @@ public final class NetworkStockSource {
 
     /** Whether the overlay may also mark craftable keys. EAEP owns that decision itself. */
     public static boolean craftableOverlayEnabled() {
+        if (!configReady()) return false;
         if (isEmiLinkSource()) {
             return overlayEnabled() && EmiLinkConfig.ENABLE_CRAFTABLE_NETWORK_BADGES.get();
         }
@@ -79,6 +89,7 @@ public final class NetworkStockSource {
 
     /** Whether network amounts are appended to EMI tooltips. */
     public static boolean tooltipsEnabled() {
+        if (!configReady()) return false;
         if (isEmiLinkSource()) {
             return AE2Proxy.isLoaded()
                     && EmiLinkConfig.ENABLE_AE_NETWORK_LOOKUP.get()
@@ -93,7 +104,7 @@ public final class NetworkStockSource {
      * active source does not know come back as {@link Entry#EMPTY}.
      */
     public static Entry lookup(AENetworkKeyHelper.NetworkKey key) {
-        if (key == null) {
+        if (!configReady() || key == null) {
             return Entry.EMPTY;
         }
         if (isEmiLinkSource()) {

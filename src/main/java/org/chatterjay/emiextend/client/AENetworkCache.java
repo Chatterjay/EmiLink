@@ -451,6 +451,7 @@ public final class AENetworkCache {
     }
 
     public static void tick() {
+        if (!EmiLinkConfig.isClientConfigLoaded()) return;
         var mc = Minecraft.getInstance();
         if (mc.level != null) {
             lastRegistryAccess = mc.level.registryAccess();

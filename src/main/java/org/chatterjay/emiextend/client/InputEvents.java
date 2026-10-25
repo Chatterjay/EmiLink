@@ -1553,6 +1553,9 @@ public final class InputEvents {
      */
     @SubscribeEvent
     public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Pre event) {
+        // Configs are only loaded after mod construction; if another mod failed
+        // there, every read would throw and turn that failure into our crash.
+        if (!EmiLinkConfig.isClientConfigLoaded()) return;
         int budget = Math.max(1, EmiLinkConfig.QUICK_CRAFT_BATCHES_PER_TICK.get());
         for (int i = 0; i < budget; i++) {
             CraftingJob beforeJob = currentJob;
@@ -2476,6 +2479,7 @@ public final class InputEvents {
     /** Draw deposit hint tooltip when cursor has an item over the EMI sidebar. */
     @SubscribeEvent
     public static void onRenderPost(ScreenEvent.Render.Post event) {
+        if (!org.chatterjay.emiextend.config.EmiLinkConfig.isClientConfigLoaded()) return;
         if (!org.chatterjay.emiextend.config.EmiLinkConfig.ENABLE_AE_DEPOSIT.get()) return;
         var mc = Minecraft.getInstance();
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> cs)) return;

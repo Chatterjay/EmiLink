@@ -21,6 +21,7 @@
 - EAEP 数据源判定加强：EAEP 的快照只在其客户端缓存确实有键时才作为数据源，快照为空（服务端发来 clear，通常是没有已绑定的无线终端）时不再抢占数量显示，并在调试日志中给出提示
 - 新增 EAEP 诊断：调试日志会输出同步状态、条目数、键数与键样本，便于定位"有 EAEP 但没有数量"的问题
 - 修复启动崩溃：AE2 及其附属模组会在 mixin 准备阶段之前就加载 `dev.emi.emi.api.EmiApi`，导致必需的 mixin 配置抛出 `MixinTargetAlreadyLoadedException`；现将 EmiApiMixin 拆到独立的可选配置 `emilink_emi_api.mixins.json`，目标已被提前加载时只跳过该 mixin，不再中断启动
+- 配置未加载时不再崩溃：当其他模组在构造阶段失败时 NeoForge 根本不会加载任何配置文件，此时读取配置会抛 `IllegalStateException: Cannot get config value before config is loaded` 并把整局游戏带崩。客户端 tick、屏幕渲染、物品提示与 EMI 侧边栏渲染等早于配置加载的入口现在都会先检查配置是否已加载，未加载时直接跳过
 
 ## [21.1.17] - 2026-09-30
 

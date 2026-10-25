@@ -322,12 +322,23 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec SERVER_SPEC = SERVER.build();
 
     private static boolean validated = false;
+    private static volatile boolean clientLoaded;
 
     private EmiLinkConfig() {}
+
+    /**
+     * Whether the client config has been loaded. Every value read throws before
+     * that point, and NeoForge never loads configs at all when another mod fails
+     * during construction, so the client-side entry points check this first.
+     */
+    public static boolean isClientConfigLoaded() {
+        return clientLoaded;
+    }
 
     /** Called by NeoForge when one of the config files finishes loading. */
     public static void onLoad(ModConfig.Type type) {
         if (type == ModConfig.Type.CLIENT) {
+            clientLoaded = true;
             validated = false;
             validate();
         }
@@ -336,6 +347,7 @@ public final class EmiLinkConfig {
     /** Called by NeoForge when one of the config files is reloaded at runtime. */
     public static void onReload(ModConfig.Type type) {
         if (type == ModConfig.Type.CLIENT) {
+            clientLoaded = true;
             validated = false;
             validate();
         }

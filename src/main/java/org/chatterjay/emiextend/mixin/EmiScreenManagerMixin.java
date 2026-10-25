@@ -77,6 +77,9 @@ public class EmiScreenManagerMixin {
     @Inject(method = "render", at = @At("TAIL"), require = 0)
     private static void emilink$renderSearchHistory(EmiDrawContext context, int mouseX, int mouseY, float delta,
                                                     CallbackInfo ci) {
+        // Nothing below can work before the client config is loaded, and reading
+        // a config value at that point throws.
+        if (!org.chatterjay.emiextend.config.EmiLinkConfig.isClientConfigLoaded()) return;
         SearchHistoryOverlay.render(context.raw(), mouseX, mouseY);
         FavoriteHighlightRenderer.renderOverlays(context.raw());
         emilink$renderDragFillTargets(context.raw(), mouseX, mouseY);

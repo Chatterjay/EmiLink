@@ -485,6 +485,7 @@ public final class EmiInteractionHandler {
     public static List<ClientTooltipComponent> addAeTooltipInfo(
             EmiIngredient hovered, int mouseX, int mouseY, List<ClientTooltipComponent> original) {
         if (original == null || original.isEmpty()) return original;
+        if (!EmiLinkConfig.isClientConfigLoaded()) return original;
 
         List<ClientTooltipComponent> result = original;
         if (hovered != null && !hovered.isEmpty()

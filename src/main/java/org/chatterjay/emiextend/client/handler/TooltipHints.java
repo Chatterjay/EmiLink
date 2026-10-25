@@ -26,6 +26,7 @@ public final class TooltipHints {
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
+        if (!EmiLinkConfig.isClientConfigLoaded()) return;
         if (!EmiLinkConfig.ENABLE_FAVORITE_DRAG_SELECT.get() && !EmiLinkConfig.ENABLE_BATCH_MARK.get()) {
             return;
         }
