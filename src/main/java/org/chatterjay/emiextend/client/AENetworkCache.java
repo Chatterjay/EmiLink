@@ -626,10 +626,6 @@ public final class AENetworkCache {
         }
     }
 
-    public static void receiveResponse(ItemStack stack, long count, boolean craftable) {
-        receiveResponse(stack, count, craftable, true);
-    }
-
     public static void receiveResponse(ItemStack stack, long count, boolean craftable, boolean craftabilityKnown) {
         if (stack == null || stack.isEmpty()) return;
         var keyStack = normalizeKey(stack);

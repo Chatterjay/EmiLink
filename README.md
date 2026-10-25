@@ -29,6 +29,17 @@
 - 服务端有 EmiLink 时使用 EmiLink 自己的查询与缓存，由 EmiLink 的「读取 AE 网络」「网络角标」「网络信息提示」选项控制。
 - 服务端只有 ExtendedAE Plus（没有 EmiLink）时，直接使用 EAEP 同步到客户端的网络快照，并跟随 EAEP 的 `jeiNetworkOverlayEnabled` 设置。
 
+## 配置
+
+配置按侧拆分，同名 config 条目不再混在一个文件里：
+
+| 文件 | 内容 |
+| --- | --- |
+| `config/emilink-client.toml` | 客户端选项：EMI 界面与提示、网络角标与数量提示、缓存、快速合成、按键绑定 |
+| `config/emilink-server.toml` | 服务端选项：服务端调试日志 |
+
+游戏内模组配置界面会分别列出 Client 与 Server 两组；旧的 `emilink-common.toml` 已不再读取。
+
 ## 许可证
 
 本项目使用 AGPL-3.0 许可证。

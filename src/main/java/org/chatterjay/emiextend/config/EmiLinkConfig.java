@@ -1,17 +1,27 @@
 package org.chatterjay.emiextend.config;
 
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.chatterjay.emiextend.util.ModLogger;
 
+/**
+ * EmiLink configuration.
+ * <p>
+ * The options are split by the side that reads them:
+ * <ul>
+ *   <li><b>Client</b> ({@code config/emilink-client.toml}) — everything that
+ *   shapes the EMI UI, the network overlay and tooltips, the client-side cache
+ *   and the key bindings. This is where almost all options live.</li>
+ *   <li><b>Server</b> ({@code config/emilink-server.toml}) — the server-side log
+ *   switch. EmiLink answers the client's queries on the server, so the only
+ *   server-side behaviour a player may want to change is how much it logs.</li>
+ * </ul>
+ * Both files are registered in {@code EmiAE2}; values that are not loaded on the
+ * current side are simply never read (every reader is guarded).
+ */
 public final class EmiLinkConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
-
-    public enum ExtractTrigger {
-        SHIFT,
-        CONTROL,
-        ALT,
-        OFF
-    }
+    private static final ModConfigSpec.Builder CLIENT = new ModConfigSpec.Builder();
+    private static final ModConfigSpec.Builder SERVER = new ModConfigSpec.Builder();
 
     public enum SearchHistoryPosition {
         OFF,
@@ -21,16 +31,18 @@ public final class EmiLinkConfig {
         RIGHT
     }
 
-    // ---- General ----
+    // ---- General (client) ----
     public static final ModConfigSpec.BooleanValue DEBUG_MODE;
-    public static final ModConfigSpec.BooleanValue ENABLE_DEBUG_PACKET_LIMIT;
 
-    // ---- Cache ----
+    // ---- Server ----
+    public static final ModConfigSpec.BooleanValue SERVER_DEBUG_MODE;
+
+    // ---- Cache (client) ----
     public static final ModConfigSpec.LongValue CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue NEGATIVE_CACHE_TTL_MS;
     public static final ModConfigSpec.LongValue BATCH_FLUSH_MS;
 
-    // ---- EMI UI ----
+    // ---- EMI UI (client) ----
     public static final ModConfigSpec.BooleanValue ENABLE_WRAP_BOOK;
     public static final ModConfigSpec.BooleanValue WB_FILL_INPUT_GRID;
     public static final ModConfigSpec.BooleanValue ENABLE_DRAG_FILL;
@@ -53,7 +65,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_BATCH_MARK_FILL;
     public static final ModConfigSpec.BooleanValue SHARED_EDGE_SPLIT;
 
-    // ---- AE / Network Storage ----
+    // ---- AE network (client) ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_TOOLTIPS;
@@ -63,11 +75,11 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_AE_DEPOSIT;
     public static final ModConfigSpec.ConfigValue<String> DEPOSIT_BATCH_MODIFIER;
 
-    // ---- Quick Craft ----
+    // ---- Quick craft (client) ----
     public static final ModConfigSpec.BooleanValue ENABLE_QUICK_CRAFT_TAB;
     public static final ModConfigSpec.IntValue QUICK_CRAFT_BATCHES_PER_TICK;
 
-    // ---- Inventory ----
+    // ---- Inventory (client) ----
     public static final ModConfigSpec.BooleanValue ENABLE_BULK_TRANSFER;
     public static final ModConfigSpec.BooleanValue ENABLE_DISCARD_MATCHING_KEY;
 
@@ -76,241 +88,264 @@ public final class EmiLinkConfig {
     }
 
     static {
-        BUILDER.push("general");
-
-        DEBUG_MODE = BUILDER
+        CLIENT.push("general");
+        DEBUG_MODE = CLIENT
                 .comment("Enable debug logging and debug chat messages")
                 .translation("emilink.config.general.debugMode")
                 .define("debugMode", false);
+        CLIENT.pop();
 
-        ENABLE_DEBUG_PACKET_LIMIT = BUILDER
-                .comment("Limit debug-related packets to 1 per tick to prevent congestion")
-                .translation("emilink.config.general.enableDebugPacketLimit")
-                .define("enableDebugPacketLimit", true);
+        CLIENT.push("cache");
 
-        BUILDER.pop();
-        BUILDER.push("cache");
-
-        CACHE_TTL_MS = BUILDER
+        CACHE_TTL_MS = CLIENT
                 .comment("AE network cache TTL in milliseconds (100-60000)")
                 .translation("emilink.config.cache.cacheTTLMs")
                 .defineInRange("cacheTTLMs", 5_000L, 100L, 60_000L);
 
-        NEGATIVE_CACHE_TTL_MS = BUILDER
+        NEGATIVE_CACHE_TTL_MS = CLIENT
                 .comment("Negative cache (item not found) TTL in milliseconds (100-120000)")
                 .translation("emilink.config.cache.negativeCacheTTLMs")
                 .defineInRange("negativeCacheTTLMs", 5_000L, 100L, 120_000L);
 
-        BATCH_FLUSH_MS = BUILDER
+        BATCH_FLUSH_MS = CLIENT
                 .comment("Batch query flush interval in milliseconds (100-10000). " +
                          "How often pending AE queries are batched and sent to the server.")
                 .translation("emilink.config.cache.batchFlushMs")
                 .defineInRange("batchFlushMs", 5_000L, 100L, 10_000L);
 
-        BUILDER.pop();
-        BUILDER.push("emi_ui");
+        CLIENT.pop();
+        CLIENT.push("emi_ui");
 
-        ENABLE_WRAP_BOOK = BUILDER
+        ENABLE_WRAP_BOOK = CLIENT
                 .comment("Enable wrap processing pattern output as written book (WB mode)")
                 .translation("emilink.config.emi_ui.enableWrapBook")
                 .define("enableWrapBook", true);
 
-        WB_FILL_INPUT_GRID = BUILDER
+        WB_FILL_INPUT_GRID = CLIENT
                 .comment("When wrap book is enabled, also place the original output item into an empty input slot")
                 .translation("emilink.config.emi_ui.wbFillInputGrid")
                 .define("wbFillInputGrid", false);
 
-        ENABLE_DRAG_FILL = BUILDER
+        ENABLE_DRAG_FILL = CLIENT
                 .translation("emilink.config.emi_ui.enableDragFill")
                 .define("enableDragFill", true);
 
-        ENABLE_MOB_SEPARATOR = BUILDER
+        ENABLE_MOB_SEPARATOR = CLIENT
                 .comment("Move mob-related EMI index entries to a separated section. " +
                          "Disable by default because it can be expensive in very large modpacks.")
                 .translation("emilink.config.emi_ui.enableMobSeparator")
                 .define("enableMobSeparator", false);
 
-        BOOKMARK_PRIORITY = BUILDER
+        BOOKMARK_PRIORITY = CLIENT
                 .comment("When encoding processing patterns via EMI recipe transfer, " +
                          "prioritize items from the EMI favorites bar over " +
                          "network-inventory-selected items")
                 .translation("emilink.config.emi_ui.bookmarkPriority")
                 .define("bookmarkPriority", true);
 
-        FAVORITE_PAGE_COUNT = BUILDER
+        FAVORITE_PAGE_COUNT = CLIENT
                 .comment("Minimum number of EMI favorites pages kept available")
                 .translation("emilink.config.emi_ui.favoritePageCount")
                 .defineInRange("favoritePageCount", 5, 1, 50);
 
-        SEARCH_HISTORY_POSITION = BUILDER
+        SEARCH_HISTORY_POSITION = CLIENT
                 .comment("EMI search history overlay position. " +
                          "OFF disables it; AUTO keeps the adaptive default; " +
                          "ABOVE, LEFT, and RIGHT force a side of the search box.")
                 .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
-        ENABLE_COPY_HOVERED_STACK_ID = BUILDER
+        ENABLE_COPY_HOVERED_STACK_ID = CLIENT
                 .comment("Copy the hovered EMI stack id to clipboard with Ctrl+C. " +
                          "Disabled by default to avoid conflicting with normal text copy.")
                 .translation("emilink.config.emi_ui.enableCopyHoveredStackId")
                 .define("enableCopyHoveredStackId", false);
 
-        ENABLE_FAVORITE_DRAG_SELECT = BUILDER
+        ENABLE_FAVORITE_DRAG_SELECT = CLIENT
                 .comment("Drag-select over EMI sidebars while holding the modifier key to batch-favorite stacks and protect them from being unfavorited by the A key")
                 .translation("emilink.config.emi_ui.enableFavoriteDragSelect")
                 .define("enableFavoriteDragSelect", true);
 
-        FAVORITE_DRAG_SELECT_MODIFIER = BUILDER
+        FAVORITE_DRAG_SELECT_MODIFIER = CLIENT
                 .comment("Modifier + left-drag toggles favorite protection: unprotected selections are protected, protected selections are unprotected.")
                 .translation("emilink.config.emi_ui.favoriteDragSelectModifier")
                 .define("favoriteDragSelectModifier", "ALT");
 
-        FAVORITE_PROTECTION_BORDER_COLOR = BUILDER
+        FAVORITE_PROTECTION_BORDER_COLOR = CLIENT
                 .comment("RGB hex color for protected favorite borders, for example FFD700 or #FFD700")
                 .translation("emilink.config.emi_ui.favoriteProtectionBorderColor")
                 .define("favoriteProtectionBorderColor", "FFD700");
 
-        FAVORITE_PROTECTION_BORDER_OPACITY = BUILDER
+        FAVORITE_PROTECTION_BORDER_OPACITY = CLIENT
                 .comment("Opacity of protected favorite borders, from 0 to 255")
                 .translation("emilink.config.emi_ui.favoriteProtectionBorderOpacity")
                 .defineInRange("favoriteProtectionBorderOpacity", 230, 0, 255);
 
-        FAVORITE_PROTECTION_BACKGROUND_COLOR = BUILDER
+        FAVORITE_PROTECTION_BACKGROUND_COLOR = CLIENT
                 .comment("RGB hex color for the active favorite drag-selection background, for example FFD700 or #FFD700")
                 .translation("emilink.config.emi_ui.favoriteProtectionBackgroundColor")
                 .define("favoriteProtectionBackgroundColor", "FFD700");
 
-        FAVORITE_PROTECTION_BACKGROUND_OPACITY = BUILDER
+        FAVORITE_PROTECTION_BACKGROUND_OPACITY = CLIENT
                 .comment("Opacity of the active favorite drag-selection background, from 0 to 255")
                 .translation("emilink.config.emi_ui.favoriteProtectionBackgroundOpacity")
                 .defineInRange("favoriteProtectionBackgroundOpacity", 36, 0, 255);
 
-        ENABLE_BATCH_MARK = BUILDER
+        ENABLE_BATCH_MARK = CLIENT
                 .comment("Enable modifier + right-drag batch marking of EMI sidebar stacks. " +
                          "Dropping one marked stack onto a filter slot fills the remaining marks " +
                          "into the following slots, in the order they were selected.")
                 .translation("emilink.config.emi_ui.enableBatchMark")
                 .define("enableBatchMark", true);
 
-        BATCH_MARK_BORDER_COLOR = BUILDER
+        BATCH_MARK_BORDER_COLOR = CLIENT
                 .comment("RGB hex color for batch-marked outlines, for example 00C8FF or #00C8FF")
                 .translation("emilink.config.emi_ui.batchMarkBorderColor")
                 .define("batchMarkBorderColor", "00C8FF");
 
-        BATCH_MARK_BORDER_OPACITY = BUILDER
+        BATCH_MARK_BORDER_OPACITY = CLIENT
                 .comment("Opacity of batch-marked outlines, from 0 to 255")
                 .translation("emilink.config.emi_ui.batchMarkBorderOpacity")
                 .defineInRange("batchMarkBorderOpacity", 230, 0, 255);
 
-        BATCH_MARK_BACKGROUND_COLOR = BUILDER
+        BATCH_MARK_BACKGROUND_COLOR = CLIENT
                 .comment("RGB hex color for the batch-mark background, for example 00C8FF or #00C8FF")
                 .translation("emilink.config.emi_ui.batchMarkBackgroundColor")
                 .define("batchMarkBackgroundColor", "00C8FF");
 
-        BATCH_MARK_BACKGROUND_OPACITY = BUILDER
+        BATCH_MARK_BACKGROUND_OPACITY = CLIENT
                 .comment("Opacity of the batch-mark background, from 0 to 255")
                 .translation("emilink.config.emi_ui.batchMarkBackgroundOpacity")
                 .defineInRange("batchMarkBackgroundOpacity", 36, 0, 255);
 
-        ENABLE_BATCH_MARK_FILL = BUILDER
+        ENABLE_BATCH_MARK_FILL = CLIENT
                 .comment("After dropping one marked stack onto a filter slot, fill the remaining " +
                          "marks into the following slots. Disable to only mark the dropped slot.")
                 .translation("emilink.config.emi_ui.enableBatchMarkFill")
                 .define("enableBatchMarkFill", true);
 
-        SHARED_EDGE_SPLIT = BUILDER
+        SHARED_EDGE_SPLIT = CLIENT
                 .comment("Draw a border shared by favorite protection and batch marking half in " +
                          "each colour so both outlines connect. Disable to draw shared borders in " +
                          "the batch mark colour only.")
                 .translation("emilink.config.emi_ui.sharedEdgeSplit")
                 .define("sharedEdgeSplit", true);
 
-        BUILDER.pop();
-        BUILDER.push("ae_network");
+        CLIENT.pop();
+        CLIENT.push("ae_network");
 
-        ENABLE_AE_NETWORK_LOOKUP = BUILDER
+        ENABLE_AE_NETWORK_LOOKUP = CLIENT
                 .comment("Read AE network stored and craftable item counts for EMI tooltips, badges, and quick craft")
                 .translation("emilink.config.ae_network.enableAeNetworkLookup")
                 .define("enableAeNetworkLookup", true);
 
-        ENABLE_NETWORK_BADGES = BUILDER
+        ENABLE_NETWORK_BADGES = CLIENT
                 .comment("Show AE network overlays on EMI item icons: bottom stock count and top-right craftable cross")
                 .translation("emilink.config.ae_network.enableNetworkBadges")
                 .define("enableNetworkBadges", false);
 
-        ENABLE_NETWORK_TOOLTIPS = BUILDER
+        ENABLE_NETWORK_TOOLTIPS = CLIENT
                 .comment("Show stored amount and craftability of AE keys in EMI tooltips, " +
                          "including fluids, chemicals and other non-item keys")
                 .translation("emilink.config.ae_network.enableNetworkTooltips")
                 .define("enableNetworkTooltips", true);
 
-        ENABLE_CRAFTABLE_NETWORK_BADGES = BUILDER
+        ENABLE_CRAFTABLE_NETWORK_BADGES = CLIENT
                 .comment("Also query AE craftability for the top-right cross. " +
                          "Disable this on large AE networks to show only stock counts.")
                 .translation("emilink.config.ae_network.enableCraftableNetworkBadges")
                 .define("enableCraftableNetworkBadges", false);
 
-        INITIAL_BADGE_SCAN_LIMIT = BUILDER
+        INITIAL_BADGE_SCAN_LIMIT = CLIENT
                 .comment("Maximum EMI sidebar items queried immediately when an AE terminal opens. " +
                          "Set to 0 to disable the initial badge scan.")
                 .translation("emilink.config.ae_network.initialBadgeScanLimit")
                 .defineInRange("initialBadgeScanLimit", 24, 0, 512);
 
-        EXTRACT_MODIFIER = BUILDER
+        EXTRACT_MODIFIER = CLIENT
                 .comment("Modifier for Click-to-extract from AE/BD network. Any key or mouse button; OFF disables.")
                 .translation("emilink.config.ae_network.extractModifier")
                 .define("extractModifier", "SHIFT");
 
-        ENABLE_AE_DEPOSIT = BUILDER
+        ENABLE_AE_DEPOSIT = CLIENT
                 .comment("Click on the EMI sidebar with a carried item to deposit into AE. " +
                          "Requires a wireless terminal or an open AE2 terminal.")
                 .translation("emilink.config.ae_network.enableAeDeposit")
                 .define("enableAeDeposit", true);
 
-        DEPOSIT_BATCH_MODIFIER = BUILDER
+        DEPOSIT_BATCH_MODIFIER = CLIENT
                 .comment("Modifier for depositing all matching items. Any key or mouse button; OFF disables.")
                 .translation("emilink.config.ae_network.depositBatchModifier")
                 .define("depositBatchModifier", "SHIFT");
 
-        BUILDER.pop();
-        BUILDER.push("quick_craft");
+        CLIENT.pop();
+        CLIENT.push("quick_craft");
 
-        ENABLE_QUICK_CRAFT_TAB = BUILDER
+        ENABLE_QUICK_CRAFT_TAB = CLIENT
                 .comment("Enable recursive BOM automatic workbench crafting")
                 .translation("emilink.config.quick_craft.enableQuickCraft")
                 .define("enableQuickCraftTab", true);
 
-        QUICK_CRAFT_BATCHES_PER_TICK = BUILDER
+        QUICK_CRAFT_BATCHES_PER_TICK = CLIENT
                 .comment("Maximum BOM crafting batches processed in one client tick (1-256)")
                 .translation("emilink.config.quick_craft.batchesPerTick")
                 .defineInRange("batchesPerTick", 64, 1, 256);
 
-        BUILDER.pop();
-        BUILDER.push("inventory");
+        CLIENT.pop();
+        CLIENT.push("inventory");
 
-        ENABLE_BULK_TRANSFER = BUILDER
+        ENABLE_BULK_TRANSFER = CLIENT
                 .comment("Enable Space+Click bulk transfer for regular containers (non-AE, non-BD). " +
                          "Disable if it conflicts with other mods' Space+Click handlers.")
                 .translation("emilink.config.inventory.enableBulkTransfer")
                 .define("enableBulkTransfer", true);
 
-        ENABLE_DISCARD_MATCHING_KEY = BUILDER
+        ENABLE_DISCARD_MATCHING_KEY = CLIENT
                 .comment("Enable Ctrl+Shift+Drop to discard all stacks matching the hovered slot item")
                 .translation("emilink.config.inventory.enableDiscardMatchingKey")
                 .define("enableDiscardMatchingKey", true);
 
-        BUILDER.pop();
+        CLIENT.pop();
+
+        SERVER.push("general");
+
+        SERVER_DEBUG_MODE = SERVER
+                .comment("Enable EmiLink debug logging on the server side. " +
+                         "The client has its own debug switch in emilink-client.toml.")
+                .translation("emilink.config.general.serverDebugMode")
+                .define("debugMode", false);
+
+        SERVER.pop();
     }
 
-    public static final ModConfigSpec SPEC = BUILDER.build();
+    public static final ModConfigSpec CLIENT_SPEC = CLIENT.build();
+    public static final ModConfigSpec SERVER_SPEC = SERVER.build();
 
     private static boolean validated = false;
 
     private EmiLinkConfig() {}
 
+    /** Called by NeoForge when one of the config files finishes loading. */
+    public static void onLoad(ModConfig.Type type) {
+        if (type == ModConfig.Type.CLIENT) {
+            validated = false;
+            validate();
+        }
+    }
+
+    /** Called by NeoForge when one of the config files is reloaded at runtime. */
+    public static void onReload(ModConfig.Type type) {
+        if (type == ModConfig.Type.CLIENT) {
+            validated = false;
+            validate();
+        }
+        ModLogger.debug("Configuration reloaded ({})", type);
+    }
+
     /**
-     * Validate config values on load. If any value is outside expected range,
-     * falls back to spec default and logs a warning. Called once at startup.
+     * Validate the client values on load. If any value is outside the expected
+     * range it falls back to the spec default and logs a warning. Called once
+     * per client config load.
      */
     public static void validate() {
         if (validated) return;
@@ -342,22 +377,6 @@ public final class EmiLinkConfig {
         }
     }
 
-    /** Re-validate on config reload. */
-    public static void onReload() {
-        validated = false;
-        validate();
-        ModLogger.debug("Configuration reloaded");
-    }
-
-    public static ExtractTrigger getFavoriteDragSelectModifier() {
-        String raw = getFavoriteDragSelectKeyName();
-        try {
-            return ExtractTrigger.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
-        } catch (Exception e) {
-            return ExtractTrigger.ALT;
-        }
-    }
-
     /** Raw modifier string normalized for display / key resolution. */
     public static String getFavoriteDragSelectKeyName() {
         try {
@@ -368,11 +387,6 @@ public final class EmiLinkConfig {
         } catch (Exception e) {
             return "ALT";
         }
-    }
-
-    /** Whether the drag-select modifier is disabled via "OFF". */
-    public static boolean isFavoriteDragSelectOff() {
-        return "OFF".equalsIgnoreCase(getFavoriteDragSelectKeyName());
     }
 
     public static String getExtractModifierKeyName() {
@@ -391,17 +405,6 @@ public final class EmiLinkConfig {
             String t = v.trim();
             return t.isEmpty() ? "SHIFT" : t;
         } catch (Exception e) { return "SHIFT"; }
-    }
-
-    /** Legacy accessor kept for compatibility: maps arbitrary key names back to ExtractTrigger where possible. */
-    public static ExtractTrigger getExtractModifier() {
-        try { return ExtractTrigger.valueOf(getExtractModifierKeyName().toUpperCase(java.util.Locale.ROOT)); }
-        catch (Exception e) { return ExtractTrigger.SHIFT; }
-    }
-
-    public static ExtractTrigger getDepositBatchModifier() {
-        try { return ExtractTrigger.valueOf(getDepositBatchModifierKeyName().toUpperCase(java.util.Locale.ROOT)); }
-        catch (Exception e) { return ExtractTrigger.SHIFT; }
     }
 
     public static int getFavoriteProtectionBorderArgb() {

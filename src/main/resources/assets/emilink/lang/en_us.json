@@ -114,6 +114,6 @@
   "emilink.config.inventory.enableDiscardMatchingKey": "Discard Matching Items",
   "emilink.config.inventory.enableDiscardMatchingKey.tooltip": "Hover a slotted item, then press Ctrl+Shift+the vanilla drop key.\nIPN locked slots are skipped.",
 
-  "emilink.config.general.enableDebugPacketLimit": "Debug Packet Limit",
-  "emilink.config.general.enableDebugPacketLimit.tooltip": "Limit debug packet frequency.\nUseful when testing noisy logs."
+  "emilink.config.general.serverDebugMode": "Server Debug Log",
+  "emilink.config.general.serverDebugMode.tooltip": "Print EmiLink debug logs on the server side.\nThe client has its own Debug Mode option."
 }

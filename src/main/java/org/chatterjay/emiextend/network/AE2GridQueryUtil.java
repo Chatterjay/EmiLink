@@ -9,7 +9,7 @@ import org.chatterjay.emiextend.util.BomItemStackMatcher;
 import org.chatterjay.emiextend.util.ModLogger;
 
 /**
- * Shared AE2 grid query logic used by both AEQueryPacket and AEBatchQueryPacket.
+ * Shared AE2 grid query logic used by the AE batch query pipeline.
  * All methods are static and stateless — safe for concurrent usage.
  */
 public final class AE2GridQueryUtil {

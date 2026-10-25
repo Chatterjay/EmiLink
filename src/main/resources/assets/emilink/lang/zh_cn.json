@@ -113,6 +113,6 @@
   "emilink.config.inventory.enableDiscardMatchingKey": "丢弃同类物品",
   "emilink.config.inventory.enableDiscardMatchingKey.tooltip": "悬停槽位物品后按 Ctrl+Shift+原版丢弃键。\n会跳过 IPN 锁定槽位。",
 
-  "emilink.config.general.enableDebugPacketLimit": "调试包限流",
-  "emilink.config.general.enableDebugPacketLimit.tooltip": "限制调试数据包发送频率。\n用于避免日志测试时刷包。"
+  "emilink.config.general.serverDebugMode": "服务端调试日志",
+  "emilink.config.general.serverDebugMode.tooltip": "在服务端输出 EmiLink 调试日志。\n客户端另有自己的调试模式开关。"
 }

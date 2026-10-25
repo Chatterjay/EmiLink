@@ -19,12 +19,10 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import org.chatterjay.emiextend.client.ModKeybindings;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
-import org.chatterjay.emiextend.network.PacketRateLimiter;
 import org.chatterjay.emiextend.network.packet.c2s.AEBatchQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftAmountOverridePacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEAutocraftRequestPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEQuickCraftBatchPacket;
-import org.chatterjay.emiextend.network.packet.c2s.AEQueryPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AELockedSlotsPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDActionPacket;
 import org.chatterjay.emiextend.network.packet.c2s.BDBatchCraftPacket;
@@ -33,7 +31,6 @@ import org.chatterjay.emiextend.network.packet.c2s.AEDepositPacket;
 import org.chatterjay.emiextend.network.packet.c2s.AEExtractPacket;
 import org.chatterjay.emiextend.network.packet.c2s.TransferMatchingPacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEBatchQueryResponsePacket;
-import org.chatterjay.emiextend.network.packet.s2c.AEQueryResponsePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ClearCachePacket;
 import org.chatterjay.emiextend.network.packet.s2c.ServerHasModPacket;
 import org.chatterjay.emiextend.network.packet.s2c.AEQuickCraftBatchResponsePacket;
@@ -45,7 +42,10 @@ public class EmiAE2 {
     public static final String MODID = "emilink";
 
     public EmiAE2(IEventBus modBus, ModContainer container) {
-        container.registerConfig(ModConfig.Type.COMMON, EmiLinkConfig.SPEC);
+        // Client options live in config/emilink-client.toml, the few server-side
+        // options in config/emilink-server.toml.
+        container.registerConfig(ModConfig.Type.CLIENT, EmiLinkConfig.CLIENT_SPEC);
+        container.registerConfig(ModConfig.Type.SERVER, EmiLinkConfig.SERVER_SPEC);
         logIntegrationState();
         if (FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
             registerConfigScreenReflectively(container);
@@ -54,13 +54,13 @@ public class EmiAE2 {
         }
         modBus.addListener((ModConfigEvent.Loading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
-                EmiLinkConfig.validate();
+                EmiLinkConfig.onLoad(e.getConfig().getType());
                 logIntegrationState();
             }
         });
         modBus.addListener((ModConfigEvent.Reloading e) -> {
             if (MODID.equals(e.getConfig().getModId())) {
-                EmiLinkConfig.onReload();
+                EmiLinkConfig.onReload(e.getConfig().getType());
                 logIntegrationState();
             }
         });
@@ -78,7 +78,7 @@ public class EmiAE2 {
                                 .executes(ctx -> {
                                     boolean current = EmiLinkConfig.DEBUG_MODE.get();
                                     EmiLinkConfig.DEBUG_MODE.set(!current);
-                                    EmiLinkConfig.SPEC.save();
+                                    EmiLinkConfig.CLIENT_SPEC.save();
                                     ctx.getSource().sendSuccess(
                                             () -> Component.translatable("emilink.command.debug", stateKey(!current)),
                                             false
@@ -90,7 +90,7 @@ public class EmiAE2 {
                                 .executes(ctx -> {
                                     boolean current = EmiLinkConfig.ENABLE_WRAP_BOOK.get();
                                     EmiLinkConfig.ENABLE_WRAP_BOOK.set(!current);
-                                    EmiLinkConfig.SPEC.save();
+                                    EmiLinkConfig.CLIENT_SPEC.save();
                                     ctx.getSource().sendSuccess(
                                             () -> Component.translatable("emilink.command.wrap_book", stateKey(!current)),
                                             false
@@ -118,7 +118,7 @@ public class EmiAE2 {
                                     else if ("ALT".equals(up)) next = "OFF";
                                     else next = "SHIFT";
                                     EmiLinkConfig.EXTRACT_MODIFIER.set(next);
-                                    EmiLinkConfig.SPEC.save();
+                                    EmiLinkConfig.CLIENT_SPEC.save();
                                     ctx.getSource().sendSuccess(
                                             () -> Component.translatable("emilink.command.extract", next),
                                             false
@@ -180,11 +180,6 @@ public class EmiAE2 {
 
     private void registerAePackets(final PayloadRegistrar registrar) {
         registrar.playToServer(
-                AEQueryPacket.TYPE,
-                AEQueryPacket.STREAM_CODEC,
-                AEQueryPacket::handle
-        );
-        registrar.playToServer(
                 AEAutocraftAmountOverridePacket.TYPE,
                 AEAutocraftAmountOverridePacket.STREAM_CODEC,
                 AEAutocraftAmountOverridePacket::handle
@@ -218,11 +213,6 @@ public class EmiAE2 {
                 AEExtractPacket.TYPE,
                 AEExtractPacket.STREAM_CODEC,
                 AEExtractPacket::handle
-        );
-        registrar.playToClient(
-                AEQueryResponsePacket.TYPE,
-                AEQueryResponsePacket.STREAM_CODEC,
-                AEQueryResponsePacket::handle
         );
         registrar.playToClient(
                 AEBatchQueryResponsePacket.TYPE,
@@ -311,11 +301,6 @@ public class EmiAE2 {
                     // Client doesn't have EmiLink installed — that's fine
                 }
             }
-        }
-
-        @SubscribeEvent
-        public static void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
-            PacketRateLimiter.onTick();
         }
 
         @SubscribeEvent

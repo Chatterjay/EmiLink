@@ -2,6 +2,7 @@ package org.chatterjay.emiextend.util;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,11 +41,24 @@ public final class ModLogger {
         }
     }
 
+    /**
+     * Debug logging is configured per side: the client option controls the client
+     * log, the server option the dedicated server log. Only one of the two config
+     * files is loaded on a given side, so the loaded one wins.
+     */
     private static boolean debugEnabled() {
+        Boolean client = readDebugMode(EmiLinkConfig.DEBUG_MODE);
+        if (client != null) return client;
+        Boolean server = readDebugMode(EmiLinkConfig.SERVER_DEBUG_MODE);
+        return server != null && server;
+    }
+
+    private static Boolean readDebugMode(ModConfigSpec.BooleanValue value) {
         try {
-            return EmiLinkConfig.DEBUG_MODE.get();
-        } catch (IllegalStateException ignored) {
-            return false;
+            return value.get();
+        } catch (Throwable ignored) {
+            // This side's config file is not loaded (or not loaded yet).
+            return null;
         }
     }
 }
