@@ -4,6 +4,7 @@ import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.registry.EmiStackList;
 import dev.emi.emi.search.EmiSearch;
+import org.chatterjay.emiextend.config.EmiLinkConfig;
 import org.chatterjay.emiextend.util.ModLogger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -16,6 +17,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Optional takeover of EMI's item search.
+ *
+ * <p>When {@code emi_ui.takeOverEmiSearch} is on, this cancels
+ * {@link EmiSearch#search(String)} at HEAD and runs the search itself on a
+ * serialized daemon thread, so a superseded query can never publish its results
+ * over a newer one (the original workaround for stale results leaving empty
+ * slots in the EMI sidebar).</p>
+ *
+ * <p>The takeover is disabled by default: cancelling the method also skips every
+ * other mod's HEAD injection on it and prevents EMI's own {@code SearchWorker}
+ * from running, which silences other EMI search addons (query syntax such as
+ * {@code #tag} / {@code @mod} / {@code $id}, creative tab sync) and makes their
+ * searches return nothing.</p>
+ */
 @Mixin(value = EmiSearch.class, remap = false)
 public class EmiSearchMixin {
     @Unique
@@ -25,6 +41,9 @@ public class EmiSearchMixin {
 
     @Inject(method = "search", at = @At("HEAD"), cancellable = true, require = 0)
     private static void emilink$serializeSearch(String query, CallbackInfo ci) {
+        // Reading a config value before the client config is loaded throws, and the
+        // native EMI pipeline is the safe default anyway.
+        if (!EmiLinkConfig.isClientConfigLoaded() || !EmiLinkConfig.TAKE_OVER_EMI_SEARCH.get()) return;
         ci.cancel();
 
         String safeQuery = query == null ? "" : query;

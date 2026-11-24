@@ -22,6 +22,8 @@
 - 新增 EAEP 诊断：调试日志会输出同步状态、条目数、键数与键样本，便于定位"有 EAEP 但没有数量"的问题
 - 修复启动崩溃：AE2 及其附属模组会在 mixin 准备阶段之前就加载 `dev.emi.emi.api.EmiApi`，导致必需的 mixin 配置抛出 `MixinTargetAlreadyLoadedException`；现将 EmiApiMixin 拆到独立的可选配置 `emilink_emi_api.mixins.json`，目标已被提前加载时只跳过该 mixin，不再中断启动
 - 配置未加载时不再崩溃：当其他模组在构造阶段失败时 NeoForge 根本不会加载任何配置文件，此时读取配置会抛 `IllegalStateException: Cannot get config value before config is loaded` 并把整局游戏带崩。客户端 tick、屏幕渲染、物品提示与 EMI 侧边栏渲染等早于配置加载的入口现在都会先检查配置是否已加载，未加载时直接跳过
+- 修复强制暴露网络库存导致的终端卡顿：`AEConfigMixin` 不再无条件覆盖 AE2 的 `isExposeNetworkInventoryToEmi`，改由新增配置项「向 EMI 暴露网络库存」（`ae_network.exposeNetworkInventoryToEmi`，位于 `config/emilink-client.toml`，默认关闭）控制；关闭时完全跟随 AE2 自带的 `provideNetworkInventoryToEmi`，大型网络不会再随玩家库存变化不断重建数千条目的合成列表（issue #10）
+- 修复与 Reliable EMI（原 EMI++）等 EMI 搜索类模组的冲突：`EmiSearchMixin` 不再默认在 HEAD 处 `cancel()` 掉 `EmiSearch.search`，改由新增配置项「接管 EMI 搜索」（`emi_ui.takeOverEmiSearch`，默认关闭）控制。默认走 EMI 原生搜索管线，其他模组在同一个 HEAD 的注入与 EMI 自己的 `SearchWorker` 得以正常执行，`#tag` / `@mod` / `$id` 语法与创造模式标签页同步不再失效、搜索不再返回空结果
 
 ## [21.1.17] - 2026-09-30
 

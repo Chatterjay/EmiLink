@@ -56,6 +56,8 @@
   "emilink.config.emi_ui.favoritePageCount.tooltip": "Minimum favorite pages kept available.\nLong MOB trees may still add temporary pages.",
   "emilink.config.emi_ui.searchHistoryPosition": "Search History Position",
   "emilink.config.emi_ui.searchHistoryPosition.tooltip": "OFF disables search history.\nAUTO keeps the adaptive default.\nABOVE, LEFT, and RIGHT force the history beside the EMI search box.",
+  "emilink.config.emi_ui.takeOverEmiSearch": "Take Over EMI Search",
+  "emilink.config.emi_ui.takeOverEmiSearch.tooltip": "Run EMI's item search from EmiLink instead of EMI's own worker.\nWas a workaround for stale results leaving empty slots in the sidebar.\nDisabled by default: taking over cancels EMI's search method, which silences\nother EMI search addons (#tag / @mod syntax, creative tab sync) and makes\ntheir searches return nothing.",
   "emilink.config.emi_ui.enableCopyHoveredStackId": "Copy Hovered Stack ID",
   "emilink.config.emi_ui.enableCopyHoveredStackId.tooltip": "When enabled, Ctrl+C over an EMI stack copies its id, such as minecraft:dirt.\nDisabled by default to avoid conflicting with normal text copy.",
   "emilink.config.emi_ui.enableFavoriteDragSelect": "Favorite Drag Protection",
@@ -89,6 +91,8 @@
 
   "emilink.config.ae_network.enableAeNetworkLookup": "Read ME Network",
   "emilink.config.ae_network.enableAeNetworkLookup.tooltip": "Enabled by default. Reads ME stored and craftable states for EMI overlays and interactions. When disabled, no ME queries are sent and network information is hidden.",
+  "emilink.config.ae_network.exposeNetworkInventoryToEmi": "Expose Network to EMI",
+  "emilink.config.ae_network.exposeNetworkInventoryToEmi.tooltip": "Force AE2 to hand the whole ME network inventory to EMI.\nAffects EMI's craftables sidebar, missing material hints and recipe availability.\nDisabled by default and follows AE2's own provideNetworkInventoryToEmi option.\nEnabling it on a large network can make the terminal stutter.",
   "emilink.config.ae_network.enableNetworkBadges": "Network Badges",
   "emilink.config.ae_network.enableNetworkBadges.tooltip": "Show ME state on EMI stacks.\nBottom: stored count (k/m/g/t).\nTop-right: cross when the item has a pattern.",
   "emilink.config.ae_network.enableNetworkTooltips": "Network Tooltips",

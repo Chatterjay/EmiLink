@@ -50,6 +50,7 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
     public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
     public static final ModConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
+    public static final ModConfigSpec.BooleanValue TAKE_OVER_EMI_SEARCH;
     public static final ModConfigSpec.BooleanValue ENABLE_COPY_HOVERED_STACK_ID;
     public static final ModConfigSpec.BooleanValue ENABLE_FAVORITE_DRAG_SELECT;
     public static final ModConfigSpec.ConfigValue<String> FAVORITE_DRAG_SELECT_MODIFIER;
@@ -67,6 +68,7 @@ public final class EmiLinkConfig {
 
     // ---- AE network (client) ----
     public static final ModConfigSpec.BooleanValue ENABLE_AE_NETWORK_LOOKUP;
+    public static final ModConfigSpec.BooleanValue EXPOSE_NETWORK_INVENTORY_TO_EMI;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_BADGES;
     public static final ModConfigSpec.BooleanValue ENABLE_NETWORK_TOOLTIPS;
     public static final ModConfigSpec.BooleanValue ENABLE_CRAFTABLE_NETWORK_BADGES;
@@ -155,6 +157,16 @@ public final class EmiLinkConfig {
                 .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
 
+        TAKE_OVER_EMI_SEARCH = CLIENT
+                .comment("Run EMI's item search from EmiLink instead of letting EMI's own search " +
+                         "worker run. This was a workaround for stale results leaving empty slots " +
+                         "in the EMI sidebar. Disabled by default, because taking over cancels " +
+                         "EMI's search method and thereby silences every other EMI search addon " +
+                         "(query syntax such as #tag / @mod, creative tab sync) and makes their " +
+                         "searches return nothing.")
+                .translation("emilink.config.emi_ui.takeOverEmiSearch")
+                .define("takeOverEmiSearch", false);
+
         ENABLE_COPY_HOVERED_STACK_ID = CLIENT
                 .comment("Copy the hovered EMI stack id to clipboard with Ctrl+C. " +
                          "Disabled by default to avoid conflicting with normal text copy.")
@@ -238,6 +250,16 @@ public final class EmiLinkConfig {
                 .comment("Read AE network stored and craftable item counts for EMI tooltips, badges, and quick craft")
                 .translation("emilink.config.ae_network.enableAeNetworkLookup")
                 .define("enableAeNetworkLookup", true);
+
+        EXPOSE_NETWORK_INVENTORY_TO_EMI = CLIENT
+                .comment("Force AE2 to expose the whole ME network inventory to EMI, so EMI's " +
+                         "craftables sidebar, missing material hints and recipe availability " +
+                         "include network contents. Disabled by default, which respects AE2's " +
+                         "own provideNetworkInventoryToEmi option. On a large network enabling " +
+                         "this makes EMI rebuild its craftable list for every stored stack, " +
+                         "which can make terminals stutter.")
+                .translation("emilink.config.ae_network.exposeNetworkInventoryToEmi")
+                .define("exposeNetworkInventoryToEmi", false);
 
         ENABLE_NETWORK_BADGES = CLIENT
                 .comment("Show AE network overlays on EMI item icons: bottom stock count and top-right craftable cross")
