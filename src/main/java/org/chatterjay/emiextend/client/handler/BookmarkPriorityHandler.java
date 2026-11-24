@@ -1,7 +1,9 @@
 package org.chatterjay.emiextend.client.handler;
 
+import appeng.api.stacks.GenericStack;
 import appeng.core.network.serverbound.InventoryActionPacket;
 import appeng.helpers.InventoryAction;
+import appeng.integration.modules.emi.EmiStackHelper;
 import appeng.menu.slot.FakeSlot;
 import dev.emi.emi.api.stack.EmiIngredient;
 import dev.emi.emi.runtime.EmiFavorites;
@@ -10,15 +12,21 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.chatterjay.emiextend.util.ModLogger;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * After EMI recipe transfer fills pattern encoding slots, this handler:
- * 1. Checks user bookmarks for a matching item → uses the bookmarked variant
- * 2. If no bookmark match and the input is a tag, excludes backpack-derived
- *    variants (synthetic favorites) and picks the first clean variant
+ * Bookmark priority for patterns encoded through EMI recipe transfer:
+ * 1. If a user bookmark has the same ID as one of an input's possible stacks → use the bookmarked variant
+ * 2. If no bookmark matches and the input has several variants, exclude backpack-derived variants
+ *    (synthetic favorites)
+ *
+ * Processing patterns ({@link #preferBookmarked}) narrow each input's candidates before AE2 picks and
+ * encodes them, because AE2 skips empty inputs and merges equal stacks: the encoded slots don't line up
+ * with the recipe's inputs. Crafting patterns ({@link #applyBookmarkPriority}) keep one slot per grid
+ * position, so their slots are rewritten after the transfer.
  */
 public final class BookmarkPriorityHandler {
 
@@ -45,7 +53,78 @@ public final class BookmarkPriorityHandler {
     }
 
     /**
-     * For each processing input slot that was filled by the recipe transfer:
+     * Processing patterns: each input's candidate stacks (from {@code EmiStackHelper.ofInputs}), narrowed to
+     * the bookmarked variant (phase 1) or without synthetic variants (phase 2). AE2 then picks among them,
+     * merges equal stacks and writes the slots as usual, with the recipe's amounts and fluids intact.
+     */
+    public static List<List<GenericStack>> preferBookmarked(List<List<GenericStack>> inputs) {
+        if (inputs == null || inputs.isEmpty()) return inputs;
+
+        // Bookmarks as AE keys, in bookmark order (the first matching bookmark wins, as for crafting)
+        var favorites = EmiFavorites.favorites;
+        List<GenericStack> bookmarked = new ArrayList<>();
+        if (favorites != null) {
+            for (var fav : favorites) {
+                if (fav == null) continue;
+                for (var favStack : fav.getEmiStacks()) {
+                    if (favStack == null || favStack.isEmpty()) continue;
+                    var generic = EmiStackHelper.toGenericStack(favStack);
+                    if (generic != null) bookmarked.add(generic);
+                }
+            }
+        }
+        ModLogger.debug("BookmarkPriority: {} inputs, {} bookmarked stacks", inputs.size(), bookmarked.size());
+
+        Set<ResourceLocation> syntheticIds = null;
+        List<List<GenericStack>> result = new ArrayList<>(inputs.size());
+        for (int i = 0; i < inputs.size(); i++) {
+            var candidates = inputs.get(i);
+            if (candidates == null || candidates.isEmpty()) {
+                result.add(candidates);
+                continue;
+            }
+
+            // Phase 1: the bookmarked variant, with the recipe's amount
+            GenericStack chosen = null;
+            for (var fav : bookmarked) {
+                for (var candidate : candidates) {
+                    if (fav.what().getType() == candidate.what().getType()
+                            && fav.what().getId().equals(candidate.what().getId())) {
+                        chosen = new GenericStack(fav.what(), candidate.amount());
+                        break;
+                    }
+                }
+                if (chosen != null) break;
+            }
+            if (chosen != null) {
+                ModLogger.debug("BookmarkPriority: input[{}] uses bookmarked {}", i, chosen.what());
+                result.add(List.of(chosen));
+                continue;
+            }
+
+            // Phase 2: no bookmark match, leave out synthetic (inventory) variants
+            if (candidates.size() > 1) {
+                if (syntheticIds == null) syntheticIds = getSyntheticIds();
+                if (!syntheticIds.isEmpty()) {
+                    List<GenericStack> clean = new ArrayList<>();
+                    for (var candidate : candidates) {
+                        if (!syntheticIds.contains(candidate.what().getId())) clean.add(candidate);
+                    }
+                    if (!clean.isEmpty() && clean.size() < candidates.size()) {
+                        ModLogger.debug("BookmarkPriority: input[{}] without synthetic variants: {} of {}",
+                                i, clean.size(), candidates.size());
+                        result.add(clean);
+                        continue;
+                    }
+                }
+            }
+            result.add(candidates);
+        }
+        return result;
+    }
+
+    /**
+     * Crafting patterns: for each crafting grid slot that was filled by the recipe transfer:
      * 1. If a user-bookmarked stack has the same item ID as any of the
      *    input's possible stacks, use the bookmarked stack
      * 2. Otherwise, if the input is a tag, exclude backpack-derived variants
