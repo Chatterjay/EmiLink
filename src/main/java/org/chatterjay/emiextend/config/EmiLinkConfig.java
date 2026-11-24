@@ -50,7 +50,6 @@ public final class EmiLinkConfig {
     public static final ModConfigSpec.BooleanValue BOOKMARK_PRIORITY;
     public static final ModConfigSpec.IntValue FAVORITE_PAGE_COUNT;
     public static final ModConfigSpec.EnumValue<SearchHistoryPosition> SEARCH_HISTORY_POSITION;
-    public static final ModConfigSpec.BooleanValue TAKE_OVER_EMI_SEARCH;
     public static final ModConfigSpec.BooleanValue ENABLE_COPY_HOVERED_STACK_ID;
     public static final ModConfigSpec.BooleanValue ENABLE_FAVORITE_DRAG_SELECT;
     public static final ModConfigSpec.ConfigValue<String> FAVORITE_DRAG_SELECT_MODIFIER;
@@ -141,16 +140,6 @@ public final class EmiLinkConfig {
                          "ABOVE, LEFT, and RIGHT force a side of the search box.")
                 .translation("emilink.config.emi_ui.searchHistoryPosition")
                 .defineEnum("searchHistoryPosition", SearchHistoryPosition.AUTO);
-
-        TAKE_OVER_EMI_SEARCH = CLIENT
-                .comment("Run EMI's item search from EmiLink instead of letting EMI's own search " +
-                         "worker run. This was a workaround for stale results leaving empty slots " +
-                         "in the EMI sidebar. Disabled by default, because taking over cancels " +
-                         "EMI's search method and thereby silences every other EMI search addon " +
-                         "(query syntax such as #tag / @mod, creative tab sync) and makes their " +
-                         "searches return nothing.")
-                .translation("emilink.config.emi_ui.takeOverEmiSearch")
-                .define("takeOverEmiSearch", false);
 
         ENABLE_COPY_HOVERED_STACK_ID = CLIENT
                 .comment("Copy the hovered EMI stack id to clipboard with Ctrl+C. " +

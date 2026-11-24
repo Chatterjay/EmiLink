@@ -62,8 +62,6 @@
   "emilink.config.emi_ui.favoritePageCount.tooltip": "Minimum favorite pages kept available.\nLong MOB trees may still add temporary pages.",
   "emilink.config.emi_ui.searchHistoryPosition": "Search History Position",
   "emilink.config.emi_ui.searchHistoryPosition.tooltip": "OFF disables search history.\nAUTO keeps the adaptive default.\nABOVE, LEFT, and RIGHT force the history beside the EMI search box.",
-  "emilink.config.emi_ui.takeOverEmiSearch": "Take Over EMI Search",
-  "emilink.config.emi_ui.takeOverEmiSearch.tooltip": "Run EMI's item search from EmiLink instead of EMI's own worker.\nWas a workaround for stale results leaving empty slots in the sidebar.\nDisabled by default: taking over cancels EMI's search method, which silences\nother EMI search addons (#tag / @mod syntax, creative tab sync) and makes\ntheir searches return nothing.",
   "emilink.config.emi_ui.enableCopyHoveredStackId": "Copy Hovered Stack ID",
   "emilink.config.emi_ui.enableCopyHoveredStackId.tooltip": "When enabled, Ctrl+C over an EMI stack copies its id, such as minecraft:dirt.\nDisabled by default to avoid conflicting with normal text copy.",
   "emilink.config.emi_ui.enableFavoriteDragSelect": "Favorite Drag Protection",

@@ -21,7 +21,6 @@
     "BDNetRecipeHandlerMixin",
     "CraftConfirmMenuMixin",
     "EmiFavoritesMixin",
-    "EmiSearchMixin",
     "EmiScreenSpaceMixin",
     "EmiSidebarPanelMixin",
     "MEStorageScreenAccessor",
