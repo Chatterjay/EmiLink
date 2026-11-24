@@ -15,6 +15,7 @@
 - 服务端有 EmiLink 时仍使用 EmiLink 自己的缓存与配置，不受 EAEP 影响
 - 配置按侧拆分：`config/emilink-client.toml` 存放全部客户端选项（EMI 界面、网络角标与提示、缓存、快速合成、按键绑定），`config/emilink-server.toml` 只保留服务端调试日志开关；旧的 `emilink-common.toml` 不再使用
 - 移除未使用的配置与代码：删除 `enableDebugPacketLimit` 调试包限流及其唯一的旧查询包 `AEQueryPacket` / `AEQueryResponsePacket`、`PacketRateLimiter`（客户端已改用批量查询），并清理 `ExtractTrigger` 等无人调用的配置辅助方法
+- 配置分组重排：客户端选项按功能拆成子分区，主开关与其从属项放在一起——`ae_network`（读取 ME 网络总开关、暴露网络库存）、`ae_network.cache`（查询缓存）、`ae_network.badges`（角标总开关、可合成角标、初始扫描上限）、`ae_network.tooltip`、`ae_network.interaction`（提取修饰键、存入总开关、批量存入修饰键）、`emi_ui.favorites`（收藏页数、框选收藏与保护颜色、批量标记与其颜色/填充/共用边框）、`emi_ui.recipe`（成书包裹与其输入格填充、拖拽填入、书签优先）、`emi_ui.search`（搜索历史、接管搜索、复制物品 ID）、`quick_craft`、`inventory`；配置界面中每个子分区各自成为一页，从属项注释统一标注"仅在 XX 开启时生效"
 
 ### 修复
 
@@ -23,7 +24,7 @@
 - 修复启动崩溃：AE2 及其附属模组会在 mixin 准备阶段之前就加载 `dev.emi.emi.api.EmiApi`，导致必需的 mixin 配置抛出 `MixinTargetAlreadyLoadedException`；现将 EmiApiMixin 拆到独立的可选配置 `emilink_emi_api.mixins.json`，目标已被提前加载时只跳过该 mixin，不再中断启动
 - 配置未加载时不再崩溃：当其他模组在构造阶段失败时 NeoForge 根本不会加载任何配置文件，此时读取配置会抛 `IllegalStateException: Cannot get config value before config is loaded` 并把整局游戏带崩。客户端 tick、屏幕渲染、物品提示与 EMI 侧边栏渲染等早于配置加载的入口现在都会先检查配置是否已加载，未加载时直接跳过
 - 修复强制暴露网络库存导致的终端卡顿：`AEConfigMixin` 不再无条件覆盖 AE2 的 `isExposeNetworkInventoryToEmi`，改由新增配置项「向 EMI 暴露网络库存」（`ae_network.exposeNetworkInventoryToEmi`，位于 `config/emilink-client.toml`，默认关闭）控制；关闭时完全跟随 AE2 自带的 `provideNetworkInventoryToEmi`，大型网络不会再随玩家库存变化不断重建数千条目的合成列表（issue #10）
-- 修复与 Reliable EMI（原 EMI++）等 EMI 搜索类模组的冲突：`EmiSearchMixin` 不再默认在 HEAD 处 `cancel()` 掉 `EmiSearch.search`，改由新增配置项「接管 EMI 搜索」（`emi_ui.takeOverEmiSearch`，默认关闭）控制。默认走 EMI 原生搜索管线，其他模组在同一个 HEAD 的注入与 EMI 自己的 `SearchWorker` 得以正常执行，`#tag` / `@mod` / `$id` 语法与创造模式标签页同步不再失效、搜索不再返回空结果
+- 修复与 Reliable EMI（原 EMI++）等 EMI 搜索类模组的冲突：`EmiSearchMixin` 不再默认在 HEAD 处 `cancel()` 掉 `EmiSearch.search`，改由新增配置项「接管 EMI 搜索」（`emi_ui.takeOverEmiSearch`，默认关闭）控制。默认走 EMI 原生搜索管线，其他模组在同一个 HEAD 的注入与 EMI 自己的 `SearchWorker` 得以正常执行，`#tag` / `@mod` / `$id` 语法与创造模式标签页同步不再失效、搜索不再返回空结果；仍受旧版搜索残留空气格问题影响的用户可手动打开该项恢复旧行为
 
 ## [21.1.17] - 2026-09-30
 

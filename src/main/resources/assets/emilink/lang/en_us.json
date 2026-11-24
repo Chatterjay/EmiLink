@@ -26,9 +26,15 @@
 
   "emilink.configuration.title": "EmiLink Config",
   "emilink.configuration.general": "General",
-  "emilink.configuration.cache": "Cache",
   "emilink.configuration.emi_ui": "EMI UI",
+  "emilink.configuration.emi_ui.recipe": "Recipes & Drag",
+  "emilink.configuration.emi_ui.search": "Search",
+  "emilink.configuration.emi_ui.favorites": "Favorites & Marks",
   "emilink.configuration.ae_network": "ME Network",
+  "emilink.configuration.ae_network.cache": "Query Cache",
+  "emilink.configuration.ae_network.badges": "Network Badges",
+  "emilink.configuration.ae_network.tooltip": "Network Tooltips",
+  "emilink.configuration.ae_network.interaction": "Extract & Deposit",
   "emilink.configuration.quick_craft": "Quick Craft",
   "emilink.configuration.inventory": "Inventory",
 

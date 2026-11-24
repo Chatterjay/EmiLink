@@ -26,9 +26,15 @@
 
   "emilink.configuration.title": "EmiLink 配置",
   "emilink.configuration.general": "常规",
-  "emilink.configuration.cache": "缓存",
   "emilink.configuration.emi_ui": "EMI 界面",
+  "emilink.configuration.emi_ui.recipe": "配方与拖拽",
+  "emilink.configuration.emi_ui.search": "搜索",
+  "emilink.configuration.emi_ui.favorites": "收藏与标记",
   "emilink.configuration.ae_network": "ME 网络",
+  "emilink.configuration.ae_network.cache": "查询缓存",
+  "emilink.configuration.ae_network.badges": "网络角标",
+  "emilink.configuration.ae_network.tooltip": "网络提示",
+  "emilink.configuration.ae_network.interaction": "提取与存入",
   "emilink.configuration.quick_craft": "快速合成",
   "emilink.configuration.inventory": "物品栏",
 
